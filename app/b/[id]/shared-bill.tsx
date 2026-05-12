@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Sparkles, Wallet } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ItemsList } from "@/components/items-list";
 import { TotalsPanel } from "@/components/totals-panel";
@@ -141,13 +140,6 @@ export function SharedBill({ data }: { data: StoredBill }) {
           <div className="lg:hidden">
             <ReceiptThumbnail src={data.receiptUrl} />
           </div>
-          <Link
-            href="/"
-            className={buttonVariants({ variant: "ghost", size: "sm" })}
-          >
-            <Sparkles className="h-4 w-4" />
-            <span className="hidden sm:inline">New bill</span>
-          </Link>
           <ThemeToggle />
         </div>
       </header>
