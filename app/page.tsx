@@ -1,65 +1,141 @@
-import Image from "next/image";
+"use client";
+
+import { motion } from "framer-motion";
+import { RotateCcw, Wallet } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { UploadCard } from "@/components/upload-card";
+import { ItemsList } from "@/components/items-list";
+import { TotalsPanel } from "@/components/totals-panel";
+import { ReceiptThumbnail } from "@/components/receipt-thumbnail";
+import { ShareButton } from "@/components/share-button";
+import { useBillStore } from "@/lib/store";
+import { useHydrated } from "@/lib/use-hydrated";
 
 export default function Home() {
+  const hydrated = useHydrated();
+  const items = useBillStore((s) => s.items);
+  const currency = useBillStore((s) => s.currency);
+  const tax = useBillStore((s) => s.tax);
+  const serviceCharge = useBillStore((s) => s.serviceCharge);
+  const rounding = useBillStore((s) => s.rounding);
+  const receipt = useBillStore((s) => s.receiptDataUrl);
+
+  const toggleItem = useBillStore((s) => s.toggleItem);
+  const incSelected = useBillStore((s) => s.incSelected);
+  const decSelected = useBillStore((s) => s.decSelected);
+  const selectAll = useBillStore((s) => s.selectAll);
+  const clearSelection = useBillStore((s) => s.clearSelection);
+  const setTax = useBillStore((s) => s.setTax);
+  const setServiceCharge = useBillStore((s) => s.setServiceCharge);
+  const setRounding = useBillStore((s) => s.setRounding);
+  const reset = useBillStore((s) => s.reset);
+
+  const hasBill = items.length > 0;
+
+  const onReset = () => {
+    if (
+      typeof window !== "undefined" &&
+      window.confirm("Start over? Your current bill will be cleared.")
+    ) {
+      reset();
+    }
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="flex-1 flex flex-col">
+      <header className="sticky top-0 z-30 backdrop-blur-md bg-background/70 border-b border-border/60">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={hasBill ? onReset : undefined}
+            className="flex items-center gap-2"
+            aria-label="Bill Split"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <span className="h-9 w-9 rounded-2xl bg-accent text-accent-foreground flex items-center justify-center shadow-sm shadow-accent/30">
+              <Wallet className="h-5 w-5" />
+            </span>
+            <span className="font-semibold tracking-tight text-base sm:text-lg">
+              Bill Split
+            </span>
+          </button>
+          <div className="flex-1" />
+          {hydrated && hasBill && (
+            <>
+              <div className="lg:hidden">
+                <ReceiptThumbnail src={receipt} />
+              </div>
+              <div className="hidden sm:flex items-center gap-2">
+                <ShareButton />
+                <Button variant="ghost" size="sm" onClick={onReset}>
+                  <RotateCcw className="h-4 w-4" />
+                  New bill
+                </Button>
+              </div>
+            </>
+          )}
+          <ThemeToggle />
         </div>
+      </header>
+
+      <main className="flex-1 mx-auto w-full max-w-5xl px-4 sm:px-6 py-8 sm:py-12">
+        {!hydrated ? (
+          <div className="py-24" />
+        ) : !hasBill ? (
+          <UploadCard />
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            className="grid lg:grid-cols-[1fr_360px] gap-6 items-start"
+          >
+            <div className="space-y-6 min-w-0">
+              <ItemsList
+                items={items}
+                currency={currency}
+                onToggle={toggleItem}
+                onInc={incSelected}
+                onDec={decSelected}
+                onSelectAll={selectAll}
+                onClearSelection={clearSelection}
+              />
+            </div>
+            <aside className="space-y-4 lg:sticky lg:top-24 self-start">
+              <TotalsPanel
+                items={items}
+                currency={currency}
+                tax={tax}
+                serviceCharge={serviceCharge}
+                rounding={rounding}
+                editable
+                onTaxChange={setTax}
+                onServiceChange={setServiceCharge}
+                onRoundingChange={setRounding}
+              />
+              <div className="hidden lg:block">
+                <ReceiptThumbnail src={receipt} />
+              </div>
+              <div className="flex flex-col gap-2 sm:hidden">
+                <ShareButton />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onReset}
+                  className="w-full"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  New bill
+                </Button>
+              </div>
+            </aside>
+          </motion.div>
+        )}
       </main>
+
+      <footer className="border-t border-border/60 py-5 px-4 text-center text-xs text-muted-foreground">
+        Built with Next.js, Tailwind &amp; OpenAI.
+      </footer>
     </div>
   );
 }

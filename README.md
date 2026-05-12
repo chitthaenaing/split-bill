@@ -1,36 +1,87 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bill Split
 
-## Getting Started
+A tiny single-page web app for figuring out exactly how much **you** owe from a shared receipt. Upload a photo, tap the items you had, and the app totals them up — including your proportional share of tax, service charge, and any rounding line on the bill.
 
-First, run the development server:
+## Stack
+
+- **Next.js 16** (App Router) + TypeScript
+- **Tailwind CSS v4** for styling
+- **Zustand** for state, persisted to `localStorage`
+- **Framer Motion** for subtle motion
+- **OpenAI `gpt-4o`** (vision + JSON-schema structured outputs) for receipt parsing
+- **Vercel Blob** for shareable links (receipt image + bill JSON)
+- **lucide-react** for icons
+
+## Getting started
 
 ```bash
+# 1. Install
+npm install
+
+# 2. Configure
+cp .env.local.example .env.local
+# then put your OPENAI_API_KEY in .env.local
+
+# 3. Run
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open <http://localhost:3000>.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Swap the model
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Set `OPENAI_MODEL` in `.env.local` to any OpenAI vision-capable model. Defaults to `gpt-4o`. Try `gpt-4.1` or `gpt-4.1-mini` for newer alternatives, or `gpt-4o-mini` to trade accuracy for cost.
 
-## Learn More
+## How it works
 
-To learn more about Next.js, take a look at the following resources:
+1. **Upload** — drag a receipt image into the dropzone (or tap on mobile).
+2. **Extract** — `/api/extract` sends the image to OpenAI with a JSON schema and gets back `{ items, tax, serviceCharge, rounding, currency }`.
+3. **Pick** — tap each item you had. The totals panel updates live.
+4. **Your share** — the panel shows your items subtotal plus a proportional share of tax, service and rounding. One tap to copy the total.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Tax, service and rounding are editable too — flip the panel into edit mode if the AI got something off or you want to adjust the tip.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Sharing
 
-## Deploy on Vercel
+Hit **Share link** once a bill is loaded. The receipt image and extracted items are uploaded to Vercel Blob and you get a URL like `https://your-app/b/abc123XYZ` you can send to anyone at the table. Each recipient opens the link, picks the items they had, and sees their own total — selections are kept local to each device and never shared.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Set up:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. In your Vercel dashboard, create a Blob store (Storage → Blob → Create).
+2. Copy the **read-write token** and put it in `.env.local`:
+
+   ```
+   BLOB_READ_WRITE_TOKEN=vercel_blob_rw_...
+   ```
+
+3. Locally you can also run `vercel link` followed by `vercel env pull .env.local` if you'd rather not copy by hand.
+
+Tax, service and rounding are read-only on the shared page (they're properties of the bill, not of any one recipient). Recipients see a "New bill" link if they want to start their own.
+
+## Project layout
+
+```
+app/
+  api/extract/route.ts    server route that calls OpenAI
+  api/share/route.ts      server route that writes to Vercel Blob
+  b/[id]/                 the public shared-bill page
+  layout.tsx, page.tsx    single-page app shell
+components/
+  upload-card.tsx         drop zone (empty state)
+  items-list.tsx          item checkboxes / quantity steppers (props-based)
+  totals-panel.tsx        live totals + edit mode (props-based)
+  share-button.tsx        share-link dialog
+  receipt-thumbnail.tsx   side panel + lightbox
+  ui/                     small primitives (button, card, input)
+lib/
+  store.ts                Zustand store for the creator flow
+  calc.ts                 pure split math (unit-testable)
+  openai.ts               prompt + schema
+  share.ts                Vercel Blob put/get helpers (server-only)
+types/bill.ts             shared types
+```
+
+## Notes
+
+- Bill data is kept in `localStorage` so a refresh won't lose your selection. Use "New bill" to reset.
+- No database, no auth — everything happens in your browser and a single server route.
