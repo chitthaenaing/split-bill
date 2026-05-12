@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertCircle,
@@ -30,8 +31,20 @@ export function ShareButton() {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const disabled = !receiptDataUrl || items.length === 0;
+
+  useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
 
   const start = useCallback(async () => {
     if (!receiptDataUrl) {
@@ -111,122 +124,126 @@ export function ShareButton() {
         Share link
       </Button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
-            onClick={close}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-            role="dialog"
-            aria-modal="true"
-          >
-            <motion.div
-              initial={{ scale: 0.96, y: 8 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.96, y: 4 }}
-              transition={{ duration: 0.18 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md rounded-3xl bg-card border border-border shadow-xl shadow-black/20 overflow-hidden"
-            >
-              <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-3">
-                <div>
-                  <h2 className="text-lg font-semibold tracking-tight">
-                    Share your bill
-                  </h2>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Anyone with this link can open the receipt and pick
-                    their own items.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={close}
-                  className="h-8 w-8 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground"
-                  aria-label="Close"
+      {mounted &&
+        createPortal(
+          <AnimatePresence>
+            {open && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                onClick={close}
+                className="fixed inset-0 z-9999 grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
+                role="dialog"
+                aria-modal="true"
+              >
+                <motion.div
+                  initial={{ scale: 0.96, y: 8 }}
+                  animate={{ scale: 1, y: 0 }}
+                  exit={{ scale: 0.96, y: 4 }}
+                  transition={{ duration: 0.18 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full max-w-md overflow-hidden rounded-3xl border border-border bg-card shadow-xl shadow-black/20"
                 >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="px-6 pb-6 space-y-4">
-                {busy && (
-                  <div className="flex items-center gap-3 text-sm text-muted-foreground rounded-2xl bg-muted/50 px-4 py-4">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Uploading receipt and creating link…
-                  </div>
-                )}
-
-                {error && (
-                  <div className="flex items-start gap-2.5 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 rounded-2xl px-4 py-3">
-                    <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                    <span className="flex-1">{error}</span>
-                  </div>
-                )}
-
-                {url && (
-                  <>
-                    <div className="flex items-center gap-2 rounded-2xl bg-muted/60 border border-border px-3.5 py-2.5">
-                      <span className="flex-1 text-sm font-mono truncate select-all">
-                        {url}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={copy}
-                        className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full hover:bg-foreground hover:text-background transition-colors shrink-0"
-                      >
-                        {copied ? (
-                          <>
-                            <Check className="h-3.5 w-3.5" />
-                            Copied
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="h-3.5 w-3.5" />
-                            Copy
-                          </>
-                        )}
-                      </button>
+                  <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-3">
+                    <div>
+                      <h2 className="text-lg font-semibold tracking-tight">
+                        Share your bill
+                      </h2>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Anyone with this link can open the receipt and pick
+                        their own items.
+                      </p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={close}
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
+                      aria-label="Close"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
 
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => window.open(url, "_blank")}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                        Open
-                      </Button>
-                      <Button
-                        variant="accent"
-                        size="sm"
-                        className="flex-1"
-                        onClick={copy}
-                      >
-                        {copied ? (
-                          <>
-                            <Check className="h-4 w-4" />
-                            Copied
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="h-4 w-4" />
-                            Copy link
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </div>
-            </motion.div>
-          </motion.div>
+                  <div className="space-y-4 px-6 pb-6">
+                    {busy && (
+                      <div className="flex items-center gap-3 rounded-2xl bg-muted/50 px-4 py-4 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Uploading receipt and creating link…
+                      </div>
+                    )}
+
+                    {error && (
+                      <div className="flex items-start gap-2.5 rounded-2xl bg-rose-500/10 px-4 py-3 text-sm text-rose-700 dark:text-rose-300">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span className="flex-1">{error}</span>
+                      </div>
+                    )}
+
+                    {url && (
+                      <>
+                        <div className="flex items-center gap-2 rounded-2xl border border-border bg-muted/60 px-3.5 py-2.5">
+                          <span className="flex-1 select-all truncate font-mono text-sm">
+                            {url}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={copy}
+                            className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-foreground hover:text-background"
+                          >
+                            {copied ? (
+                              <>
+                                <Check className="h-3.5 w-3.5" />
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-3.5 w-3.5" />
+                                Copy
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => window.open(url, "_blank")}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                            Open
+                          </Button>
+                          <Button
+                            variant="accent"
+                            size="sm"
+                            className="flex-1"
+                            onClick={copy}
+                          >
+                            {copied ? (
+                              <>
+                                <Check className="h-4 w-4" />
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-4 w-4" />
+                                Copy link
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body
         )}
-      </AnimatePresence>
     </>
   );
 }
