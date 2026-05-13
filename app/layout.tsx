@@ -17,6 +17,13 @@ export const metadata: Metadata = {
   title: "Bill Split — fairly split any restaurant bill",
   description:
     "Upload a photo of your receipt and split the bill — taxes and service charges included — across everyone in your group.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/logo.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/logo.png", sizes: "512x512", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {

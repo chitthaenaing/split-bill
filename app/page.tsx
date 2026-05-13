@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { RotateCcw, Wallet } from "lucide-react";
+import { RotateCcw } from "lucide-react";
+import { AppLogo } from "@/components/app-logo";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UploadCard } from "@/components/upload-card";
@@ -53,9 +54,7 @@ export default function Home() {
             className="flex items-center gap-2"
             aria-label="Bill Split"
           >
-            <span className="h-9 w-9 rounded-2xl bg-accent text-accent-foreground flex items-center justify-center shadow-sm shadow-accent/30">
-              <Wallet className="h-5 w-5" />
-            </span>
+            <AppLogo />
             <span className="font-semibold tracking-tight text-base sm:text-lg">
               Bill Split
             </span>

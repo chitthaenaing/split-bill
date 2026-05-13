@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Sparkles, Wallet } from "lucide-react";
+import { Sparkles } from "lucide-react";
+import { AppLogo } from "@/components/app-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ItemsList } from "@/components/items-list";
 import { TotalsPanel } from "@/components/totals-panel";
@@ -130,9 +131,7 @@ export function SharedBill({ data }: { data: StoredBill }) {
       <header className="sticky top-0 z-30 backdrop-blur-md bg-background/70 border-b border-border/60">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 py-3 flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2">
-            <span className="h-9 w-9 rounded-2xl bg-accent text-accent-foreground flex items-center justify-center shadow-sm shadow-accent/30">
-              <Wallet className="h-5 w-5" />
-            </span>
+            <AppLogo />
             <span className="font-semibold tracking-tight text-base sm:text-lg">
               Bill Split
             </span>
