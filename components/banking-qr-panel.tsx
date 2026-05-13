@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { QrCode, Trash2, Upload } from "lucide-react";
+import { Download, QrCode, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { downloadImageFile } from "@/lib/download-file";
 import { cn } from "@/lib/utils";
 import { useBillStore } from "@/lib/store";
 
@@ -93,6 +94,21 @@ export function BankingQrPanel() {
               />
             </div>
             <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={() =>
+                  void downloadImageFile({
+                    src: bankingQrDataUrl,
+                    baseName: "payment-qr",
+                  })
+                }
+              >
+                <Download className="h-4 w-4" />
+                Download
+              </Button>
               <Button
                 type="button"
                 variant="outline"

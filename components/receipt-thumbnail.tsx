@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { QrCode, Receipt, X } from "lucide-react";
+import { Download, QrCode, Receipt, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { downloadImageFile } from "@/lib/download-file";
 import { cn } from "@/lib/utils";
 
 function isPaymentQrTitle(title: string): boolean {
@@ -26,6 +28,9 @@ export function ReceiptThumbnail({
   className,
   title = "Bill receipt",
   mobileActionLabel,
+  downloadable = false,
+  downloadBaseName,
+  downloadMimeType,
 }: {
   src: string | null;
   className?: string;
@@ -33,12 +38,30 @@ export function ReceiptThumbnail({
   title?: string;
   /** Override the mobile chip label (defaults from `title`). */
   mobileActionLabel?: string;
+  downloadable?: boolean;
+  downloadBaseName?: string;
+  downloadMimeType?: string | null;
 }) {
   const [open, setOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const qr = isPaymentQrTitle(title);
   const HeaderIcon = qr ? QrCode : Receipt;
   const mobileLabel = mobileActionLabel ?? defaultMobileActionLabel(title);
   const MobileIcon = qr ? QrCode : Receipt;
+
+  const onDownload = useCallback(async () => {
+    if (!src || downloading) return;
+    setDownloading(true);
+    try {
+      await downloadImageFile({
+        src,
+        baseName: downloadBaseName ?? title,
+        mimeType: downloadMimeType,
+      });
+    } finally {
+      setDownloading(false);
+    }
+  }, [downloadBaseName, downloadMimeType, downloading, src, title]);
 
   if (!src) return null;
 
@@ -52,7 +75,24 @@ export function ReceiptThumbnail({
       >
         <div className="px-4 py-3 border-b border-border flex items-center gap-2 text-sm font-medium">
           <HeaderIcon className="h-4 w-4 text-muted-foreground" />
-          {title}
+          <span className="min-w-0 flex-1 truncate">{title}</span>
+          {downloadable ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 px-3"
+              onClick={(e) => {
+                e.stopPropagation();
+                void onDownload();
+              }}
+              disabled={downloading}
+              aria-label={`Download ${title}`}
+            >
+              <Download className="h-4 w-4" />
+              {downloading ? "Downloading..." : "Download"}
+            </Button>
+          ) : null}
         </div>
         <button
           type="button"
@@ -100,6 +140,22 @@ export function ReceiptThumbnail({
                 >
                   <X className="h-5 w-5" />
                 </button>
+                {downloadable ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="absolute left-4 top-4 bg-white/10 text-white hover:bg-white/20 border-white/15"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void onDownload();
+                    }}
+                    disabled={downloading}
+                  >
+                    <Download className="h-4 w-4" />
+                    {downloading ? "Downloading..." : "Download"}
+                  </Button>
+                ) : null}
                 <motion.img
                   initial={{ scale: 0.96 }}
                   animate={{ scale: 1 }}

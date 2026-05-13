@@ -142,6 +142,9 @@ export function SharedBill({ data }: { data: StoredBill }) {
               <ReceiptThumbnail
                 src={data.bankingQrUrl}
                 title="Payment QR"
+                downloadable
+                downloadBaseName="payment-qr"
+                downloadMimeType={data.bankingQrContentType}
               />
             ) : null}
             <ReceiptThumbnail src={data.receiptUrl} />
@@ -197,6 +200,9 @@ export function SharedBill({ data }: { data: StoredBill }) {
                 <ReceiptThumbnail
                   src={data.bankingQrUrl}
                   title="Payment QR"
+                  downloadable
+                  downloadBaseName="payment-qr"
+                  downloadMimeType={data.bankingQrContentType}
                 />
               ) : null}
               <div className="hidden lg:block">
