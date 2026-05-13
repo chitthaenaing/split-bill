@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { ItemsList } from "@/components/items-list";
 import { TotalsPanel } from "@/components/totals-panel";
 import { ReceiptThumbnail } from "@/components/receipt-thumbnail";
+import { PaymentProofsSection } from "@/components/payment-proofs-section";
 import type { BillItem, StoredBill } from "@/types/bill";
 
 type Selection = Record<string, number>;
@@ -137,8 +138,14 @@ export function SharedBill({ data }: { data: StoredBill }) {
             </span>
           </Link>
           <div className="flex-1" />
-          <div className="lg:hidden">
-            <ReceiptThumbnail src={data.receiptUrl} />
+          <div className="lg:hidden flex flex-wrap items-center justify-end gap-2">
+            {data.bankingQrUrl ? (
+              <ReceiptThumbnail
+                src={data.bankingQrUrl}
+                title="Pay me (QR)"
+              />
+            ) : null}
+            <ReceiptThumbnail src={data.receiptUrl} title="Receipt" />
           </div>
           <ThemeToggle />
         </div>
@@ -187,9 +194,19 @@ export function SharedBill({ data }: { data: StoredBill }) {
                 rounding={data.rounding}
                 editable={false}
               />
+              {data.bankingQrUrl ? (
+                <ReceiptThumbnail
+                  src={data.bankingQrUrl}
+                  title="Pay me (QR)"
+                />
+              ) : null}
               <div className="hidden lg:block">
-                <ReceiptThumbnail src={data.receiptUrl} />
+                <ReceiptThumbnail src={data.receiptUrl} title="Receipt" />
               </div>
+              <PaymentProofsSection
+                shareId={data.id}
+                receipts={data.paymentReceipts ?? []}
+              />
             </aside>
           </div>
         </motion.div>

@@ -5,6 +5,8 @@ import { uid } from "@/lib/utils";
 
 type State = {
   receiptDataUrl: string | null;
+  /** Optional PromptPay / bank QR image (data URL) included when sharing. */
+  bankingQrDataUrl: string | null;
   currency: string;
   items: BillItem[];
   tax: number;
@@ -14,6 +16,7 @@ type State = {
 
 type Actions = {
   loadFromExtraction: (b: ExtractedBill, receiptDataUrl: string | null) => void;
+  setBankingQrDataUrl: (dataUrl: string | null) => void;
 
   /** Tap whole row: cycle 0 ↔ full quantity. */
   toggleItem: (id: string) => void;
@@ -33,6 +36,7 @@ type Actions = {
 
 const initial: State = {
   receiptDataUrl: null,
+  bankingQrDataUrl: null,
   currency: "USD",
   items: [],
   tax: 0,
@@ -54,6 +58,7 @@ export const useBillStore = create<State & Actions>()(
       loadFromExtraction: (b, receiptDataUrl) => {
         set({
           receiptDataUrl,
+          bankingQrDataUrl: null,
           currency: b.currency || "USD",
           tax: b.tax || 0,
           serviceCharge: b.serviceCharge || 0,
@@ -140,12 +145,16 @@ export const useBillStore = create<State & Actions>()(
         set({ rounding: Number.isFinite(n) ? n : 0 }),
 
       reset: () => set({ ...initial }),
+
+      setBankingQrDataUrl: (dataUrl) =>
+        set({ bankingQrDataUrl: dataUrl && dataUrl.length > 0 ? dataUrl : null }),
     }),
     {
       name: "bill-split",
-      version: 3,
+      version: 4,
       partialize: (s) => ({
         receiptDataUrl: s.receiptDataUrl,
+        bankingQrDataUrl: s.bankingQrDataUrl,
         currency: s.currency,
         items: s.items,
         tax: s.tax,
@@ -188,7 +197,12 @@ export const useBillStore = create<State & Actions>()(
           });
           return { ...initial, ...s, items } as State;
         }
-        return { ...initial, ...s, items: (s.items ?? []) as BillItem[] } as State;
+        return {
+          ...initial,
+          ...s,
+          items: (s.items ?? []) as BillItem[],
+          bankingQrDataUrl: s.bankingQrDataUrl ?? null,
+        } as State;
       },
     }
   )

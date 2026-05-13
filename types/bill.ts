@@ -32,6 +32,14 @@ export type ExtractedBill = {
   total: number;
 };
 
+/** A payment proof image attached to a shared bill by a recipient. */
+export type StoredPaymentReceipt = {
+  id: string;
+  url: string;
+  contentType: string;
+  uploadedAt: number;
+};
+
 /**
  * The shape persisted to Blob storage when a user shares a bill. Recipients
  * load this and run their own independent selection.
@@ -41,6 +49,11 @@ export type StoredBill = {
   createdAt: number;
   receiptUrl: string;
   receiptContentType: string;
+  /** Optional PromptPay / bank QR so recipients can pay the organiser. */
+  bankingQrUrl?: string;
+  bankingQrContentType?: string;
+  /** Screenshots of transfers uploaded by people who opened the share link. */
+  paymentReceipts?: StoredPaymentReceipt[];
   currency: string;
   items: Array<{
     name: string;

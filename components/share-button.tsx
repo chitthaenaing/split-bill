@@ -25,6 +25,7 @@ export function ShareButton() {
   const serviceCharge = useBillStore((s) => s.serviceCharge);
   const rounding = useBillStore((s) => s.rounding);
   const receiptDataUrl = useBillStore((s) => s.receiptDataUrl);
+  const bankingQrDataUrl = useBillStore((s) => s.bankingQrDataUrl);
 
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -63,6 +64,7 @@ export function ShareButton() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           imageDataUrl: receiptDataUrl,
+          ...(bankingQrDataUrl ? { bankingQrDataUrl } : {}),
           bill: {
             currency,
             items: items.map((it) => ({
@@ -90,7 +92,7 @@ export function ShareButton() {
     } finally {
       setBusy(false);
     }
-  }, [items, currency, tax, serviceCharge, rounding, receiptDataUrl]);
+  }, [items, currency, tax, serviceCharge, rounding, receiptDataUrl, bankingQrDataUrl]);
 
   const close = () => {
     setOpen(false);

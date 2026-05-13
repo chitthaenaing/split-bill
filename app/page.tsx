@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { UploadCard } from "@/components/upload-card";
 import { ItemsList } from "@/components/items-list";
 import { TotalsPanel } from "@/components/totals-panel";
+import { BankingQrPanel } from "@/components/banking-qr-panel";
 import { ReceiptThumbnail } from "@/components/receipt-thumbnail";
 import { ShareButton } from "@/components/share-button";
 import { useBillStore } from "@/lib/store";
@@ -63,7 +64,7 @@ export default function Home() {
           {hydrated && hasBill && (
             <>
               <div className="lg:hidden">
-                <ReceiptThumbnail src={receipt} />
+                <ReceiptThumbnail src={receipt} title="Receipt" />
               </div>
               <div className="hidden sm:flex items-center gap-2">
                 <ShareButton />
@@ -113,8 +114,9 @@ export default function Home() {
                 onServiceChange={setServiceCharge}
                 onRoundingChange={setRounding}
               />
+              <BankingQrPanel />
               <div className="hidden lg:block">
-                <ReceiptThumbnail src={receipt} />
+                <ReceiptThumbnail src={receipt} title="Receipt" />
               </div>
               <div className="flex flex-col gap-2 sm:hidden">
                 <ShareButton />

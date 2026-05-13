@@ -10,9 +10,12 @@ import { cn } from "@/lib/utils";
 export function ReceiptThumbnail({
   src,
   className,
+  title = "Receipt",
 }: {
   src: string | null;
   className?: string;
+  /** Card / lightbox heading (e.g. "Receipt", "Pay me (QR)"). */
+  title?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -28,7 +31,7 @@ export function ReceiptThumbnail({
       >
         <div className="px-4 py-3 border-b border-border flex items-center gap-2 text-sm font-medium">
           <Receipt className="h-4 w-4 text-muted-foreground" />
-          Receipt
+          {title}
         </div>
         <button
           type="button"
@@ -39,7 +42,7 @@ export function ReceiptThumbnail({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={src}
-            alt="Receipt"
+            alt={title}
             className="w-full h-auto object-contain"
           />
         </button>
@@ -52,7 +55,7 @@ export function ReceiptThumbnail({
         className="lg:hidden inline-flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-full bg-muted border border-border transition-colors"
       >
         <Receipt className="h-3.5 w-3.5" />
-        View receipt
+        View image
       </button>
 
       {typeof document !== "undefined" &&
@@ -82,7 +85,7 @@ export function ReceiptThumbnail({
                   exit={{ scale: 0.96 }}
                   transition={{ duration: 0.2 }}
                   src={src}
-                  alt="Receipt"
+                  alt={title}
                   className="max-h-[min(100dvh,100%)] max-w-full rounded-2xl object-contain"
                   onClick={(e) => e.stopPropagation()}
                 />

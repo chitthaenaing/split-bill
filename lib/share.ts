@@ -1,7 +1,7 @@
 import "server-only";
 import { list, put } from "@vercel/blob";
 import { customAlphabet } from "nanoid";
-import type { ExtractedBill, StoredBill } from "@/types/bill";
+import type { ExtractedBill, StoredBill, StoredPaymentReceipt } from "@/types/bill";
 
 const newId = customAlphabet(
   "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
@@ -35,10 +35,14 @@ function extensionForMime(mime: string): string {
   return "jpg";
 }
 
+const MAX_PAYMENT_RECEIPTS_PER_BILL = 40;
+
 export async function createShare(opts: {
   imageBuffer: Buffer;
   imageContentType: string;
   bill: ExtractedBill;
+  bankingQrBuffer?: Buffer;
+  bankingQrContentType?: string;
 }): Promise<{ id: string }> {
   ensureToken();
 
@@ -55,11 +59,35 @@ export async function createShare(opts: {
     }
   );
 
+  let bankingQrUrl: string | undefined;
+  let bankingQrContentType: string | undefined;
+  if (
+    opts.bankingQrBuffer &&
+    opts.bankingQrBuffer.length > 0 &&
+    opts.bankingQrContentType
+  ) {
+    const qrExt = extensionForMime(opts.bankingQrContentType);
+    const qrBlob = await put(
+      `bills/${id}/banking-qr.${qrExt}`,
+      opts.bankingQrBuffer,
+      {
+        access: "public",
+        contentType: opts.bankingQrContentType,
+        cacheControlMaxAge: 60 * 60 * 24 * 365,
+      }
+    );
+    bankingQrUrl = qrBlob.url;
+    bankingQrContentType = opts.bankingQrContentType;
+  }
+
   const stored: StoredBill = {
     id,
     createdAt: Date.now(),
     receiptUrl: receiptBlob.url,
     receiptContentType: opts.imageContentType,
+    ...(bankingQrUrl && bankingQrContentType
+      ? { bankingQrUrl, bankingQrContentType }
+      : {}),
     currency: opts.bill.currency,
     items: opts.bill.items,
     tax: opts.bill.tax,
@@ -78,6 +106,62 @@ export async function createShare(opts: {
   );
 
   return { id };
+}
+
+/**
+ * Uploads a payment proof image and appends it to the shared bill metadata.
+ */
+export async function appendPaymentReceipt(opts: {
+  shareId: string;
+  imageBuffer: Buffer;
+  imageContentType: string;
+}): Promise<StoredBill | null> {
+  ensureToken();
+  if (!isValidShareId(opts.shareId)) return null;
+
+  const current = await getShare(opts.shareId);
+  if (!current) return null;
+
+  const existing: StoredPaymentReceipt[] = Array.isArray(
+    current.paymentReceipts
+  )
+    ? current.paymentReceipts
+    : [];
+  if (existing.length >= MAX_PAYMENT_RECEIPTS_PER_BILL) {
+    throw new Error(
+      `This bill already has the maximum number of payment proofs (${MAX_PAYMENT_RECEIPTS_PER_BILL}).`
+    );
+  }
+
+  const proofId = newId();
+  const ext = extensionForMime(opts.imageContentType);
+  const path = `bills/${opts.shareId}/payments/${proofId}.${ext}`;
+
+  const uploaded = await put(path, opts.imageBuffer, {
+    access: "public",
+    contentType: opts.imageContentType,
+    cacheControlMaxAge: 60 * 60 * 24 * 365,
+  });
+
+  const entry: StoredPaymentReceipt = {
+    id: proofId,
+    url: uploaded.url,
+    contentType: opts.imageContentType,
+    uploadedAt: Date.now(),
+  };
+
+  const next: StoredBill = {
+    ...current,
+    paymentReceipts: [...existing, entry],
+  };
+
+  await put(`bills/${opts.shareId}/bill.json`, JSON.stringify(next), {
+    access: "public",
+    contentType: "application/json",
+    cacheControlMaxAge: 60,
+  });
+
+  return next;
 }
 
 export async function getShare(id: string): Promise<StoredBill | null> {

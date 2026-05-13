@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { parseDataUrl } from "@/lib/data-url";
 import { createShare } from "@/lib/share";
 import type { ExtractedBill } from "@/types/bill";
 
@@ -10,20 +11,9 @@ const MAX_BILL_ITEMS = 200;
 
 type Body = {
   imageDataUrl?: string;
+  bankingQrDataUrl?: string;
   bill?: ExtractedBill;
 };
-
-function parseDataUrl(dataUrl: string): {
-  buffer: Buffer;
-  mime: string;
-} | null {
-  const match = /^data:(image\/[A-Za-z0-9.+-]+);base64,(.+)$/.exec(dataUrl);
-  if (!match) return null;
-  const mime = match[1];
-  const buf = Buffer.from(match[2], "base64");
-  if (buf.length === 0) return null;
-  return { buffer: buf, mime };
-}
 
 function sanitizeBill(bill: ExtractedBill): ExtractedBill | null {
   if (!bill || typeof bill !== "object") return null;
@@ -77,10 +67,32 @@ export async function POST(req: Request) {
       );
     }
 
+    let bankingQrBuffer: Buffer | undefined;
+    let bankingQrContentType: string | undefined;
+    if (body.bankingQrDataUrl) {
+      const qr = parseDataUrl(body.bankingQrDataUrl);
+      if (!qr) {
+        return NextResponse.json(
+          { error: "Malformed `bankingQrDataUrl` — expected a base64 image data URL." },
+          { status: 400 }
+        );
+      }
+      if (qr.buffer.length > MAX_IMAGE_BYTES) {
+        return NextResponse.json(
+          { error: "Banking QR image is too large (max 8 MB)." },
+          { status: 413 }
+        );
+      }
+      bankingQrBuffer = qr.buffer;
+      bankingQrContentType = qr.mime;
+    }
+
     const { id } = await createShare({
       imageBuffer: image.buffer,
       imageContentType: image.mime,
       bill,
+      bankingQrBuffer,
+      bankingQrContentType,
     });
 
     const origin = req.headers.get("origin") || new URL(req.url).origin;
