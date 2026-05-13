@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Receipt, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -54,37 +55,42 @@ export function ReceiptThumbnail({
         View receipt
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={() => setOpen(false)}
-            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-          >
-            <button
-              type="button"
-              className="absolute top-4 right-4 h-10 w-10 rounded-full bg-white/10 text-white hover:bg-white/20 flex items-center justify-center"
-              aria-label="Close"
-              onClick={() => setOpen(false)}
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <motion.img
-              initial={{ scale: 0.96 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.96 }}
-              transition={{ duration: 0.2 }}
-              src={src}
-              alt="Receipt"
-              className="max-h-full max-w-full rounded-2xl object-contain"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </motion.div>
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {open && (
+              <motion.div
+                key="receipt-lightbox"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                onClick={() => setOpen(false)}
+                className="fixed inset-0 z-100 flex min-h-0 items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+              >
+                <button
+                  type="button"
+                  className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
+                  aria-label="Close"
+                  onClick={() => setOpen(false)}
+                >
+                  <X className="h-5 w-5" />
+                </button>
+                <motion.img
+                  initial={{ scale: 0.96 }}
+                  animate={{ scale: 1 }}
+                  exit={{ scale: 0.96 }}
+                  transition={{ duration: 0.2 }}
+                  src={src}
+                  alt="Receipt"
+                  className="max-h-[min(100dvh,100%)] max-w-full rounded-2xl object-contain"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body
         )}
-      </AnimatePresence>
     </>
   );
 }
