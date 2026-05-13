@@ -36,6 +36,19 @@ function extensionForMime(mime: string): string {
 }
 
 const MAX_PAYMENT_RECEIPTS_PER_BILL = 40;
+const MAX_PAYER_NAME_LEN = 80;
+
+/** Trim, strip ASCII control chars, cap length. Returns null if empty. */
+export function sanitizePayerName(raw: unknown): string | null {
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  if (s.length === 0) return null;
+  const cleaned = s
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .trim()
+    .slice(0, MAX_PAYER_NAME_LEN);
+  return cleaned.length > 0 ? cleaned : null;
+}
 
 export async function createShare(opts: {
   imageBuffer: Buffer;
@@ -116,6 +129,7 @@ export async function appendPaymentReceipt(opts: {
   shareId: string;
   imageBuffer: Buffer;
   imageContentType: string;
+  payerName: string;
 }): Promise<StoredBill | null> {
   ensureToken();
   if (!isValidShareId(opts.shareId)) return null;
@@ -149,6 +163,7 @@ export async function appendPaymentReceipt(opts: {
     url: uploaded.url,
     contentType: opts.imageContentType,
     uploadedAt: Date.now(),
+    payerName: opts.payerName,
   };
 
   const next: StoredBill = {

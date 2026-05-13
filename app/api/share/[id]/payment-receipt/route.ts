@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { parseDataUrl } from "@/lib/data-url";
-import { appendPaymentReceipt, isValidShareId } from "@/lib/share";
+import {
+  appendPaymentReceipt,
+  isValidShareId,
+  sanitizePayerName,
+} from "@/lib/share";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
-type Body = { imageDataUrl?: string };
+type Body = { imageDataUrl?: string; payerName?: string };
 
 export async function POST(
   req: Request,
@@ -36,10 +40,22 @@ export async function POST(
       );
     }
 
+    const payerName = sanitizePayerName(body.payerName);
+    if (!payerName) {
+      return NextResponse.json(
+        {
+          error:
+            "Add your name (who is paying) so the bill owner can match this proof.",
+        },
+        { status: 400 }
+      );
+    }
+
     const updated = await appendPaymentReceipt({
       shareId: id,
       imageBuffer: image.buffer,
       imageContentType: image.mime,
+      payerName,
     });
 
     if (!updated) {

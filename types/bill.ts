@@ -38,6 +38,8 @@ export type StoredPaymentReceipt = {
   url: string;
   contentType: string;
   uploadedAt: number;
+  /** Who paid — shown to the person who shared the bill. Omitted on older uploads. */
+  payerName?: string;
 };
 
 /**
