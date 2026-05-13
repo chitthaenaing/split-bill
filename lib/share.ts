@@ -102,6 +102,7 @@ export async function createShare(opts: {
       access: "public",
       contentType: "application/json",
       cacheControlMaxAge: 60,
+      allowOverwrite: true,
     }
   );
 
@@ -159,6 +160,7 @@ export async function appendPaymentReceipt(opts: {
     access: "public",
     contentType: "application/json",
     cacheControlMaxAge: 60,
+    allowOverwrite: true,
   });
 
   return next;
