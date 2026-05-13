@@ -142,10 +142,10 @@ export function SharedBill({ data }: { data: StoredBill }) {
             {data.bankingQrUrl ? (
               <ReceiptThumbnail
                 src={data.bankingQrUrl}
-                title="Pay me (QR)"
+                title="Payment QR"
               />
             ) : null}
-            <ReceiptThumbnail src={data.receiptUrl} title="Receipt" />
+            <ReceiptThumbnail src={data.receiptUrl} />
           </div>
           <ThemeToggle />
         </div>
@@ -197,11 +197,11 @@ export function SharedBill({ data }: { data: StoredBill }) {
               {data.bankingQrUrl ? (
                 <ReceiptThumbnail
                   src={data.bankingQrUrl}
-                  title="Pay me (QR)"
+                  title="Payment QR"
                 />
               ) : null}
               <div className="hidden lg:block">
-                <ReceiptThumbnail src={data.receiptUrl} title="Receipt" />
+                <ReceiptThumbnail src={data.receiptUrl} />
               </div>
               <PaymentProofsSection
                 shareId={data.id}

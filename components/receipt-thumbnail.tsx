@@ -3,21 +3,42 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Receipt, X } from "lucide-react";
+import { QrCode, Receipt, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+
+function isPaymentQrTitle(title: string): boolean {
+  const t = title.toLowerCase();
+  return (
+    t.includes("qr") ||
+    t.includes("pay me") ||
+    t.includes("promptpay")
+  );
+}
+
+/** Short label for the mobile pill (not generic “View image”). */
+function defaultMobileActionLabel(title: string): string {
+  return isPaymentQrTitle(title) ? "Scan to pay" : "See the bill";
+}
 
 export function ReceiptThumbnail({
   src,
   className,
-  title = "Receipt",
+  title = "Bill receipt",
+  mobileActionLabel,
 }: {
   src: string | null;
   className?: string;
-  /** Card / lightbox heading (e.g. "Receipt", "Pay me (QR)"). */
+  /** Card / lightbox heading. */
   title?: string;
+  /** Override the mobile chip label (defaults from `title`). */
+  mobileActionLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const qr = isPaymentQrTitle(title);
+  const HeaderIcon = qr ? QrCode : Receipt;
+  const mobileLabel = mobileActionLabel ?? defaultMobileActionLabel(title);
+  const MobileIcon = qr ? QrCode : Receipt;
 
   if (!src) return null;
 
@@ -30,14 +51,14 @@ export function ReceiptThumbnail({
         )}
       >
         <div className="px-4 py-3 border-b border-border flex items-center gap-2 text-sm font-medium">
-          <Receipt className="h-4 w-4 text-muted-foreground" />
+          <HeaderIcon className="h-4 w-4 text-muted-foreground" />
           {title}
         </div>
         <button
           type="button"
           onClick={() => setOpen(true)}
           className="block w-full bg-muted/40 max-h-[60vh] overflow-hidden"
-          aria-label="View receipt fullscreen"
+          aria-label={`Open ${title} fullscreen`}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -54,8 +75,8 @@ export function ReceiptThumbnail({
         onClick={() => setOpen(true)}
         className="lg:hidden inline-flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-full bg-muted border border-border transition-colors"
       >
-        <Receipt className="h-3.5 w-3.5" />
-        View image
+        <MobileIcon className="h-3.5 w-3.5" />
+        {mobileLabel}
       </button>
 
       {typeof document !== "undefined" &&

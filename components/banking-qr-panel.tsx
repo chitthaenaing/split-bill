@@ -53,7 +53,7 @@ export function BankingQrPanel() {
     <Card className="overflow-hidden">
       <div className="px-4 py-3 border-b border-border flex items-center gap-2 text-sm font-medium">
         <QrCode className="h-4 w-4 text-muted-foreground" />
-        Pay me (banking QR)
+        Payment QR
       </div>
       <CardContent className="p-4 space-y-3">
         <p className="text-xs text-muted-foreground leading-relaxed">

@@ -64,7 +64,7 @@ export default function Home() {
           {hydrated && hasBill && (
             <>
               <div className="lg:hidden">
-                <ReceiptThumbnail src={receipt} title="Receipt" />
+                <ReceiptThumbnail src={receipt} />
               </div>
               <div className="hidden sm:flex items-center gap-2">
                 <ShareButton />
@@ -116,7 +116,7 @@ export default function Home() {
               />
               <BankingQrPanel />
               <div className="hidden lg:block">
-                <ReceiptThumbnail src={receipt} title="Receipt" />
+                <ReceiptThumbnail src={receipt} />
               </div>
               <div className="flex flex-col gap-2 sm:hidden">
                 <ShareButton />
