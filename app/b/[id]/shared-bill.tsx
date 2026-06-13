@@ -92,6 +92,20 @@ export function SharedBill({ data }: { data: StoredBill }) {
     if (hydrated) saveSelection(data.id, selection);
   }, [data.id, selection, hydrated]);
 
+  // The notification service worker asks the page to reload (fallback for tabs
+  // it can't navigate directly) so a newly uploaded receipt shows up.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.serviceWorker) return;
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === "bill-split:refresh") {
+        window.location.reload();
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () =>
+      navigator.serviceWorker.removeEventListener("message", onMessage);
+  }, []);
+
   const items = useMemo<BillItem[]>(
     () =>
       baseItems.map((it) => {

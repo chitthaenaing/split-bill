@@ -33,21 +33,41 @@ messaging.onBackgroundMessage((payload) => {
   self.registration.showNotification(title, options);
 });
 
-// Focus (or open) the bill when the notification is clicked.
+// Focus (or open) the bill when the notification is clicked. If a tab for the
+// bill is already open we focus AND reload it, otherwise the just-uploaded
+// receipt (rendered server-side) wouldn't appear in the stale tab.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const target = (event.notification.data && event.notification.data.url) || "/";
+  const absolute = new URL(target, self.location.origin).href;
+
   event.waitUntil(
-    self.clients
-      .matchAll({ type: "window", includeUncontrolled: true })
-      .then((clients) => {
-        for (const client of clients) {
-          if (client.url.includes(target) && "focus" in client) {
-            return client.focus();
+    (async () => {
+      const clients = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+
+      for (const client of clients) {
+        if (client.url.includes(target)) {
+          await client.focus();
+          // Reload so fresh server data is fetched. navigate() only works on
+          // SW-controlled clients; fall back to asking the page to reload.
+          if ("navigate" in client) {
+            try {
+              await client.navigate(absolute);
+              return;
+            } catch {
+              // fall through to the message-based reload
+            }
           }
+          client.postMessage({ type: "bill-split:refresh" });
+          return;
         }
-        return self.clients.openWindow(target);
-      })
+      }
+
+      await self.clients.openWindow(absolute);
+    })()
   );
 });
 
