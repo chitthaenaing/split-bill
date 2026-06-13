@@ -1,5 +1,5 @@
 import "server-only";
-import { list, put } from "@vercel/blob";
+import { del, list, put } from "@vercel/blob";
 import { customAlphabet } from "nanoid";
 import type { ExtractedBill, StoredBill, StoredPaymentReceipt } from "@/types/bill";
 
@@ -114,7 +114,7 @@ export async function createShare(opts: {
     {
       access: "public",
       contentType: "application/json",
-      cacheControlMaxAge: 60,
+      cacheControlMaxAge: 0,
       allowOverwrite: true,
     }
   );
@@ -130,7 +130,7 @@ export async function appendPaymentReceipt(opts: {
   imageBuffer: Buffer;
   imageContentType: string;
   payerName: string;
-}): Promise<StoredBill | null> {
+}): Promise<{ bill: StoredBill; entry: StoredPaymentReceipt } | null> {
   ensureToken();
   if (!isValidShareId(opts.shareId)) return null;
 
@@ -174,7 +174,52 @@ export async function appendPaymentReceipt(opts: {
   await put(`bills/${opts.shareId}/bill.json`, JSON.stringify(next), {
     access: "public",
     contentType: "application/json",
-    cacheControlMaxAge: 60,
+    cacheControlMaxAge: 0,
+    allowOverwrite: true,
+  });
+
+  return { bill: next, entry };
+}
+
+/**
+ * Removes a single payment proof (its blob and its entry in the bill) by id.
+ * Idempotent — a missing receipt id just returns the current bill unchanged.
+ */
+export async function deletePaymentReceipt(opts: {
+  shareId: string;
+  receiptId: string;
+}): Promise<StoredBill | null> {
+  ensureToken();
+  if (!isValidShareId(opts.shareId)) return null;
+  if (!ID_RE.test(opts.receiptId)) return null;
+
+  const current = await getShare(opts.shareId);
+  if (!current) return null;
+
+  const existing: StoredPaymentReceipt[] = Array.isArray(
+    current.paymentReceipts
+  )
+    ? current.paymentReceipts
+    : [];
+  const target = existing.find((r) => r.id === opts.receiptId);
+  if (!target) return current;
+
+  try {
+    await del(target.url);
+  } catch (err) {
+    // The image may already be gone; still drop it from the bill metadata.
+    console.error("[deletePaymentReceipt] blob delete failed", err);
+  }
+
+  const next: StoredBill = {
+    ...current,
+    paymentReceipts: existing.filter((r) => r.id !== opts.receiptId),
+  };
+
+  await put(`bills/${opts.shareId}/bill.json`, JSON.stringify(next), {
+    access: "public",
+    contentType: "application/json",
+    cacheControlMaxAge: 0,
     allowOverwrite: true,
   });
 

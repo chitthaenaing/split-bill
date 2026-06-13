@@ -1,14 +1,51 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, ImageIcon, Loader2, Upload, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import {
+  ChevronDown,
+  ImageIcon,
+  Loader2,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import type { StoredPaymentReceipt } from "@/types/bill";
+
+/**
+ * Proofs uploaded from this device, kept in localStorage so a person can only
+ * delete what they themselves added (there is no account behind a share link).
+ */
+function myProofsKey(shareId: string) {
+  return `bill-split:my-proofs:${shareId}`;
+}
+
+function loadMyProofs(shareId: string): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(myProofsKey(shareId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((v): v is string => typeof v === "string");
+  } catch {
+    return [];
+  }
+}
+
+function saveMyProofs(shareId: string, ids: string[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(myProofsKey(shareId), JSON.stringify(ids));
+  } catch {
+    // quota or denied — ignore
+  }
+}
 
 async function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -85,20 +122,38 @@ function NameAndUploadButton({
 
 export function PaymentProofsSection({
   shareId,
-  receipts,
+  receipts: initialReceipts,
 }: {
   shareId: string;
   receipts: StoredPaymentReceipt[];
 }) {
-  const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
+  // Driven by the server responses (which return the authoritative list) so
+  // uploads/deletes reflect instantly — the shared bill.json is CDN-cached and
+  // a router.refresh() would read a stale copy for up to its cache window.
+  const [receipts, setReceipts] = useState<StoredPaymentReceipt[]>(
+    initialReceipts
+  );
   const [payerName, setPayerName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [myProofs, setMyProofs] = useState<string[]>([]);
+  const [hydrated, setHydrated] = useState(false);
   const [lightbox, setLightbox] = useState<{
     url: string;
     payerName?: string;
   } | null>(null);
+
+  useEffect(() => {
+    setMyProofs(loadMyProofs(shareId));
+    setHydrated(true);
+  }, [shareId]);
+
+  const mine = useCallback(
+    (id: string) => hydrated && myProofs.includes(id),
+    [hydrated, myProofs]
+  );
 
   const hasReceipts = receipts.length > 0;
 
@@ -126,18 +181,74 @@ export function PaymentProofsSection({
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ imageDataUrl, payerName: name }),
         });
-        const data = (await res.json()) as { ok?: boolean; error?: string };
+        const data = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          receiptId?: string;
+          paymentReceipts?: StoredPaymentReceipt[];
+        };
         if (!res.ok || !data.ok) {
           throw new Error(data.error || `Upload failed (${res.status})`);
         }
-        router.refresh();
+        if (Array.isArray(data.paymentReceipts)) {
+          setReceipts(data.paymentReceipts);
+        }
+        if (data.receiptId) {
+          setMyProofs((prev) => {
+            const next = [...prev, data.receiptId!];
+            saveMyProofs(shareId, next);
+            return next;
+          });
+        }
+        setPayerName("");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Upload failed.");
       } finally {
         setBusy(false);
       }
     },
-    [shareId, router, payerName]
+    [shareId, payerName]
+  );
+
+  const onDelete = useCallback(
+    async (receiptId: string) => {
+      if (
+        typeof window !== "undefined" &&
+        !window.confirm("Delete your transfer proof?")
+      ) {
+        return;
+      }
+      setError(null);
+      setDeletingId(receiptId);
+      try {
+        const res = await fetch(`/api/share/${shareId}/payment-receipt`, {
+          method: "DELETE",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ receiptId }),
+        });
+        const data = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          paymentReceipts?: StoredPaymentReceipt[];
+        };
+        if (!res.ok || !data.ok) {
+          throw new Error(data.error || `Delete failed (${res.status})`);
+        }
+        if (Array.isArray(data.paymentReceipts)) {
+          setReceipts(data.paymentReceipts);
+        }
+        setMyProofs((prev) => {
+          const next = prev.filter((id) => id !== receiptId);
+          saveMyProofs(shareId, next);
+          return next;
+        });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Delete failed.");
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [shareId]
   );
 
   const triggerFileDialog = useCallback(() => {
@@ -177,8 +288,10 @@ export function PaymentProofsSection({
             <ul className="space-y-2.5">
               {receipts.map((r) => {
                 const label = (r.payerName ?? "").trim() || "Transfer";
+                const isMine = mine(r.id);
+                const isDeleting = deletingId === r.id;
                 return (
-                  <li key={r.id}>
+                  <li key={r.id} className="relative">
                     <button
                       type="button"
                       onClick={() =>
@@ -197,12 +310,37 @@ export function PaymentProofsSection({
                           className="h-full w-full object-cover"
                         />
                       </div>
-                      <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
+                      <div
+                        className={cn(
+                          "flex min-w-0 flex-1 flex-col justify-center gap-0.5",
+                          isMine && "pr-9"
+                        )}
+                      >
                         <span className="truncate text-sm font-semibold text-foreground">
                           {label}
                         </span>
+                        {isMine ? (
+                          <span className="text-[11px] text-muted-foreground">
+                            You uploaded this
+                          </span>
+                        ) : null}
                       </div>
                     </button>
+                    {isMine ? (
+                      <button
+                        type="button"
+                        onClick={() => onDelete(r.id)}
+                        disabled={isDeleting}
+                        aria-label="Delete your transfer proof"
+                        className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-600 disabled:opacity-50 dark:hover:text-rose-400"
+                      >
+                        {isDeleting ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </button>
+                    ) : null}
                   </li>
                 );
               })}
