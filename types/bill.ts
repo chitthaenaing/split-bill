@@ -62,6 +62,11 @@ export type StoredBill = {
   bankingQrContentType?: string;
   /** Screenshots of transfers uploaded by people who opened the share link. */
   paymentReceipts?: StoredPaymentReceipt[];
+  /**
+   * FCM registration tokens for the sharer's device(s). Used to push a
+   * notification when a recipient uploads a payment receipt.
+   */
+  notifyTokens?: string[];
   currency: string;
   items: Array<{
     name: string;

@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { NotifyToggle } from "@/components/notify-toggle";
 import { useBillStore } from "@/lib/store";
 import { itemsTotal } from "@/lib/calc";
 
@@ -30,6 +31,7 @@ export function ShareButton() {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState<string | null>(null);
+  const [shareId, setShareId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -57,6 +59,7 @@ export function ShareButton() {
     setBusy(true);
     setError(null);
     setUrl(null);
+    setShareId(null);
     try {
       const subtotal = itemsTotal(items);
       const res = await fetch("/api/share", {
@@ -87,6 +90,7 @@ export function ShareButton() {
         );
       }
       setUrl(data.url);
+      setShareId(data.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
@@ -237,6 +241,12 @@ export function ShareButton() {
                             )}
                           </Button>
                         </div>
+
+                        {shareId && (
+                          <div className="border-t border-border pt-4">
+                            <NotifyToggle shareId={shareId} />
+                          </div>
+                        )}
                       </>
                     )}
                   </div>

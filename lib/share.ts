@@ -2,6 +2,7 @@ import "server-only";
 import { del, list, put } from "@vercel/blob";
 import { customAlphabet } from "nanoid";
 import type { ExtractedBill, StoredBill, StoredPaymentReceipt } from "@/types/bill";
+import { sendPushToTokens } from "./firebase-admin";
 
 const newId = customAlphabet(
   "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
@@ -37,6 +38,8 @@ function extensionForMime(mime: string): string {
 
 const MAX_PAYMENT_RECEIPTS_PER_BILL = 40;
 const MAX_PAYER_NAME_LEN = 40;
+const MAX_NOTIFY_TOKENS = 20;
+const MAX_TOKEN_LEN = 4096;
 
 /** Trim, strip ASCII control chars, cap length. Returns null if empty. */
 export function sanitizePayerName(raw: unknown): string | null {
@@ -178,7 +181,71 @@ export async function appendPaymentReceipt(opts: {
     allowOverwrite: true,
   });
 
+  // Best-effort push to the sharer; a notification failure must never break the
+  // upload. Prune any tokens FCM rejects so the stored list stays clean.
+  const tokens = Array.isArray(next.notifyTokens) ? next.notifyTokens : [];
+  if (tokens.length > 0) {
+    try {
+      const { invalidTokens } = await sendPushToTokens(tokens, {
+        title: "New payment receipt",
+        body: `${opts.payerName} uploaded a transfer.`,
+        url: `/b/${opts.shareId}`,
+      });
+      if (invalidTokens.length > 0) {
+        const cleaned: StoredBill = {
+          ...next,
+          notifyTokens: tokens.filter((t) => !invalidTokens.includes(t)),
+        };
+        await put(`bills/${opts.shareId}/bill.json`, JSON.stringify(cleaned), {
+          access: "public",
+          contentType: "application/json",
+          cacheControlMaxAge: 0,
+          allowOverwrite: true,
+        });
+        return { bill: cleaned, entry };
+      }
+    } catch (err) {
+      console.error("[appendPaymentReceipt] push notification failed", err);
+    }
+  }
+
   return { bill: next, entry };
+}
+
+/**
+ * Stores an FCM token for the sharer so they get pushed when a payment proof
+ * is uploaded. De-duplicates and caps the list. Idempotent.
+ */
+export async function registerNotifyToken(opts: {
+  shareId: string;
+  token: string;
+}): Promise<boolean> {
+  ensureToken();
+  if (!isValidShareId(opts.shareId)) return false;
+  const token = String(opts.token || "").trim();
+  if (!token || token.length > MAX_TOKEN_LEN) return false;
+
+  const current = await getShare(opts.shareId);
+  if (!current) return false;
+
+  const existing = Array.isArray(current.notifyTokens)
+    ? current.notifyTokens
+    : [];
+  if (existing.includes(token)) return true;
+
+  const next: StoredBill = {
+    ...current,
+    notifyTokens: [...existing, token].slice(-MAX_NOTIFY_TOKENS),
+  };
+
+  await put(`bills/${opts.shareId}/bill.json`, JSON.stringify(next), {
+    access: "public",
+    contentType: "application/json",
+    cacheControlMaxAge: 0,
+    allowOverwrite: true,
+  });
+
+  return true;
 }
 
 /**
