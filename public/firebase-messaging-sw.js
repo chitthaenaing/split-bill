@@ -50,3 +50,66 @@ self.addEventListener("notificationclick", (event) => {
       })
   );
 });
+
+// ── PWA: installability + lightweight offline support ──────────────────────
+// This SW doubles as the app's PWA worker so we don't register two competing
+// workers at the same scope. Bump the version to invalidate old caches.
+const SHELL_CACHE = "bill-split-shell-v1";
+const STATIC_CACHE = "bill-split-static-v1";
+const CURRENT_CACHES = [SHELL_CACHE, STATIC_CACHE];
+
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((k) => !CURRENT_CACHES.includes(k))
+            .map((k) => caches.delete(k))
+        )
+      )
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  if (req.method !== "GET") return;
+
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+
+  // Immutable, content-hashed build assets: cache-first.
+  if (url.pathname.startsWith("/_next/static/")) {
+    event.respondWith(
+      caches.open(STATIC_CACHE).then(async (cache) => {
+        const hit = await cache.match(req);
+        if (hit) return hit;
+        const res = await fetch(req);
+        if (res.ok) cache.put(req, res.clone());
+        return res;
+      })
+    );
+    return;
+  }
+
+  // Page navigations: network-first, fall back to the cached shell when offline.
+  if (req.mode === "navigate") {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(SHELL_CACHE).then((cache) => cache.put(req, copy));
+          return res;
+        })
+        .catch(() =>
+          caches.match(req).then((cached) => cached || caches.match("/"))
+        )
+    );
+  }
+});
