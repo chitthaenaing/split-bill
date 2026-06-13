@@ -36,7 +36,7 @@ function extensionForMime(mime: string): string {
 }
 
 const MAX_PAYMENT_RECEIPTS_PER_BILL = 40;
-const MAX_PAYER_NAME_LEN = 80;
+const MAX_PAYER_NAME_LEN = 40;
 
 /** Trim, strip ASCII control chars, cap length. Returns null if empty. */
 export function sanitizePayerName(raw: unknown): string | null {

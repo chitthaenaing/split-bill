@@ -62,6 +62,7 @@ function NameAndUploadButton({
   payerName,
   setPayerName,
   onChooseFile,
+  onDropFile,
   error,
   setError,
 }: {
@@ -70,9 +71,20 @@ function NameAndUploadButton({
   payerName: string;
   setPayerName: (v: string) => void;
   onChooseFile: () => void;
+  onDropFile: (file: File) => void;
   error: string | null;
   setError: (v: string | null) => void;
 }) {
+  const [dragActive, setDragActive] = useState(false);
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(false);
+    if (busy) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) onDropFile(file);
+  };
+
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
@@ -90,13 +102,29 @@ function NameAndUploadButton({
             setError(null);
           }}
           placeholder="Who paid?"
-          maxLength={80}
+          maxLength={40}
           disabled={busy}
           autoComplete="name"
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (!busy) setDragActive(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          setDragActive(false);
+        }}
+        onDrop={onDrop}
+        className={cn(
+          "flex flex-col items-center gap-2 rounded-xl border border-dashed px-4 py-5 text-center transition-colors",
+          dragActive
+            ? "border-accent bg-accent/10"
+            : "border-border bg-muted/15"
+        )}
+      >
         <Button
           type="button"
           variant="accent"
@@ -111,6 +139,9 @@ function NameAndUploadButton({
           )}
           Choose screenshot
         </Button>
+        <span className="text-[11px] text-muted-foreground">
+          {dragActive ? "Drop to upload" : "or drag & drop a screenshot here"}
+        </span>
       </div>
 
       {error && (
@@ -354,6 +385,7 @@ export function PaymentProofsSection({
               payerName={payerName}
               setPayerName={setPayerName}
               onChooseFile={triggerFileDialog}
+              onDropFile={upload}
               error={error}
               setError={setError}
             />
@@ -370,6 +402,7 @@ export function PaymentProofsSection({
                   payerName={payerName}
                   setPayerName={setPayerName}
                   onChooseFile={triggerFileDialog}
+                  onDropFile={upload}
                   error={error}
                   setError={setError}
                 />
