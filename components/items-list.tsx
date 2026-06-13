@@ -1,8 +1,8 @@
 "use client";
 
-import { Check, Minus, Plus } from "lucide-react";
+import { Check, Minus, Plus, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { unitPrice } from "@/lib/calc";
+import { itemShare, splitCountOf, unitPrice } from "@/lib/calc";
 import { cn, formatMoney } from "@/lib/utils";
 import type { BillItem } from "@/types/bill";
 
@@ -12,6 +12,8 @@ export type ItemsListProps = {
   onToggle: (id: string) => void;
   onInc: (id: string) => void;
   onDec: (id: string) => void;
+  onIncSplit: (id: string) => void;
+  onDecSplit: (id: string) => void;
   onSelectAll: () => void;
   onClearSelection: () => void;
 };
@@ -22,6 +24,8 @@ export function ItemsList({
   onToggle,
   onInc,
   onDec,
+  onIncSplit,
+  onDecSplit,
   onSelectAll,
   onClearSelection,
 }: ItemsListProps) {
@@ -77,6 +81,8 @@ export function ItemsList({
               onToggle={() => onToggle(it.id)}
               onInc={() => onInc(it.id)}
               onDec={() => onDec(it.id)}
+              onIncSplit={() => onIncSplit(it.id)}
+              onDecSplit={() => onDecSplit(it.id)}
             />
           ))
         )}
@@ -91,15 +97,22 @@ function ItemRow({
   onToggle,
   onInc,
   onDec,
+  onIncSplit,
+  onDecSplit,
 }: {
   item: BillItem;
   currency: string;
   onToggle: () => void;
   onInc: () => void;
   onDec: () => void;
+  onIncSplit: () => void;
+  onDecSplit: () => void;
 }) {
   const lineTotal = item.price || 0;
-  const yourShare = unitPrice(item) * (item.selectedQuantity || 0);
+  const splitCount = splitCountOf(item);
+  const yourShare = itemShare(item);
+  /** What the user pays differs from the line total when taking a subset or sharing. */
+  const showsShare = item.selectedQuantity > 0 && yourShare !== lineTotal;
 
   const fullySelected =
     item.selectedQuantity > 0 &&
@@ -164,7 +177,7 @@ function ItemRow({
         </span>
 
         <span className="text-right shrink-0">
-          {partiallySelected ? (
+          {showsShare ? (
             <>
               <span className="block text-sm font-medium tabular-nums">
                 {formatMoney(yourShare, currency)}
@@ -186,14 +199,41 @@ function ItemRow({
         </span>
       </button>
 
-      {hasStepper && (
-        <div className="flex items-center justify-end gap-2 pl-12 pr-3 pb-2.5 -mt-1">
-          <Stepper
-            value={item.selectedQuantity}
-            max={item.quantity}
-            onInc={onInc}
-            onDec={onDec}
-          />
+      {(hasStepper || someSelected) && (
+        <div className="flex items-center justify-end gap-x-4 gap-y-2 flex-wrap pl-12 pr-3 pb-2.5 -mt-1">
+          {someSelected && (
+            <div className="flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                <Users className="h-3 w-3" />
+                Split
+              </span>
+              <Stepper
+                value={splitCount}
+                min={1}
+                onInc={onIncSplit}
+                onDec={onDecSplit}
+                formatValue={(v) => `${v}`}
+                suffix={
+                  splitCount > 1
+                    ? `${formatMoney(yourShare, currency)} each`
+                    : undefined
+                }
+              />
+            </div>
+          )}
+          {hasStepper && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-medium text-muted-foreground">
+                Qty
+              </span>
+              <Stepper
+                value={item.selectedQuantity}
+                max={item.quantity}
+                onInc={onInc}
+                onDec={onDec}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -202,34 +242,47 @@ function ItemRow({
 
 function Stepper({
   value,
+  min = 0,
   max,
   onInc,
   onDec,
+  formatValue,
+  suffix,
 }: {
   value: number;
-  max: number;
+  min?: number;
+  max?: number;
   onInc: () => void;
   onDec: () => void;
+  formatValue?: (v: number) => string;
+  suffix?: string;
 }) {
   return (
-    <div className="inline-flex items-center gap-1 rounded-full bg-card/80 border border-border p-0.5 shadow-sm shadow-black/[0.02]">
-      <StepButton
-        onClick={onDec}
-        disabled={value <= 0}
-        ariaLabel="Decrease"
-      >
-        <Minus className="h-3.5 w-3.5" />
-      </StepButton>
-      <span className="min-w-8 text-center text-xs font-semibold tabular-nums select-none px-0.5">
-        {value} / {max}
-      </span>
-      <StepButton
-        onClick={onInc}
-        disabled={value >= max}
-        ariaLabel="Increase"
-      >
-        <Plus className="h-3.5 w-3.5" />
-      </StepButton>
+    <div className="inline-flex items-center gap-1.5">
+      <div className="inline-flex items-center gap-1 rounded-full bg-card/80 border border-border p-0.5 shadow-sm shadow-black/[0.02]">
+        <StepButton
+          onClick={onDec}
+          disabled={value <= min}
+          ariaLabel="Decrease"
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </StepButton>
+        <span className="min-w-8 text-center text-xs font-semibold tabular-nums select-none px-0.5">
+          {formatValue ? formatValue(value) : `${value} / ${max}`}
+        </span>
+        <StepButton
+          onClick={onInc}
+          disabled={max !== undefined && value >= max}
+          ariaLabel="Increase"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </StepButton>
+      </div>
+      {suffix && (
+        <span className="text-[11px] text-muted-foreground tabular-nums">
+          {suffix}
+        </span>
+      )}
     </div>
   );
 }

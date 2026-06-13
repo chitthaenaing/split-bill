@@ -12,10 +12,31 @@ import { ReceiptThumbnail } from "@/components/receipt-thumbnail";
 import { PaymentProofsSection } from "@/components/payment-proofs-section";
 import type { BillItem, StoredBill } from "@/types/bill";
 
-type Selection = Record<string, number>;
+/** Per-item picked state for one device: units taken and people splitting them. */
+type Pick = { qty: number; split: number };
+type Selection = Record<string, Pick>;
 
 function storageKey(id: string) {
   return `bill-split:share:${id}`;
+}
+
+/** Read a pick from either the legacy `number` format or the `{qty, split}` one. */
+function toPick(v: unknown): Pick | null {
+  if (typeof v === "number" && Number.isFinite(v) && v >= 0) {
+    return { qty: Math.floor(v), split: 1 };
+  }
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    const qty = Number(o.qty);
+    const split = Number(o.split);
+    if (Number.isFinite(qty) && qty >= 0) {
+      return {
+        qty: Math.floor(qty),
+        split: Number.isFinite(split) && split >= 1 ? Math.floor(split) : 1,
+      };
+    }
+  }
+  return null;
 }
 
 function loadSelection(id: string): Selection {
@@ -27,8 +48,8 @@ function loadSelection(id: string): Selection {
     if (!parsed || typeof parsed !== "object") return {};
     const out: Selection = {};
     for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-      const n = Number(v);
-      if (Number.isFinite(n) && n >= 0) out[k] = Math.floor(n);
+      const pick = toPick(v);
+      if (pick) out[k] = pick;
     }
     return out;
   } catch {
@@ -54,6 +75,7 @@ export function SharedBill({ data }: { data: StoredBill }) {
         price: it.price,
         quantity: Math.max(1, it.quantity || 1),
         selectedQuantity: 0,
+        splitCount: 1,
       })),
     [data.items]
   );
@@ -72,17 +94,21 @@ export function SharedBill({ data }: { data: StoredBill }) {
 
   const items = useMemo<BillItem[]>(
     () =>
-      baseItems.map((it) => ({
-        ...it,
-        selectedQuantity: Math.min(
-          it.quantity,
-          Math.max(0, selection[it.id] ?? 0)
-        ),
-      })),
+      baseItems.map((it) => {
+        const pick = selection[it.id];
+        return {
+          ...it,
+          selectedQuantity: Math.min(
+            it.quantity,
+            Math.max(0, pick?.qty ?? 0)
+          ),
+          splitCount: Math.max(1, pick?.split ?? 1),
+        };
+      }),
     [baseItems, selection]
   );
 
-  const clamp = useCallback(
+  const clampQty = useCallback(
     (id: string, n: number) => {
       const base = baseItems.find((it) => it.id === id);
       if (!base) return 0;
@@ -91,34 +117,69 @@ export function SharedBill({ data }: { data: StoredBill }) {
     [baseItems]
   );
 
+  /** Update one item's pick, defaulting missing fields. */
+  const updatePick = useCallback(
+    (sel: Selection, id: string, patch: Partial<Pick>): Selection => {
+      const current = sel[id] ?? { qty: 0, split: 1 };
+      return { ...sel, [id]: { ...current, ...patch } };
+    },
+    []
+  );
+
   const onToggle = useCallback(
     (id: string) =>
       setSelection((sel) => {
         const base = baseItems.find((it) => it.id === id);
         if (!base) return sel;
-        const current = sel[id] ?? 0;
-        return { ...sel, [id]: current > 0 ? 0 : base.quantity };
+        const current = sel[id]?.qty ?? 0;
+        return updatePick(sel, id, { qty: current > 0 ? 0 : base.quantity });
       }),
-    [baseItems]
+    [baseItems, updatePick]
   );
 
   const onInc = useCallback(
     (id: string) =>
-      setSelection((sel) => ({ ...sel, [id]: clamp(id, (sel[id] ?? 0) + 1) })),
-    [clamp]
+      setSelection((sel) =>
+        updatePick(sel, id, { qty: clampQty(id, (sel[id]?.qty ?? 0) + 1) })
+      ),
+    [clampQty, updatePick]
   );
 
   const onDec = useCallback(
     (id: string) =>
-      setSelection((sel) => ({ ...sel, [id]: clamp(id, (sel[id] ?? 0) - 1) })),
-    [clamp]
+      setSelection((sel) =>
+        updatePick(sel, id, { qty: clampQty(id, (sel[id]?.qty ?? 0) - 1) })
+      ),
+    [clampQty, updatePick]
+  );
+
+  const onIncSplit = useCallback(
+    (id: string) =>
+      setSelection((sel) =>
+        updatePick(sel, id, {
+          split: Math.max(1, (sel[id]?.split ?? 1) + 1),
+        })
+      ),
+    [updatePick]
+  );
+
+  const onDecSplit = useCallback(
+    (id: string) =>
+      setSelection((sel) =>
+        updatePick(sel, id, {
+          split: Math.max(1, (sel[id]?.split ?? 1) - 1),
+        })
+      ),
+    [updatePick]
   );
 
   const onSelectAll = useCallback(
     () =>
-      setSelection(() => {
+      setSelection((sel) => {
         const next: Selection = {};
-        for (const it of baseItems) next[it.id] = it.quantity;
+        for (const it of baseItems) {
+          next[it.id] = { qty: it.quantity, split: sel[it.id]?.split ?? 1 };
+        }
         return next;
       }),
     [baseItems]
@@ -183,6 +244,8 @@ export function SharedBill({ data }: { data: StoredBill }) {
                 onToggle={onToggle}
                 onInc={onInc}
                 onDec={onDec}
+                onIncSplit={onIncSplit}
+                onDecSplit={onDecSplit}
                 onSelectAll={onSelectAll}
                 onClearSelection={onClearSelection}
               />

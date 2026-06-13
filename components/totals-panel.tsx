@@ -6,7 +6,7 @@ import { Check, Copy, Pencil } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { computeSplit } from "@/lib/calc";
-import { cn, formatMoney } from "@/lib/utils";
+import { cn, formatMoney, formatMoneyPlain } from "@/lib/utils";
 import type { BillItem } from "@/types/bill";
 
 export type TotalsPanelProps = {
@@ -46,9 +46,7 @@ export function TotalsPanel({
 
   const copyTotal = async () => {
     try {
-      await navigator.clipboard.writeText(
-        formatMoney(split.total, currency)
-      );
+      await navigator.clipboard.writeText(formatMoneyPlain(split.total));
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {

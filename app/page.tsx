@@ -26,6 +26,8 @@ export default function Home() {
   const toggleItem = useBillStore((s) => s.toggleItem);
   const incSelected = useBillStore((s) => s.incSelected);
   const decSelected = useBillStore((s) => s.decSelected);
+  const incSplit = useBillStore((s) => s.incSplit);
+  const decSplit = useBillStore((s) => s.decSplit);
   const selectAll = useBillStore((s) => s.selectAll);
   const clearSelection = useBillStore((s) => s.clearSelection);
   const setTax = useBillStore((s) => s.setTax);
@@ -97,6 +99,8 @@ export default function Home() {
                 onToggle={toggleItem}
                 onInc={incSelected}
                 onDec={decSelected}
+                onIncSplit={incSplit}
+                onDecSplit={decSplit}
                 onSelectAll={selectAll}
                 onClearSelection={clearSelection}
               />

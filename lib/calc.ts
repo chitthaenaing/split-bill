@@ -13,6 +13,19 @@ export function unitPrice(item: BillItem): number {
   return (item.price || 0) / q;
 }
 
+/** How many ways the user's portion of this line is split. Always ≥ 1. */
+export function splitCountOf(item: BillItem): number {
+  return Math.max(1, Math.floor(item.splitCount || 1));
+}
+
+/**
+ * What the user owes for this single line: the per-unit price times the units
+ * they selected, divided by however many people they're splitting it with.
+ */
+export function itemShare(item: BillItem): number {
+  return (unitPrice(item) * (item.selectedQuantity || 0)) / splitCountOf(item);
+}
+
 /**
  * Sum every item line on the receipt (the printed line totals), regardless of
  * selection. This is the denominator we use to split tax / service / rounding
@@ -36,10 +49,7 @@ export function computeSplit(
   rounding: number
 ): SplitBreakdown {
   const fullTotal = itemsTotal(items);
-  const selectedSubtotal = items.reduce(
-    (s, it) => s + unitPrice(it) * (it.selectedQuantity || 0),
-    0
-  );
+  const selectedSubtotal = items.reduce((s, it) => s + itemShare(it), 0);
 
   const ratio =
     fullTotal > 0 && selectedSubtotal > 0

@@ -10,6 +10,12 @@ export type BillItem = {
   quantity: number;
   /** How many of this line the user is taking. 0 ≤ selectedQuantity ≤ quantity. */
   selectedQuantity: number;
+  /**
+   * How many people are splitting the user's selected portion of this line.
+   * The user pays one equal share, so their cost is the selected portion
+   * divided by `splitCount`. 1 means "not shared". Always ≥ 1.
+   */
+  splitCount: number;
 };
 
 export type ExtractedBill = {

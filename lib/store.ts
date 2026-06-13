@@ -24,6 +24,11 @@ type Actions = {
   incSelected: (id: string) => void;
   decSelected: (id: string) => void;
 
+  /** How many people split this line. Clamped to ≥ 1. */
+  setSplitCount: (id: string, n: number) => void;
+  incSplit: (id: string) => void;
+  decSplit: (id: string) => void;
+
   selectAll: () => void;
   clearSelection: () => void;
 
@@ -50,6 +55,10 @@ function clampSelected(it: BillItem, n: number): number {
   return Math.min(v, q);
 }
 
+function clampSplit(n: number): number {
+  return Math.max(1, Math.floor(Number.isFinite(n) ? n : 1));
+}
+
 export const useBillStore = create<State & Actions>()(
   persist(
     (set) => ({
@@ -69,6 +78,7 @@ export const useBillStore = create<State & Actions>()(
             price: it.price,
             quantity: Math.max(1, it.quantity || 1),
             selectedQuantity: 0,
+            splitCount: 1,
           })),
         });
       },
@@ -125,6 +135,31 @@ export const useBillStore = create<State & Actions>()(
           ),
         })),
 
+      setSplitCount: (id, n) =>
+        set((s) => ({
+          items: s.items.map((it) =>
+            it.id === id ? { ...it, splitCount: clampSplit(n) } : it
+          ),
+        })),
+
+      incSplit: (id) =>
+        set((s) => ({
+          items: s.items.map((it) =>
+            it.id === id
+              ? { ...it, splitCount: clampSplit(it.splitCount + 1) }
+              : it
+          ),
+        })),
+
+      decSplit: (id) =>
+        set((s) => ({
+          items: s.items.map((it) =>
+            it.id === id
+              ? { ...it, splitCount: clampSplit(it.splitCount - 1) }
+              : it
+          ),
+        })),
+
       selectAll: () =>
         set((s) => ({
           items: s.items.map((it) => ({
@@ -151,7 +186,7 @@ export const useBillStore = create<State & Actions>()(
     }),
     {
       name: "bill-split",
-      version: 4,
+      version: 5,
       partialize: (s) => ({
         receiptDataUrl: s.receiptDataUrl,
         bankingQrDataUrl: s.bankingQrDataUrl,
@@ -169,6 +204,7 @@ export const useBillStore = create<State & Actions>()(
           quantity?: number;
           selected?: boolean;
           selectedQuantity?: number;
+          splitCount?: number;
         };
         type LegacyState = Omit<Partial<State>, "items"> & {
           items?: LegacyItem[];
@@ -193,6 +229,7 @@ export const useBillStore = create<State & Actions>()(
               price: it.price ?? 0,
               quantity,
               selectedQuantity,
+              splitCount: clampSplit(it.splitCount ?? 1),
             };
           });
           return { ...initial, ...s, items } as State;
@@ -200,7 +237,14 @@ export const useBillStore = create<State & Actions>()(
         return {
           ...initial,
           ...s,
-          items: (s.items ?? []) as BillItem[],
+          items: (s.items ?? []).map((it) => ({
+            id: it.id ?? uid("itm"),
+            name: it.name ?? "",
+            price: it.price ?? 0,
+            quantity: Math.max(1, it.quantity ?? 1),
+            selectedQuantity: it.selectedQuantity ?? 0,
+            splitCount: clampSplit(it.splitCount ?? 1),
+          })) as BillItem[],
           bankingQrDataUrl: s.bankingQrDataUrl ?? null,
         } as State;
       },
