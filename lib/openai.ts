@@ -45,12 +45,15 @@ What goes in each field:
 
 Accuracy guidance:
 - Locale decimals: "1.234,56" means 1234.56 in many EU receipts; "1,234.56" means 1234.56 in US/UK. Always emit a JSON number (1234.56), never a string.
+- Thai / Southeast Asian receipts often use \u0e3f / THB and may show VAT 7% and/or service. Only extract tax and service amounts that are explicitly printed \u2014 never invent a percentage-based charge.
 - Watch for OCR confusables: 0/O, 1/I/l, 5/S, 8/B. Prefer the reading that makes the arithmetic check out.
+- Clean item names: drop trailing OCR garbage like "1.." or lone dots. Keep the real product name.
 - Discount / promo / coupon lines belong in "items" with a negative price (or reduce the parent line if clearly attached).
 - Before answering, run this self-check and fix anything that fails:
     sum(items[i].price) \u2248 subtotal
     if taxInclusive:  subtotal + serviceCharge + rounding \u2248 total
     else:             subtotal + tax + serviceCharge + rounding \u2248 total
+  The printed TOTAL / AMOUNT DUE is authoritative. If your tax+service make the total too high, you invented a charge \u2014 remove it.
   Tolerance is a few cents. If numbers are off, re-examine items and prices.
 - If a value really isn't on the receipt, return 0 (don't invent). Prefer omitting a doubtful item over inventing one.
 - Use the exact item names from the receipt, lightly cleaned of OCR noise (fix obvious mis-reads, preserve capitalisation).`;
@@ -179,6 +182,7 @@ export async function extractBillFromImage(
   ];
 
   let bill = await callModel(client, baseMessages);
+  // normalizeExtractedBill already runs reconcileBill; re-check after.
   let check = checkBillMath(bill);
 
   for (

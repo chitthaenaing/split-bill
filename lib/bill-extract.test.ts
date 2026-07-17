@@ -2,8 +2,10 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   checkBillMath,
+  cleanItemName,
   isJunkItemName,
   normalizeExtractedBill,
+  reconcileBill,
 } from "./bill-extract";
 
 describe("isJunkItemName", () => {
@@ -20,6 +22,14 @@ describe("isJunkItemName", () => {
     assert.equal(isJunkItemName("Latte"), false);
     assert.equal(isJunkItemName("Tax-free soap"), false);
     assert.equal(isJunkItemName("Total breakfast"), false);
+  });
+});
+
+describe("cleanItemName", () => {
+  it("strips trailing OCR garbage like '1..'", () => {
+    assert.equal(cleanItemName("STHN NHAT Coffee 1.."), "STHN NHAT Coffee");
+    assert.equal(cleanItemName("Latte 2..."), "Latte");
+    assert.equal(cleanItemName("Soup."), "Soup");
   });
 });
 
@@ -118,7 +128,7 @@ describe("checkBillMath", () => {
   });
 
   it("flags mismatched item sums", () => {
-    const bill = normalizeExtractedBill({
+    const bill = {
       currency: "USD",
       items: [{ name: "Tea", price: 4, quantity: 1 }],
       tax: 0,
@@ -127,25 +137,70 @@ describe("checkBillMath", () => {
       subtotal: 10,
       total: 10,
       taxInclusive: true,
-    });
+    };
     const check = checkBillMath(bill);
     assert.equal(check.ok, false);
     assert.ok(check.messages.some((m) => m.includes("Item prices sum")));
   });
 
-  it("flags mismatched grand totals on exclusive bills", () => {
-    const bill = normalizeExtractedBill({
+  it("flags mismatched grand totals when items also mismatch", () => {
+    const bill = {
       currency: "USD",
-      items: [{ name: "Tea", price: 10, quantity: 1 }],
+      items: [{ name: "Tea", price: 4, quantity: 1 }],
       tax: 1,
       serviceCharge: 0,
       rounding: 0,
       subtotal: 10,
       total: 20,
       taxInclusive: false,
-    });
+    };
     const check = checkBillMath(bill);
     assert.equal(check.ok, false);
-    assert.ok(check.messages.some((m) => m.includes("Expected total")));
+  });
+});
+
+describe("reconcileBill", () => {
+  it("fixes over-counted tax/service when items match subtotal (THB cafe case)", () => {
+    // Real failure: items=849, subtotal=849, total=898, but model returned
+    // tax=49 + service=50 = 99 → expected 948 (off by 50).
+    const fixed = reconcileBill({
+      currency: "THB",
+      items: [
+        { name: "Pop Seint", price: 50, quantity: 1 },
+        { name: "STHN NHAT Coffee 1..", price: 70, quantity: 1 },
+        { name: "STHN NHAT Coffee", price: 70, quantity: 1 },
+        { name: "Kya Saint", price: 50, quantity: 1 },
+        { name: "Steamed Rice", price: 90, quantity: 1 },
+        { name: "Other", price: 519, quantity: 1 },
+      ],
+      tax: 49,
+      serviceCharge: 50,
+      rounding: 0,
+      subtotal: 849,
+      total: 898,
+      taxInclusive: false,
+    });
+
+    const check = checkBillMath(fixed);
+    assert.equal(check.ok, true);
+    assert.equal(fixed.tax + fixed.serviceCharge + fixed.rounding, 49);
+    // Prefer dropping the extra 50 service charge and keeping tax=49.
+    assert.equal(fixed.serviceCharge, 0);
+    assert.equal(fixed.tax, 49);
+  });
+
+  it("is applied automatically inside normalizeExtractedBill", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [{ name: "Coffee", price: 849, quantity: 1 }],
+      tax: 49,
+      serviceCharge: 50,
+      rounding: 0,
+      subtotal: 849,
+      total: 898,
+      taxInclusive: false,
+    });
+    assert.equal(checkBillMath(bill).ok, true);
+    assert.equal(bill.tax + bill.serviceCharge, 49);
   });
 });

@@ -49,6 +49,19 @@ export function isJunkItemName(name: string): boolean {
 }
 
 /**
+ * Strip common OCR junk glued onto product names, e.g. "Coffee 1.." → "Coffee".
+ */
+export function cleanItemName(name: string): string {
+  return name
+    .replace(/\s+/g, " ")
+    .trim()
+    // Trailing "1.." / "2..." / lone dots left by bad OCR.
+    .replace(/\s+\d+\.{2,}$/g, "")
+    .replace(/[.\s]+$/g, "")
+    .trim();
+}
+
+/**
  * Coerce raw model JSON into a clean ExtractedBill + taxInclusive flag.
  * Filters junk rows, rounds money, and fills missing subtotal/total when
  * the printed values were omitted.
@@ -65,7 +78,7 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
 
   const items = (Array.isArray(parsed.items) ? parsed.items : [])
     .map((it) => {
-      const name = String(it?.name ?? "").trim().slice(0, 200);
+      const name = cleanItemName(String(it?.name ?? "")).slice(0, 200);
       const price = roundMoney(asFinite(it?.price), currency);
       const quantity = Math.max(1, Math.floor(asFinite(it?.quantity, 1)) || 1);
       return { name, price, quantity };
@@ -103,7 +116,7 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
     );
   }
 
-  return {
+  return reconcileBill({
     currency,
     items,
     tax,
@@ -112,7 +125,7 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
     subtotal,
     total,
     taxInclusive,
-  };
+  });
 }
 
 /**
@@ -162,6 +175,154 @@ export function checkBillMath(bill: NormalizedBill): BillCheck {
   };
 }
 
+function chargeDistance(a: NormalizedBill, b: NormalizedBill): number {
+  return (
+    Math.abs(a.tax - b.tax) +
+    Math.abs(a.serviceCharge - b.serviceCharge) +
+    Math.abs(a.rounding - b.rounding) +
+    (a.taxInclusive === b.taxInclusive ? 0 : 1)
+  );
+}
+
+/**
+ * When line items already match the printed subtotal but tax/service make the
+ * grand total wrong (common model mistake), trust the printed subtotal + total
+ * and adjust the charge fields so the receipt arithmetic holds.
+ *
+ * Example from a THB cafe receipt: items=849, subtotal=849, total=898, but the
+ * model returned tax+service=99 → expected 948. We collapse charges to the
+ * printed gap of 49.
+ */
+export function reconcileBill(bill: NormalizedBill): NormalizedBill {
+  const check = checkBillMath(bill);
+  if (check.ok) return bill;
+
+  // Only auto-fix charges when the item lines already look trustworthy.
+  if (check.itemsDelta > MONEY_TOLERANCE) return bill;
+
+  const { currency } = bill;
+  const gap = roundMoney(
+    bill.total - bill.subtotal - bill.rounding,
+    currency
+  );
+
+  const candidates: NormalizedBill[] = [];
+
+  // Flip inclusive/exclusive flag — often the only mistake.
+  candidates.push({ ...bill, taxInclusive: !bill.taxInclusive });
+
+  if (gap >= -MONEY_TOLERANCE) {
+    const exclusiveGap = Math.max(0, gap);
+
+    // Drop whichever charge equals the excess (classic double-count of a
+    // ฿50 service/tip line), then fit the remainder into the other field.
+    const excess = roundMoney(
+      bill.tax + bill.serviceCharge - exclusiveGap,
+      currency
+    );
+    if (
+      bill.serviceCharge > MONEY_TOLERANCE &&
+      Math.abs(excess - bill.serviceCharge) <= MONEY_TOLERANCE
+    ) {
+      candidates.push({
+        ...bill,
+        taxInclusive: false,
+        serviceCharge: 0,
+        tax: exclusiveGap,
+      });
+    }
+    if (
+      bill.tax > MONEY_TOLERANCE &&
+      Math.abs(excess - bill.tax) <= MONEY_TOLERANCE
+    ) {
+      candidates.push({
+        ...bill,
+        taxInclusive: false,
+        tax: 0,
+        serviceCharge: exclusiveGap,
+      });
+    }
+
+    // Keep service if it already fits; put the rest in tax.
+    if (bill.serviceCharge <= exclusiveGap + MONEY_TOLERANCE) {
+      candidates.push({
+        ...bill,
+        taxInclusive: false,
+        tax: roundMoney(exclusiveGap - bill.serviceCharge, currency),
+        serviceCharge: bill.serviceCharge,
+      });
+    }
+    // Keep tax if it already fits; put the rest in service.
+    if (bill.tax <= exclusiveGap + MONEY_TOLERANCE) {
+      candidates.push({
+        ...bill,
+        taxInclusive: false,
+        tax: bill.tax,
+        serviceCharge: roundMoney(exclusiveGap - bill.tax, currency),
+      });
+    }
+
+    // Scale both charges proportionally to the printed gap.
+    const chargeSum = bill.tax + bill.serviceCharge;
+    if (chargeSum > MONEY_TOLERANCE) {
+      const scale = exclusiveGap / chargeSum;
+      candidates.push({
+        ...bill,
+        taxInclusive: false,
+        tax: roundMoney(bill.tax * scale, currency),
+        serviceCharge: roundMoney(bill.serviceCharge * scale, currency),
+      });
+    }
+
+    // Put the whole gap into one field.
+    candidates.push({
+      ...bill,
+      taxInclusive: false,
+      tax: exclusiveGap,
+      serviceCharge: 0,
+    });
+    candidates.push({
+      ...bill,
+      taxInclusive: false,
+      tax: 0,
+      serviceCharge: exclusiveGap,
+    });
+
+    // Tax-inclusive: service (or rounding) absorbs the gap; tax is informational.
+    candidates.push({
+      ...bill,
+      taxInclusive: true,
+      serviceCharge: exclusiveGap,
+    });
+    candidates.push({
+      ...bill,
+      taxInclusive: true,
+      serviceCharge: 0,
+      rounding: roundMoney(bill.total - bill.subtotal, currency),
+    });
+  }
+
+  const winners = candidates
+    .map((c) => ({
+      c,
+      check: checkBillMath(c),
+      dist: chargeDistance(c, bill),
+    }))
+    .filter((x) => x.check.ok)
+    .sort((a, b) => {
+      // When the printed total is above the subtotal, prefer tax-exclusive
+      // solutions so we don't keep an "informational" tax that computeSplit
+      // would still charge on top of item prices.
+      const gapPositive = bill.total > bill.subtotal + MONEY_TOLERANCE;
+      if (gapPositive && a.c.taxInclusive !== b.c.taxInclusive) {
+        return Number(a.c.taxInclusive) - Number(b.c.taxInclusive);
+      }
+      return a.dist - b.dist;
+    });
+
+  return winners[0]?.c ?? bill;
+}
+
 /**
  * Human-readable brief of a failed check, used as the repair prompt payload.
  */
@@ -179,6 +340,7 @@ export function formatCheckForRepair(
     "Re-read the receipt image carefully and return a corrected extraction.",
     "Remember: each item's `price` is the LINE TOTAL (not unit price).",
     "sum(items[].price) must equal subtotal.",
+    "Trust the printed TOTAL / AMOUNT DUE on the receipt — do not invent extra tax or service.",
     bill.taxInclusive
       ? "Tax is inclusive: subtotal + serviceCharge + rounding must equal total (do not add tax again)."
       : "Tax is exclusive: subtotal + tax + serviceCharge + rounding must equal total.",
