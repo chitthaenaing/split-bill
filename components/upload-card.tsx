@@ -6,7 +6,8 @@ import { ImageUp, Loader2, Sparkles, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { prepareReceiptImage } from "@/lib/image-prep";
+import { dataUrlToBlob, prepareReceiptImage } from "@/lib/image-prep";
+import { readJsonResponse } from "@/lib/read-json-response";
 import { useBillStore } from "@/lib/store";
 import type { ExtractionResponse } from "@/types/bill";
 
@@ -74,13 +75,21 @@ export function UploadCard() {
     setBusy(true);
     setError(null);
     try {
+      // Compress client-side, then send as multipart so we stay under the
+      // serverless body limit (JSON base64 was ~33% larger and often 413'd
+      // on phone photos — Safari then showed a cryptic pattern error).
       const imageDataUrl = await prepareReceiptImage(preview);
+      const blob = dataUrlToBlob(imageDataUrl);
+      const form = new FormData();
+      form.append("file", blob, file?.name || "receipt.jpg");
+
       const res = await fetch("/api/extract", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ imageDataUrl }),
+        body: form,
       });
-      const data = (await res.json()) as ExtractionResponse | { error: string };
+      const data = await readJsonResponse<ExtractionResponse | { error: string }>(
+        res
+      );
       if (!res.ok || "error" in data) {
         throw new Error(
           "error" in data ? data.error : `Request failed (${res.status})`
@@ -95,7 +104,7 @@ export function UploadCard() {
     } finally {
       setBusy(false);
     }
-  }, [preview, loadFromExtraction]);
+  }, [preview, file, loadFromExtraction]);
 
   return (
     <motion.div
