@@ -12,11 +12,24 @@ type State = {
   tax: number;
   serviceCharge: number;
   rounding: number;
+  /** Bill-level discount / promotion (positive amount off). */
+  discount: number;
+  /** Printed subtotal from the receipt (for reconciliation UI). */
+  printedSubtotal: number | null;
+  /** Printed grand total from the receipt (for reconciliation UI). */
+  printedTotal: number | null;
+  /** Arithmetic warnings left after extraction / repair. */
+  extractionWarnings: string[];
 };
 
 type Actions = {
-  loadFromExtraction: (b: ExtractedBill, receiptDataUrl: string | null) => void;
+  loadFromExtraction: (
+    b: ExtractedBill,
+    receiptDataUrl: string | null,
+    meta?: { warnings?: string[]; reconciled?: boolean }
+  ) => void;
   setBankingQrDataUrl: (dataUrl: string | null) => void;
+  clearExtractionWarnings: () => void;
 
   /** Tap whole row: cycle 0 ↔ full quantity. */
   toggleItem: (id: string) => void;
@@ -35,6 +48,14 @@ type Actions = {
   setTax: (n: number) => void;
   setServiceCharge: (n: number) => void;
   setRounding: (n: number) => void;
+  setDiscount: (n: number) => void;
+
+  /** Correct a mis-read line (name and/or printed line total). */
+  updateItem: (
+    id: string,
+    patch: { name?: string; price?: number; quantity?: number }
+  ) => void;
+  removeItem: (id: string) => void;
 
   reset: () => void;
 };
@@ -47,6 +68,10 @@ const initial: State = {
   tax: 0,
   serviceCharge: 0,
   rounding: 0,
+  discount: 0,
+  printedSubtotal: null,
+  printedTotal: null,
+  extractionWarnings: [],
 };
 
 function clampSelected(it: BillItem, n: number): number {
@@ -64,7 +89,7 @@ export const useBillStore = create<State & Actions>()(
     (set) => ({
       ...initial,
 
-      loadFromExtraction: (b, receiptDataUrl) => {
+      loadFromExtraction: (b, receiptDataUrl, meta) => {
         set({
           receiptDataUrl,
           bankingQrDataUrl: null,
@@ -72,6 +97,21 @@ export const useBillStore = create<State & Actions>()(
           tax: b.tax || 0,
           serviceCharge: b.serviceCharge || 0,
           rounding: b.rounding || 0,
+          discount: Math.max(0, b.discount || 0),
+          printedSubtotal:
+            typeof b.subtotal === "number" && Number.isFinite(b.subtotal)
+              ? b.subtotal
+              : null,
+          printedTotal:
+            typeof b.total === "number" && Number.isFinite(b.total)
+              ? b.total
+              : null,
+          extractionWarnings:
+            meta?.reconciled === false
+              ? meta.warnings ?? []
+              : meta?.warnings?.length
+              ? meta.warnings
+              : [],
           items: (b.items || []).map((it) => ({
             id: uid("itm"),
             name: it.name,
@@ -82,6 +122,8 @@ export const useBillStore = create<State & Actions>()(
           })),
         });
       },
+
+      clearExtractionWarnings: () => set({ extractionWarnings: [] }),
 
       toggleItem: (id) =>
         set((s) => ({
@@ -178,6 +220,36 @@ export const useBillStore = create<State & Actions>()(
         set({ serviceCharge: Number.isFinite(n) ? Math.max(0, n) : 0 }),
       setRounding: (n) =>
         set({ rounding: Number.isFinite(n) ? n : 0 }),
+      setDiscount: (n) =>
+        set({ discount: Number.isFinite(n) ? Math.max(0, n) : 0 }),
+
+      updateItem: (id, patch) =>
+        set((s) => ({
+          items: s.items.map((it) => {
+            if (it.id !== id) return it;
+            const next: BillItem = { ...it };
+            if (typeof patch.name === "string") {
+              next.name = patch.name.slice(0, 200);
+            }
+            if (typeof patch.price === "number" && Number.isFinite(patch.price)) {
+              next.price = patch.price;
+            }
+            if (
+              typeof patch.quantity === "number" &&
+              Number.isFinite(patch.quantity)
+            ) {
+              next.quantity = Math.max(1, Math.floor(patch.quantity));
+              next.selectedQuantity = clampSelected(
+                next,
+                next.selectedQuantity
+              );
+            }
+            return next;
+          }),
+        })),
+
+      removeItem: (id) =>
+        set((s) => ({ items: s.items.filter((it) => it.id !== id) })),
 
       reset: () => set({ ...initial }),
 
@@ -186,7 +258,7 @@ export const useBillStore = create<State & Actions>()(
     }),
     {
       name: "bill-split",
-      version: 5,
+      version: 7,
       partialize: (s) => ({
         receiptDataUrl: s.receiptDataUrl,
         bankingQrDataUrl: s.bankingQrDataUrl,
@@ -195,6 +267,10 @@ export const useBillStore = create<State & Actions>()(
         tax: s.tax,
         serviceCharge: s.serviceCharge,
         rounding: s.rounding,
+        discount: s.discount,
+        printedSubtotal: s.printedSubtotal,
+        printedTotal: s.printedTotal,
+        extractionWarnings: s.extractionWarnings,
       }),
       migrate: (persistedState: unknown, version: number): State => {
         type LegacyItem = {
@@ -208,6 +284,10 @@ export const useBillStore = create<State & Actions>()(
         };
         type LegacyState = Omit<Partial<State>, "items"> & {
           items?: LegacyItem[];
+          discount?: number;
+          printedSubtotal?: number | null;
+          printedTotal?: number | null;
+          extractionWarnings?: string[];
         };
         const s = (persistedState ?? {}) as LegacyState;
         if (version < 3) {
@@ -232,7 +312,15 @@ export const useBillStore = create<State & Actions>()(
               splitCount: clampSplit(it.splitCount ?? 1),
             };
           });
-          return { ...initial, ...s, items } as State;
+          return {
+            ...initial,
+            ...s,
+            items,
+            discount: Math.max(0, s.discount ?? 0),
+            printedSubtotal: s.printedSubtotal ?? null,
+            printedTotal: s.printedTotal ?? null,
+            extractionWarnings: s.extractionWarnings ?? [],
+          } as State;
         }
         return {
           ...initial,
@@ -246,6 +334,10 @@ export const useBillStore = create<State & Actions>()(
             splitCount: clampSplit(it.splitCount ?? 1),
           })) as BillItem[],
           bankingQrDataUrl: s.bankingQrDataUrl ?? null,
+          discount: Math.max(0, s.discount ?? 0),
+          printedSubtotal: s.printedSubtotal ?? null,
+          printedTotal: s.printedTotal ?? null,
+          extractionWarnings: s.extractionWarnings ?? [],
         } as State;
       },
     }

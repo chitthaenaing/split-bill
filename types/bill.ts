@@ -34,8 +34,24 @@ export type ExtractedBill = {
    * own line. Zero when absent.
    */
   rounding: number;
+  /**
+   * Bill-level discount / promotion amount as a positive number (฿50 off → 50).
+   * Applied after the items subtotal, before tax/service on typical receipts.
+   */
+  discount: number;
+  /** Printed items subtotal from the receipt (before discount / tax). */
   subtotal: number;
+  /** Printed grand total / amount due from the receipt. */
   total: number;
+};
+
+/** Result returned by `/api/extract` after validation + optional repair. */
+export type ExtractionResponse = {
+  bill: ExtractedBill;
+  /** True when item sums and totals reconcile within a few cents. */
+  reconciled: boolean;
+  /** Remaining arithmetic / extraction issues the user should glance at. */
+  warnings: string[];
 };
 
 /** A payment proof image attached to a shared bill by a recipient. */
@@ -76,6 +92,8 @@ export type StoredBill = {
   tax: number;
   serviceCharge: number;
   rounding: number;
+  /** Bill-level discount amount (positive). Omitted on older shares → treat as 0. */
+  discount?: number;
 };
 
 /**
@@ -83,6 +101,8 @@ export type StoredBill = {
  */
 export type SplitBreakdown = {
   selectedSubtotal: number;
+  /** Proportional share of the bill-level discount (positive number). */
+  discountShare: number;
   taxShare: number;
   serviceShare: number;
   roundingShare: number;

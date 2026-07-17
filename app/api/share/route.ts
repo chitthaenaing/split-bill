@@ -34,6 +34,7 @@ function sanitizeBill(bill: ExtractedBill): ExtractedBill | null {
     tax: Math.max(0, Number(bill.tax) || 0),
     serviceCharge: Math.max(0, Number(bill.serviceCharge) || 0),
     rounding: Number(bill.rounding) || 0,
+    discount: Math.max(0, Number(bill.discount) || 0),
     subtotal: Number(bill.subtotal) || 0,
     total: Number(bill.total) || 0,
   };

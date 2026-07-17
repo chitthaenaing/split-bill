@@ -1,7 +1,17 @@
 import OpenAI from "openai";
 import type { ExtractedBill } from "@/types/bill";
+import {
+  checkBillMath,
+  formatCheckForRepair,
+  normalizeExtractedBill,
+  toExtractedBill,
+  type NormalizedBill,
+} from "@/lib/bill-extract";
 
 export const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4o";
+
+/** How many repair attempts after the first extraction. */
+const MAX_REPAIR_ATTEMPTS = 1;
 
 export function getClient(): OpenAI {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -16,30 +26,36 @@ export function getClient(): OpenAI {
 const SYSTEM_PROMPT = `You read photographs of restaurant, cafe, bar and retail receipts and return a clean structured breakdown.
 
 What goes in each field:
-- "items": every line that has a product name and a price. Combine sub-modifiers / toppings / notes into the parent line when they have no price of their own. Skip headers, dividers, server names, table numbers, payment lines, and anything labelled "subtotal" or "total".
-- "price": the LINE total printed in the price column for this row — exactly the amount shown next to the item on the receipt. Do NOT divide by quantity. Examples:
-    "3  Latte   12.00"        -> price=12.00, quantity=3
-    "Latte   3 x 4.00   12.00" -> price=12.00, quantity=3
-    "Margherita Pizza 14.50"   -> price=14.50, quantity=1
-  If the receipt prints a unit price but no line total, multiply unit \u00d7 quantity yourself and put the LINE TOTAL in "price".
-- "quantity": the number of units of this item on this line, as printed. Default 1. Always extract when the receipt shows it.
-- "tax": TAX / VAT / GST / Sales Tax amount. If multiple tax lines are shown, sum them.
-- "serviceCharge": SERVICE CHARGE / SERVICE / GRATUITY / TIP / AUTO-GRAT.
-- "rounding": cash-rounding adjustments (lines like "Rounding", "Round Down", "Round Up", "Cash Round"). May be negative. 0 if absent.
-- "subtotal": items before tax + service, as printed on the receipt.
-- "total": the grand total printed on the receipt.
-- "currency": ISO 4217 code (USD, EUR, GBP, THB, JPY, SGD, AUD, MYR, IDR, INR, etc). Infer from symbols (\u00a3 = GBP, \u20ac = EUR, \u00a5 = JPY, \u0e3f = THB, RM = MYR, Rp = IDR, S$ = SGD, A$ = AUD). Default to USD only when nothing on the receipt suggests another currency.
+- "items": every product / food / drink / merchandise line AND every promotion / discount / free-item line that has a price. Promotions that print as a minus amount (e.g. "Promotion Free Tea -50.00") MUST be included as their own item with a NEGATIVE price. Combine unpriced sub-modifiers / toppings / notes into the parent line's name. Skip headers, dividers, server names, table numbers, payment method lines, change lines, and anything labelled subtotal / total / amount due / tax / VAT / service / tip / rounding.
+- "price": the LINE TOTAL printed in the price column for this row — exactly the amount shown next to the item. Do NOT divide by quantity. Do NOT put the unit price here. Use a negative number for promotion / discount lines.
+    Examples:
+      "3  Latte   12.00"                         -> price=12.00, quantity=3
+      "Latte   3 x 4.00   12.00"                -> price=12.00, quantity=3
+      "Margherita Pizza 14.50"                  -> price=14.50, quantity=1
+      "Promotion Free Tea (Gold Member) -50.00" -> price=-50.00, quantity=1
+    If the receipt prints a unit price but no line total, multiply unit \u00d7 quantity yourself and put that LINE TOTAL in "price".
+- "quantity": units of this item on this line, as printed. Default 1. Always extract when shown.
+- "discount": always 0. Promotions belong in items with a negative price — do not also put them here.
+- "tax": TAX / VAT / GST / Sales Tax AMOUNT (not the percentage). If multiple tax lines are shown, sum them.
+- "serviceCharge": SERVICE CHARGE / SERVICE / GRATUITY / TIP / AUTO-GRAT amount printed on the receipt (not a handwritten tip unless clearly written as part of the total).
+- "rounding": cash-rounding adjustments ("Rounding", "Round Down", "Round Up", "Cash Round"). May be negative. 0 if absent.
+- "subtotal": the printed items subtotal BEFORE discount (sum of the positive product lines).
+- "total": the printed grand total / amount due.
+- "currency": ISO 4217 code (USD, EUR, GBP, THB, JPY, SGD, AUD, MYR, IDR, INR, etc). Infer from symbols (\u00a3=GBP, \u20ac=EUR, \u00a5=JPY, \u0e3f=THB, RM=MYR, Rp=IDR, S$=SGD, A$=AUD). Default to USD only when nothing suggests another currency.
+- "taxInclusive": true when tax is already baked into item prices / the subtotal (common in EU, AU, JP, "incl. VAT"). false when tax is added on top of the subtotal (common in US / THB VAT-exclusive receipts).
 
 Accuracy guidance:
-- Decimal points and thousand separators vary by locale. "1.234,56" means 1234.56 in many EU receipts. Re-read prices carefully.
-- Watch for OCR confusables: 0/O, 1/I/l, 5/S, 8/B. Cross-check by verifying that sum(price * quantity) is approximately equal to "subtotal".
-- Tax-inclusive receipts (common in EU/AU/JP): tax may already be baked into item prices. If the receipt prints tax as informational ("incl. VAT 7%"), still extract the printed tax AMOUNT into "tax", but do NOT subtract it from item prices.
-- Before answering, run this self-check:
-    sum(items[i].price) \u2248 subtotal
-    subtotal + tax + serviceCharge + rounding \u2248 total
-  If the numbers are off by more than a few cents, re-examine the items and prices and fix them.
-- If a value really isn't on the receipt, return 0 (don't invent).
-- Use the exact item names from the receipt, lightly cleaned of OCR noise (fix obvious mis-reads, preserve capitalisation).`;
+- Locale decimals: "1.234,56" means 1234.56 in many EU receipts; "1,234.56" means 1234.56 in US/UK. Always emit a JSON number (1234.56), never a string.
+- Thai / Southeast Asian receipts often use \u0e3f / THB with VAT 7% and service 5% or 10% calculated on (subtotal + negative promotions). Extract the printed AMOUNTS; do not invent charges.
+- Watch for OCR confusables: 0/O, 1/I/l, 5/S, 8/B. Prefer the reading that makes the arithmetic check out.
+- Clean item names: drop trailing OCR garbage like "1.." or lone dots. Keep the real product name.
+- Before answering, run this self-check and fix anything that fails:
+    sum(items[i].price where price \u2265 0) \u2248 subtotal
+    sum(all items[i].price) + tax + serviceCharge + rounding \u2248 total   (when not taxInclusive)
+  If tax+service make the total too high by a promotion amount, you missed a minus line — add it to items.
+  Tolerance is a few cents. If numbers are off, re-examine items and prices.
+- If a value really isn't on the receipt, return 0 (don't invent). Prefer omitting a doubtful item over inventing one.
+- Use the exact item names from the receipt, lightly cleaned of OCR noise (fix obvious mis-reads, preserve capitalisation).`
 
 const BILL_SCHEMA = {
   type: "object",
@@ -59,7 +75,7 @@ const BILL_SCHEMA = {
           price: {
             type: "number",
             description:
-              "The line total printed in the price column for this row. Not the unit price.",
+              "Line total for this row. Negative for promotion/discount lines.",
           },
           quantity: { type: "number" },
         },
@@ -72,8 +88,17 @@ const BILL_SCHEMA = {
       type: "number",
       description: "Receipt rounding adjustment, 0 if absent.",
     },
+    discount: {
+      type: "number",
+      description: "Always 0. Promotions go in items as negative prices.",
+    },
     subtotal: { type: "number" },
     total: { type: "number" },
+    taxInclusive: {
+      type: "boolean",
+      description:
+        "True if tax is already included in item prices / subtotal. False if tax is added on top.",
+    },
   },
   required: [
     "currency",
@@ -81,35 +106,31 @@ const BILL_SCHEMA = {
     "tax",
     "serviceCharge",
     "rounding",
+    "discount",
     "subtotal",
     "total",
+    "taxInclusive",
   ],
 } as const;
 
-export async function extractBillFromImage(
-  imageDataUrl: string
-): Promise<ExtractedBill> {
-  const client = getClient();
+export type ExtractionResult = {
+  bill: ExtractedBill;
+  /** True when the final extraction passes arithmetic reconciliation. */
+  reconciled: boolean;
+  /** Human-readable issues still present after any repair attempts. */
+  warnings: string[];
+};
 
+type ChatMessage = OpenAI.Chat.Completions.ChatCompletionMessageParam;
+
+async function callModel(
+  client: OpenAI,
+  messages: ChatMessage[]
+): Promise<NormalizedBill> {
   const response = await client.chat.completions.create({
     model: DEFAULT_MODEL,
     temperature: 0,
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: "Extract the bill from this receipt photo.",
-          },
-          {
-            type: "image_url",
-            image_url: { url: imageDataUrl, detail: "high" },
-          },
-        ],
-      },
-    ],
+    messages,
     response_format: {
       type: "json_schema",
       json_schema: {
@@ -125,24 +146,80 @@ export async function extractBillFromImage(
     throw new Error("The model returned an empty response.");
   }
 
-  let parsed: ExtractedBill;
+  let parsed: unknown;
   try {
-    parsed = JSON.parse(raw) as ExtractedBill;
+    parsed = JSON.parse(raw);
   } catch {
     throw new Error("The model response was not valid JSON.");
   }
 
+  return normalizeExtractedBill(parsed);
+}
+
+/**
+ * Extract a structured bill from a receipt image.
+ *
+ * Runs a strict JSON-schema vision call, validates arithmetic, and if the
+ * numbers don't reconcile, asks the model once more to repair using the
+ * mismatch details + the same image.
+ */
+export async function extractBillFromImage(
+  imageDataUrl: string
+): Promise<ExtractionResult> {
+  const client = getClient();
+
+  const baseMessages: ChatMessage[] = [
+    { role: "system", content: SYSTEM_PROMPT },
+    {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: "Extract the bill from this receipt photo. Double-check that the numbers add up before answering.",
+        },
+        {
+          type: "image_url",
+          image_url: { url: imageDataUrl, detail: "high" },
+        },
+      ],
+    },
+  ];
+
+  let bill = await callModel(client, baseMessages);
+  // normalizeExtractedBill already runs reconcileBill; re-check after.
+  let check = checkBillMath(bill);
+
+  for (
+    let attempt = 0;
+    !check.ok && attempt < MAX_REPAIR_ATTEMPTS;
+    attempt++
+  ) {
+    bill = await callModel(client, [
+      ...baseMessages,
+      {
+        role: "assistant",
+        content: JSON.stringify(bill),
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: formatCheckForRepair(bill, check),
+          },
+          {
+            type: "image_url",
+            image_url: { url: imageDataUrl, detail: "high" },
+          },
+        ],
+      },
+    ]);
+    check = checkBillMath(bill);
+  }
+
   return {
-    currency: parsed.currency || "USD",
-    items: (parsed.items || []).map((it) => ({
-      name: it.name || "",
-      price: Number(it.price) || 0,
-      quantity: Number(it.quantity) || 1,
-    })),
-    tax: Number(parsed.tax) || 0,
-    serviceCharge: Number(parsed.serviceCharge) || 0,
-    rounding: Number(parsed.rounding) || 0,
-    subtotal: Number(parsed.subtotal) || 0,
-    total: Number(parsed.total) || 0,
+    bill: toExtractedBill(bill),
+    reconciled: check.ok,
+    warnings: check.ok ? [] : check.messages,
   };
 }

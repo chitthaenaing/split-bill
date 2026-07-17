@@ -78,6 +78,7 @@ export function ShareButton() {
             tax,
             serviceCharge,
             rounding,
+            discount: 0,
             subtotal,
             total: subtotal + tax + serviceCharge + rounding,
           },
