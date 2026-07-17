@@ -271,6 +271,7 @@ export function SharedBill({ data }: { data: StoredBill }) {
                 tax={data.tax}
                 serviceCharge={data.serviceCharge}
                 rounding={data.rounding}
+                discount={data.discount ?? 0}
                 editable={false}
               />
               {data.bankingQrUrl ? (

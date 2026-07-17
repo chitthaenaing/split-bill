@@ -28,8 +28,8 @@ export function itemShare(item: BillItem): number {
 
 /**
  * Sum every item line on the receipt (the printed line totals), regardless of
- * selection. This is the denominator we use to split tax / service / rounding
- * across the selected subset.
+ * selection. This is the denominator we use to split tax / service / discount /
+ * rounding across the selected subset.
  */
 export function itemsTotal(items: BillItem[]): number {
   return items.reduce((s, it) => s + (it.price || 0), 0);
@@ -37,7 +37,7 @@ export function itemsTotal(items: BillItem[]): number {
 
 /**
  * Compute what the user owes for the selected items, including their
- * proportional share of tax, service charge and any receipt rounding.
+ * proportional share of discount, tax, service charge and any receipt rounding.
  *
  * The share is based on the selected items' subtotal as a fraction of the
  * receipt's items total. If nothing is selected, everything is zero.
@@ -46,7 +46,8 @@ export function computeSplit(
   items: BillItem[],
   tax: number,
   serviceCharge: number,
-  rounding: number
+  rounding: number,
+  discount = 0
 ): SplitBreakdown {
   const fullTotal = itemsTotal(items);
   const selectedSubtotal = items.reduce((s, it) => s + itemShare(it), 0);
@@ -59,18 +60,21 @@ export function computeSplit(
   const safeTax = Math.max(0, tax || 0);
   const safeSvc = Math.max(0, serviceCharge || 0);
   const safeRnd = rounding || 0;
+  const safeDiscount = Math.max(0, discount || 0);
 
   const taxShare = round2(safeTax * ratio);
   const serviceShare = round2(safeSvc * ratio);
   const roundingShare = round2(safeRnd * ratio);
+  const discountShare = round2(safeDiscount * ratio);
 
   const subtotalRounded = round2(selectedSubtotal);
   const total = round2(
-    subtotalRounded + taxShare + serviceShare + roundingShare
+    subtotalRounded - discountShare + taxShare + serviceShare + roundingShare
   );
 
   return {
     selectedSubtotal: subtotalRounded,
+    discountShare,
     taxShare,
     serviceShare,
     roundingShare,

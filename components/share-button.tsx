@@ -25,6 +25,7 @@ export function ShareButton() {
   const tax = useBillStore((s) => s.tax);
   const serviceCharge = useBillStore((s) => s.serviceCharge);
   const rounding = useBillStore((s) => s.rounding);
+  const discount = useBillStore((s) => s.discount);
   const receiptDataUrl = useBillStore((s) => s.receiptDataUrl);
   const bankingQrDataUrl = useBillStore((s) => s.bankingQrDataUrl);
 
@@ -78,8 +79,9 @@ export function ShareButton() {
             tax,
             serviceCharge,
             rounding,
+            discount,
             subtotal,
-            total: subtotal + tax + serviceCharge + rounding,
+            total: subtotal - discount + tax + serviceCharge + rounding,
           },
         }),
       });
@@ -96,7 +98,16 @@ export function ShareButton() {
     } finally {
       setBusy(false);
     }
-  }, [items, currency, tax, serviceCharge, rounding, receiptDataUrl, bankingQrDataUrl]);
+  }, [
+    items,
+    currency,
+    tax,
+    serviceCharge,
+    rounding,
+    discount,
+    receiptDataUrl,
+    bankingQrDataUrl,
+  ]);
 
   const close = () => {
     setOpen(false);

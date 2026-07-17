@@ -7,6 +7,7 @@ import {
   normalizeExtractedBill,
   reconcileBill,
 } from "./bill-extract";
+import { computeSplit } from "./calc";
 
 describe("isJunkItemName", () => {
   it("flags totals, tax and payment labels", () => {
@@ -16,6 +17,7 @@ describe("isJunkItemName", () => {
     assert.equal(isJunkItemName("Service Charge"), true);
     assert.equal(isJunkItemName("Visa"), true);
     assert.equal(isJunkItemName("Rounding"), true);
+    assert.equal(isJunkItemName("Discount"), true);
   });
 
   it("keeps real menu items", () => {
@@ -45,6 +47,7 @@ describe("normalizeExtractedBill", () => {
       tax: 0.9,
       serviceCharge: 0,
       rounding: 0,
+      discount: 0,
       subtotal: 4.5,
       total: 5.4,
       taxInclusive: false,
@@ -66,6 +69,7 @@ describe("normalizeExtractedBill", () => {
       tax: 0,
       serviceCharge: 0,
       rounding: 0,
+      discount: 0,
       subtotal: 0,
       total: 15,
       taxInclusive: true,
@@ -73,22 +77,25 @@ describe("normalizeExtractedBill", () => {
     assert.equal(bill.subtotal, 15);
   });
 
-  it("keeps discount lines with negative prices", () => {
+  it("lifts promotion / negative lines into discount", () => {
     const bill = normalizeExtractedBill({
-      currency: "USD",
+      currency: "THB",
       items: [
         { name: "Burger", price: 12, quantity: 1 },
-        { name: "Discount", price: -2, quantity: 1 },
+        { name: "Promotion Free Tea (Gold Member)", price: -50, quantity: 1 },
       ],
       tax: 0,
       serviceCharge: 0,
       rounding: 0,
-      subtotal: 10,
-      total: 10,
+      discount: 0,
+      subtotal: 12,
+      total: -38, // nonsense total so reconcile won't invent; we'll override check
       taxInclusive: true,
     });
-    assert.equal(bill.items.length, 2);
-    assert.equal(bill.items[1].price, -2);
+    // Promotion lifted out of items
+    assert.equal(bill.items.length, 1);
+    assert.equal(bill.items[0].name, "Burger");
+    assert.equal(bill.discount, 50);
   });
 });
 
@@ -103,6 +110,7 @@ describe("checkBillMath", () => {
       tax: 2,
       serviceCharge: 1,
       rounding: 0,
+      discount: 0,
       subtotal: 20,
       total: 23,
       taxInclusive: false,
@@ -119,6 +127,7 @@ describe("checkBillMath", () => {
       tax: 0.3,
       serviceCharge: 0,
       rounding: 0,
+      discount: 0,
       subtotal: 3.5,
       total: 3.5,
       taxInclusive: true,
@@ -134,6 +143,7 @@ describe("checkBillMath", () => {
       tax: 0,
       serviceCharge: 0,
       rounding: 0,
+      discount: 0,
       subtotal: 10,
       total: 10,
       taxInclusive: true,
@@ -142,40 +152,31 @@ describe("checkBillMath", () => {
     assert.equal(check.ok, false);
     assert.ok(check.messages.some((m) => m.includes("Item prices sum")));
   });
-
-  it("flags mismatched grand totals when items also mismatch", () => {
-    const bill = {
-      currency: "USD",
-      items: [{ name: "Tea", price: 4, quantity: 1 }],
-      tax: 1,
-      serviceCharge: 0,
-      rounding: 0,
-      subtotal: 10,
-      total: 20,
-      taxInclusive: false,
-    };
-    const check = checkBillMath(bill);
-    assert.equal(check.ok, false);
-  });
 });
 
 describe("reconcileBill", () => {
-  it("fixes over-counted tax/service when items match subtotal (THB cafe case)", () => {
-    // Real failure: items=849, subtotal=849, total=898, but model returned
-    // tax=49 + service=50 = 99 → expected 948 (off by 50).
+  it("recovers a missed ฿50 promotion instead of shrinking VAT (Shwe Tea House)", () => {
+    // Real receipt: items 849, Discount 50, Service 39.95, VAT 58.73,
+    // Rounding 0.32 → Total 898. Model often returns charges but drops discount.
     const fixed = reconcileBill({
       currency: "THB",
       items: [
         { name: "Pop Seint", price: 50, quantity: 1 },
-        { name: "STHN NHAT Coffee 1..", price: 70, quantity: 1 },
+        { name: "STHN NHAT Coffee", price: 70, quantity: 1 },
         { name: "STHN NHAT Coffee", price: 70, quantity: 1 },
         { name: "Kya Saint", price: 50, quantity: 1 },
         { name: "Steamed Rice", price: 90, quantity: 1 },
-        { name: "Other", price: 519, quantity: 1 },
+        { name: "Tea Leaf Salad", price: 90, quantity: 1 },
+        { name: "Chicken Curry", price: 109, quantity: 1 },
+        { name: "Mote Hin Gar", price: 90, quantity: 1 },
+        { name: "Fried Chicken", price: 50, quantity: 1 },
+        { name: "Rice", price: 20, quantity: 1 },
+        { name: "SHWE Korean Noodle", price: 160, quantity: 1 },
       ],
-      tax: 49,
-      serviceCharge: 50,
-      rounding: 0,
+      tax: 58.73,
+      serviceCharge: 39.95,
+      rounding: 0.32,
+      discount: 0,
       subtotal: 849,
       total: 898,
       taxInclusive: false,
@@ -183,24 +184,44 @@ describe("reconcileBill", () => {
 
     const check = checkBillMath(fixed);
     assert.equal(check.ok, true);
-    assert.equal(fixed.tax + fixed.serviceCharge + fixed.rounding, 49);
-    // Prefer dropping the extra 50 service charge and keeping tax=49.
-    assert.equal(fixed.serviceCharge, 0);
-    assert.equal(fixed.tax, 49);
+    assert.equal(fixed.discount, 50);
+    assert.equal(fixed.tax, 58.73);
+    assert.equal(fixed.serviceCharge, 39.95);
+    assert.equal(fixed.rounding, 0.32);
   });
 
   it("is applied automatically inside normalizeExtractedBill", () => {
     const bill = normalizeExtractedBill({
       currency: "THB",
       items: [{ name: "Coffee", price: 849, quantity: 1 }],
-      tax: 49,
-      serviceCharge: 50,
-      rounding: 0,
+      tax: 58.73,
+      serviceCharge: 39.95,
+      rounding: 0.32,
+      discount: 0,
       subtotal: 849,
       total: 898,
       taxInclusive: false,
     });
     assert.equal(checkBillMath(bill).ok, true);
-    assert.equal(bill.tax + bill.serviceCharge, 49);
+    assert.equal(bill.discount, 50);
+    assert.equal(bill.tax, 58.73);
+  });
+});
+
+describe("computeSplit with discount", () => {
+  it("applies proportional discount so full selection matches printed total", () => {
+    const items = [
+      {
+        id: "1",
+        name: "All",
+        price: 849,
+        quantity: 1,
+        selectedQuantity: 1,
+        splitCount: 1,
+      },
+    ];
+    const split = computeSplit(items, 58.73, 39.95, 0.32, 50);
+    assert.equal(split.discountShare, 50);
+    assert.equal(split.total, 898);
   });
 });

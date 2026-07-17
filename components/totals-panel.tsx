@@ -15,11 +15,13 @@ export type TotalsPanelProps = {
   tax: number;
   serviceCharge: number;
   rounding: number;
-  /** When true, exposes an Edit toggle to adjust tax/service/rounding. */
+  discount?: number;
+  /** When true, exposes an Edit toggle to adjust tax/service/discount/rounding. */
   editable?: boolean;
   onTaxChange?: (n: number) => void;
   onServiceChange?: (n: number) => void;
   onRoundingChange?: (n: number) => void;
+  onDiscountChange?: (n: number) => void;
 };
 
 export function TotalsPanel({
@@ -28,14 +30,16 @@ export function TotalsPanel({
   tax,
   serviceCharge,
   rounding,
+  discount = 0,
   editable = false,
   onTaxChange,
   onServiceChange,
   onRoundingChange,
+  onDiscountChange,
 }: TotalsPanelProps) {
   const split = useMemo(
-    () => computeSplit(items, tax, serviceCharge, rounding),
-    [items, tax, serviceCharge, rounding]
+    () => computeSplit(items, tax, serviceCharge, rounding, discount),
+    [items, tax, serviceCharge, rounding, discount]
   );
 
   const [editing, setEditing] = useState(false);
@@ -108,6 +112,23 @@ export function TotalsPanel({
 
         {showEditingControls ? (
           <EditableRow
+            label="Discount"
+            value={discount}
+            onChange={onDiscountChange ?? (() => {})}
+            currency={currency}
+          />
+        ) : (
+          discount > 0 && (
+            <Row
+              label="Discount share"
+              value={`−${formatMoney(split.discountShare, currency)}`}
+              hint={`of ${formatMoney(discount, currency)}`}
+            />
+          )
+        )}
+
+        {showEditingControls ? (
+          <EditableRow
             label="Tax"
             value={tax}
             onChange={onTaxChange ?? (() => {})}
@@ -177,7 +198,7 @@ export function TotalsPanel({
             )}
           >
             <Pencil className="h-3.5 w-3.5" />
-            {editing ? "Done" : "Edit tax / service / rounding"}
+            {editing ? "Done" : "Edit tax / service / discount"}
           </button>
         )}
       </CardContent>
