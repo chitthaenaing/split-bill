@@ -34,8 +34,19 @@ export type ExtractedBill = {
    * own line. Zero when absent.
    */
   rounding: number;
+  /** Printed items subtotal from the receipt (before or including tax). */
   subtotal: number;
+  /** Printed grand total / amount due from the receipt. */
   total: number;
+};
+
+/** Result returned by `/api/extract` after validation + optional repair. */
+export type ExtractionResponse = {
+  bill: ExtractedBill;
+  /** True when item sums and totals reconcile within a few cents. */
+  reconciled: boolean;
+  /** Remaining arithmetic / extraction issues the user should glance at. */
+  warnings: string[];
 };
 
 /** A payment proof image attached to a shared bill by a recipient. */

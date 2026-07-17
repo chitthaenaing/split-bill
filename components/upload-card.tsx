@@ -6,8 +6,9 @@ import { ImageUp, Loader2, Sparkles, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { prepareReceiptImage } from "@/lib/image-prep";
 import { useBillStore } from "@/lib/store";
-import type { ExtractedBill } from "@/types/bill";
+import type { ExtractionResponse } from "@/types/bill";
 
 async function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -73,20 +74,22 @@ export function UploadCard() {
     setBusy(true);
     setError(null);
     try {
+      const imageDataUrl = await prepareReceiptImage(preview);
       const res = await fetch("/api/extract", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ imageDataUrl: preview }),
+        body: JSON.stringify({ imageDataUrl }),
       });
-      const data = (await res.json()) as
-        | { bill: ExtractedBill }
-        | { error: string };
+      const data = (await res.json()) as ExtractionResponse | { error: string };
       if (!res.ok || "error" in data) {
         throw new Error(
           "error" in data ? data.error : `Request failed (${res.status})`
         );
       }
-      loadFromExtraction(data.bill, preview);
+      loadFromExtraction(data.bill, preview, {
+        warnings: data.warnings,
+        reconciled: data.reconciled,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {

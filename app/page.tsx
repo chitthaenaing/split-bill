@@ -11,6 +11,7 @@ import { TotalsPanel } from "@/components/totals-panel";
 import { BankingQrPanel } from "@/components/banking-qr-panel";
 import { ReceiptThumbnail } from "@/components/receipt-thumbnail";
 import { ShareButton } from "@/components/share-button";
+import { ExtractionWarning } from "@/components/extraction-warning";
 import { useBillStore } from "@/lib/store";
 import { useHydrated } from "@/lib/use-hydrated";
 
@@ -22,6 +23,9 @@ export default function Home() {
   const serviceCharge = useBillStore((s) => s.serviceCharge);
   const rounding = useBillStore((s) => s.rounding);
   const receipt = useBillStore((s) => s.receiptDataUrl);
+  const printedSubtotal = useBillStore((s) => s.printedSubtotal);
+  const printedTotal = useBillStore((s) => s.printedTotal);
+  const extractionWarnings = useBillStore((s) => s.extractionWarnings);
 
   const toggleItem = useBillStore((s) => s.toggleItem);
   const incSelected = useBillStore((s) => s.incSelected);
@@ -33,6 +37,11 @@ export default function Home() {
   const setTax = useBillStore((s) => s.setTax);
   const setServiceCharge = useBillStore((s) => s.setServiceCharge);
   const setRounding = useBillStore((s) => s.setRounding);
+  const updateItem = useBillStore((s) => s.updateItem);
+  const removeItem = useBillStore((s) => s.removeItem);
+  const clearExtractionWarnings = useBillStore(
+    (s) => s.clearExtractionWarnings
+  );
   const reset = useBillStore((s) => s.reset);
 
   const hasBill = items.length > 0;
@@ -93,6 +102,14 @@ export default function Home() {
             className="grid lg:grid-cols-[1fr_360px] gap-6 items-start"
           >
             <div className="space-y-6 min-w-0">
+              <ExtractionWarning
+                warnings={extractionWarnings}
+                currency={currency}
+                items={items}
+                printedSubtotal={printedSubtotal}
+                printedTotal={printedTotal}
+                onDismiss={clearExtractionWarnings}
+              />
               <ItemsList
                 items={items}
                 currency={currency}
@@ -103,6 +120,8 @@ export default function Home() {
                 onDecSplit={decSplit}
                 onSelectAll={selectAll}
                 onClearSelection={clearSelection}
+                onUpdateItem={updateItem}
+                onRemoveItem={removeItem}
               />
             </div>
             <aside className="space-y-4 lg:sticky lg:top-24 self-start">

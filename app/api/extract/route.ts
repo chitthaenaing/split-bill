@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { extractBillFromImage } from "@/lib/openai";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+/** Two vision calls (extract + repair) can take a while on large photos. */
+export const maxDuration = 90;
 
 const MAX_BYTES = 8 * 1024 * 1024;
 
@@ -45,8 +46,17 @@ export async function POST(req: Request) {
       );
     }
 
-    const bill = await extractBillFromImage(imageDataUrl);
-    return NextResponse.json({ bill });
+    // Rough base64 size guard for JSON uploads (data URL length ≈ 4/3 bytes).
+    const approxBytes = Math.floor(((imageDataUrl.split(",")[1] || "").length * 3) / 4);
+    if (approxBytes > MAX_BYTES) {
+      return NextResponse.json(
+        { error: "Image is too large (max 8 MB)." },
+        { status: 413 }
+      );
+    }
+
+    const result = await extractBillFromImage(imageDataUrl);
+    return NextResponse.json(result);
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Unknown error during extraction.";

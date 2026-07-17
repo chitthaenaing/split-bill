@@ -1,7 +1,9 @@
 "use client";
 
-import { Check, Minus, Plus, Users } from "lucide-react";
+import { useState } from "react";
+import { Check, Minus, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { itemShare, splitCountOf, unitPrice } from "@/lib/calc";
 import { cn, formatMoney } from "@/lib/utils";
 import type { BillItem } from "@/types/bill";
@@ -16,6 +18,12 @@ export type ItemsListProps = {
   onDecSplit: (id: string) => void;
   onSelectAll: () => void;
   onClearSelection: () => void;
+  /** When set, rows can be corrected (name / line total / quantity). */
+  onUpdateItem?: (
+    id: string,
+    patch: { name?: string; price?: number; quantity?: number }
+  ) => void;
+  onRemoveItem?: (id: string) => void;
 };
 
 export function ItemsList({
@@ -28,6 +36,8 @@ export function ItemsList({
   onDecSplit,
   onSelectAll,
   onClearSelection,
+  onUpdateItem,
+  onRemoveItem,
 }: ItemsListProps) {
   const anySelectedRows = items.filter(
     (it) => it.selectedQuantity > 0
@@ -35,6 +45,7 @@ export function ItemsList({
   const allRowsFull =
     items.length > 0 &&
     items.every((it) => it.selectedQuantity === it.quantity);
+  const canEdit = Boolean(onUpdateItem);
 
   return (
     <Card>
@@ -46,6 +57,7 @@ export function ItemsList({
           <p className="text-xs text-muted-foreground mt-1">
             {anySelectedRows} of {items.length}{" "}
             {items.length === 1 ? "item" : "items"} selected
+            {canEdit ? " · tap the pencil to fix a line" : ""}
           </p>
         </div>
         <div className="flex gap-1">
@@ -83,6 +95,12 @@ export function ItemsList({
               onDec={() => onDec(it.id)}
               onIncSplit={() => onIncSplit(it.id)}
               onDecSplit={() => onDecSplit(it.id)}
+              onUpdate={
+                onUpdateItem
+                  ? (patch) => onUpdateItem(it.id, patch)
+                  : undefined
+              }
+              onRemove={onRemoveItem ? () => onRemoveItem(it.id) : undefined}
             />
           ))
         )}
@@ -99,6 +117,8 @@ function ItemRow({
   onDec,
   onIncSplit,
   onDecSplit,
+  onUpdate,
+  onRemove,
 }: {
   item: BillItem;
   currency: string;
@@ -107,7 +127,18 @@ function ItemRow({
   onDec: () => void;
   onIncSplit: () => void;
   onDecSplit: () => void;
+  onUpdate?: (patch: {
+    name?: string;
+    price?: number;
+    quantity?: number;
+  }) => void;
+  onRemove?: () => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [nameDraft, setNameDraft] = useState(item.name);
+  const [priceDraft, setPriceDraft] = useState(String(item.price ?? ""));
+  const [qtyDraft, setQtyDraft] = useState(String(item.quantity ?? 1));
+
   const lineTotal = item.price || 0;
   const splitCount = splitCountOf(item);
   const yourShare = itemShare(item);
@@ -122,6 +153,95 @@ function ItemRow({
   const someSelected = item.selectedQuantity > 0;
   const hasStepper = item.quantity > 1;
 
+  const openEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setNameDraft(item.name);
+    setPriceDraft(String(item.price ?? ""));
+    setQtyDraft(String(item.quantity ?? 1));
+    setEditing(true);
+  };
+
+  const saveEdit = () => {
+    if (!onUpdate) return;
+    const price = Number(priceDraft);
+    const quantity = Math.max(1, Math.floor(Number(qtyDraft) || 1));
+    onUpdate({
+      name: nameDraft.trim() || item.name,
+      price: Number.isFinite(price) ? price : item.price,
+      quantity,
+    });
+    setEditing(false);
+  };
+
+  if (editing && onUpdate) {
+    return (
+      <div className="rounded-2xl ring-1 ring-inset ring-accent/40 bg-accent/5 px-3 py-3 space-y-2.5">
+        <Input
+          value={nameDraft}
+          onChange={(e) => setNameDraft(e.target.value)}
+          placeholder="Item name"
+          className="h-9 text-sm"
+          aria-label="Item name"
+        />
+        <div className="flex gap-2">
+          <label className="flex-1 space-y-1">
+            <span className="text-[11px] text-muted-foreground">Line total</span>
+            <Input
+              type="number"
+              step="0.01"
+              inputMode="decimal"
+              value={priceDraft}
+              onChange={(e) => setPriceDraft(e.target.value)}
+              className="h-9 text-sm tabular-nums"
+              aria-label="Line total"
+            />
+          </label>
+          <label className="w-24 space-y-1">
+            <span className="text-[11px] text-muted-foreground">Qty</span>
+            <Input
+              type="number"
+              min={1}
+              step={1}
+              inputMode="numeric"
+              value={qtyDraft}
+              onChange={(e) => setQtyDraft(e.target.value)}
+              className="h-9 text-sm tabular-nums"
+              aria-label="Quantity"
+            />
+          </label>
+        </div>
+        <div className="flex items-center gap-2 justify-end">
+          {onRemove && (
+            <button
+              type="button"
+              onClick={onRemove}
+              className="mr-auto inline-flex items-center gap-1 text-xs text-rose-600 dark:text-rose-400 hover:underline"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Remove
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground px-2.5 py-1.5 rounded-full hover:bg-muted"
+          >
+            <X className="h-3.5 w-3.5" />
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={saveEdit}
+            className="inline-flex items-center gap-1 text-xs font-medium bg-accent text-accent-foreground px-2.5 py-1.5 rounded-full"
+          >
+            <Check className="h-3.5 w-3.5" />
+            Save
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -131,73 +251,86 @@ function ItemRow({
           : "bg-muted/40 ring-transparent hover:bg-muted"
       )}
     >
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-pressed={someSelected}
-        aria-label={
-          fullySelected
-            ? `Deselect ${item.name}`
-            : `Select ${item.name}`
-        }
-        className="w-full flex items-center gap-3 px-3 py-2.5 text-left active:scale-[0.995] transition-transform"
-      >
-        <span
-          className={cn(
-            "h-6 w-6 rounded-lg flex items-center justify-center shrink-0 text-[11px] font-semibold transition-all",
+      <div className="flex items-stretch">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-pressed={someSelected}
+          aria-label={
             fullySelected
-              ? "bg-accent text-accent-foreground"
-              : partiallySelected
-              ? "bg-accent/30 text-accent ring-1 ring-inset ring-accent/40"
-              : "bg-card border border-border"
-          )}
-          aria-hidden
+              ? `Deselect ${item.name}`
+              : `Select ${item.name}`
+          }
+          className="flex-1 min-w-0 flex items-center gap-3 px-3 py-2.5 text-left active:scale-[0.995] transition-transform"
         >
-          {fullySelected ? (
-            <Check className="h-4 w-4" strokeWidth={3} />
-          ) : partiallySelected ? (
-            item.selectedQuantity
-          ) : null}
-        </span>
-
-        <span className="flex-1 min-w-0">
           <span
             className={cn(
-              "block truncate text-sm font-medium",
-              someSelected ? "text-foreground" : "text-foreground/85"
+              "h-6 w-6 rounded-lg flex items-center justify-center shrink-0 text-[11px] font-semibold transition-all",
+              fullySelected
+                ? "bg-accent text-accent-foreground"
+                : partiallySelected
+                ? "bg-accent/30 text-accent ring-1 ring-inset ring-accent/40"
+                : "bg-card border border-border"
             )}
+            aria-hidden
           >
-            {item.name || "Untitled item"}
+            {fullySelected ? (
+              <Check className="h-4 w-4" strokeWidth={3} />
+            ) : partiallySelected ? (
+              item.selectedQuantity
+            ) : null}
           </span>
-          {hasStepper && (
-            <span className="block text-xs text-muted-foreground">
-              {item.quantity} × {formatMoney(unitPrice(item), currency)} each
-            </span>
-          )}
-        </span>
 
-        <span className="text-right shrink-0">
-          {showsShare ? (
-            <>
-              <span className="block text-sm font-medium tabular-nums">
-                {formatMoney(yourShare, currency)}
-              </span>
-              <span className="block text-[11px] text-muted-foreground tabular-nums">
-                of {formatMoney(lineTotal, currency)}
-              </span>
-            </>
-          ) : (
+          <span className="flex-1 min-w-0">
             <span
               className={cn(
-                "block text-sm font-medium tabular-nums transition-colors",
-                someSelected ? "text-foreground" : "text-muted-foreground"
+                "block truncate text-sm font-medium",
+                someSelected ? "text-foreground" : "text-foreground/85"
               )}
             >
-              {formatMoney(lineTotal, currency)}
+              {item.name || "Untitled item"}
             </span>
-          )}
-        </span>
-      </button>
+            {hasStepper && (
+              <span className="block text-xs text-muted-foreground">
+                {item.quantity} × {formatMoney(unitPrice(item), currency)} each
+              </span>
+            )}
+          </span>
+
+          <span className="text-right shrink-0">
+            {showsShare ? (
+              <>
+                <span className="block text-sm font-medium tabular-nums">
+                  {formatMoney(yourShare, currency)}
+                </span>
+                <span className="block text-[11px] text-muted-foreground tabular-nums">
+                  of {formatMoney(lineTotal, currency)}
+                </span>
+              </>
+            ) : (
+              <span
+                className={cn(
+                  "block text-sm font-medium tabular-nums transition-colors",
+                  someSelected ? "text-foreground" : "text-muted-foreground"
+                )}
+              >
+                {formatMoney(lineTotal, currency)}
+              </span>
+            )}
+          </span>
+        </button>
+
+        {onUpdate && (
+          <button
+            type="button"
+            onClick={openEdit}
+            aria-label={`Edit ${item.name}`}
+            className="shrink-0 px-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
 
       {(hasStepper || someSelected) && (
         <div className="flex items-center justify-end gap-x-4 gap-y-2 flex-wrap pl-12 pr-3 pb-2.5 -mt-1">

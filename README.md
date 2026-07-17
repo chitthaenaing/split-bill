@@ -34,12 +34,12 @@ Set `OPENAI_MODEL` in `.env.local` to any OpenAI vision-capable model. Defaults 
 
 ## How it works
 
-1. **Upload** — drag a receipt image into the dropzone (or tap on mobile).
-2. **Extract** — `/api/extract` sends the image to OpenAI with a JSON schema and gets back `{ items, tax, serviceCharge, rounding, currency }`.
-3. **Pick** — tap each item you had. The totals panel updates live.
+1. **Upload** — drag a receipt image into the dropzone (or tap on mobile). The photo is resized client-side before upload.
+2. **Extract** — `/api/extract` sends the image to OpenAI with a JSON schema and gets back `{ items, tax, serviceCharge, rounding, currency, subtotal, total }`. The server checks that the numbers add up and asks the model to repair once if they don't.
+3. **Pick** — tap each item you had. The totals panel updates live. Use the pencil on a row to fix a mis-read name or price.
 4. **Your share** — the panel shows your items subtotal plus a proportional share of tax, service and rounding. One tap to copy the total.
 
-Tax, service and rounding are editable too — flip the panel into edit mode if the AI got something off or you want to adjust the tip.
+Tax, service and rounding are editable too — flip the panel into edit mode if the AI got something off or you want to adjust the tip. If the extracted totals still don't reconcile, a warning banner shows the printed vs computed amounts.
 
 ## Sharing
 
@@ -76,7 +76,9 @@ components/
 lib/
   store.ts                Zustand store for the creator flow
   calc.ts                 pure split math (unit-testable)
-  openai.ts               prompt + schema
+  bill-extract.ts         normalize + arithmetic reconciliation
+  openai.ts               prompt + schema + repair retry
+  image-prep.ts           client-side resize/JPEG encode
   share.ts                Vercel Blob put/get helpers (server-only)
 types/bill.ts             shared types
 ```
@@ -85,3 +87,4 @@ types/bill.ts             shared types
 
 - Bill data is kept in `localStorage` so a refresh won't lose your selection. Use "New bill" to reset.
 - No database, no auth — everything happens in your browser and a single server route.
+- Run extraction unit tests with `npm test`.
