@@ -7,6 +7,7 @@ function round2(n: number): number {
 /**
  * The per-unit cost for an item — line total divided by quantity. Used to
  * compute the user's portion when they pick a subset of a multi-unit line.
+ * Negative for promotion / discount lines.
  */
 export function unitPrice(item: BillItem): number {
   const q = Math.max(1, item.quantity || 1);
@@ -21,65 +22,71 @@ export function splitCountOf(item: BillItem): number {
 /**
  * What the user owes for this single line: the per-unit price times the units
  * they selected, divided by however many people they're splitting it with.
+ * Selecting a minus promotion line reduces what they owe.
  */
 export function itemShare(item: BillItem): number {
   return (unitPrice(item) * (item.selectedQuantity || 0)) / splitCountOf(item);
 }
 
 /**
- * Sum every item line on the receipt (the printed line totals), regardless of
- * selection. This is the denominator we use to split tax / service / discount /
- * rounding across the selected subset.
+ * Sum every item line on the receipt (including negative promotions).
  */
 export function itemsTotal(items: BillItem[]): number {
   return items.reduce((s, it) => s + (it.price || 0), 0);
 }
 
+/** Sum of product lines only (price ≥ 0) — used to split tax/service. */
+export function positiveItemsTotal(items: BillItem[]): number {
+  return items.reduce((s, it) => s + Math.max(0, it.price || 0), 0);
+}
+
 /**
  * Compute what the user owes for the selected items, including their
- * proportional share of discount, tax, service charge and any receipt rounding.
+ * proportional share of tax, service charge and any receipt rounding.
  *
- * The share is based on the selected items' subtotal as a fraction of the
- * receipt's items total. If nothing is selected, everything is zero.
+ * Tax/service are split from the share of *positive* product lines selected.
+ * Minus promotion lines reduce the items subtotal when selected, and are
+ * not applied again on the total.
  */
 export function computeSplit(
   items: BillItem[],
   tax: number,
   serviceCharge: number,
-  rounding: number,
-  discount = 0
+  rounding: number
 ): SplitBreakdown {
-  const fullTotal = itemsTotal(items);
+  const positiveTotal = positiveItemsTotal(items);
   const selectedSubtotal = items.reduce((s, it) => s + itemShare(it), 0);
+  const selectedPositive = items.reduce((s, it) => {
+    if ((it.price || 0) <= 0) return s;
+    return s + itemShare(it);
+  }, 0);
 
   const ratio =
-    fullTotal > 0 && selectedSubtotal > 0
-      ? selectedSubtotal / fullTotal
+    positiveTotal > 0 && selectedPositive > 0
+      ? selectedPositive / positiveTotal
       : 0;
 
   const safeTax = Math.max(0, tax || 0);
   const safeSvc = Math.max(0, serviceCharge || 0);
   const safeRnd = rounding || 0;
-  const safeDiscount = Math.max(0, discount || 0);
 
   const taxShare = round2(safeTax * ratio);
   const serviceShare = round2(safeSvc * ratio);
   const roundingShare = round2(safeRnd * ratio);
-  const discountShare = round2(safeDiscount * ratio);
 
   const subtotalRounded = round2(selectedSubtotal);
   const total = round2(
-    subtotalRounded - discountShare + taxShare + serviceShare + roundingShare
+    subtotalRounded + taxShare + serviceShare + roundingShare
   );
 
   return {
     selectedSubtotal: subtotalRounded,
-    discountShare,
+    discountShare: 0,
     taxShare,
     serviceShare,
     roundingShare,
     total,
-    itemsTotal: round2(fullTotal),
+    itemsTotal: round2(itemsTotal(items)),
     ratio,
   };
 }

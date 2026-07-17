@@ -53,7 +53,7 @@ export function ExtractionWarning({
             {printedTotal != null && (
               <> · printed total {formatMoney(printedTotal, currency)}</>
             )}
-            . Edit tax / service / discount below, or retake the photo if a line looks wrong.
+            . Edit tax / service below, or retake the photo if a line looks wrong.
           </p>
         </div>
         <button
