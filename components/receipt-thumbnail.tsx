@@ -1,12 +1,15 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, QrCode, Receipt, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { downloadImageFile } from "@/lib/download-file";
+import {
+  downloadImageFile,
+  prefersShareToPhotoLibrary,
+} from "@/lib/download-file";
 import { cn } from "@/lib/utils";
 
 function isPaymentQrTitle(title: string): boolean {
@@ -44,10 +47,20 @@ export function ReceiptThumbnail({
 }) {
   const [open, setOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [saveToLibrary, setSaveToLibrary] = useState(false);
   const qr = isPaymentQrTitle(title);
   const HeaderIcon = qr ? QrCode : Receipt;
   const mobileLabel = mobileActionLabel ?? defaultMobileActionLabel(title);
   const MobileIcon = qr ? QrCode : Receipt;
+  const actionIdleLabel = saveToLibrary ? "Save" : "Download";
+  const actionBusyLabel = saveToLibrary ? "Saving..." : "Downloading...";
+  const actionAria = saveToLibrary
+    ? `Save ${title} to photo library`
+    : `Download ${title}`;
+
+  useEffect(() => {
+    setSaveToLibrary(prefersShareToPhotoLibrary());
+  }, []);
 
   const onDownload = useCallback(async () => {
     if (!src || downloading) return;
@@ -87,10 +100,10 @@ export function ReceiptThumbnail({
                 void onDownload();
               }}
               disabled={downloading}
-              aria-label={`Download ${title}`}
+              aria-label={actionAria}
             >
               <Download className="h-4 w-4" />
-              {downloading ? "Downloading..." : "Download"}
+              {downloading ? actionBusyLabel : actionIdleLabel}
             </Button>
           ) : null}
         </div>
@@ -151,9 +164,10 @@ export function ReceiptThumbnail({
                       void onDownload();
                     }}
                     disabled={downloading}
+                    aria-label={actionAria}
                   >
                     <Download className="h-4 w-4" />
-                    {downloading ? "Downloading..." : "Download"}
+                    {downloading ? actionBusyLabel : actionIdleLabel}
                   </Button>
                 ) : null}
                 <motion.img

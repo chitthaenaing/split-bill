@@ -1,10 +1,13 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, QrCode, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { downloadImageFile } from "@/lib/download-file";
+import {
+  downloadImageFile,
+  prefersShareToPhotoLibrary,
+} from "@/lib/download-file";
 import { cn } from "@/lib/utils";
 import { useBillStore } from "@/lib/store";
 
@@ -22,6 +25,11 @@ export function BankingQrPanel() {
   const setBankingQrDataUrl = useBillStore((s) => s.setBankingQrDataUrl);
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saveToLibrary, setSaveToLibrary] = useState(false);
+
+  useEffect(() => {
+    setSaveToLibrary(prefersShareToPhotoLibrary());
+  }, []);
 
   const onPick = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -105,9 +113,14 @@ export function BankingQrPanel() {
                     baseName: "payment-qr",
                   })
                 }
+                aria-label={
+                  saveToLibrary
+                    ? "Save payment QR to photo library"
+                    : "Download payment QR"
+                }
               >
                 <Download className="h-4 w-4" />
-                Download
+                {saveToLibrary ? "Save" : "Download"}
               </Button>
               <Button
                 type="button"
