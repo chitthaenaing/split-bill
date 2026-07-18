@@ -8,9 +8,12 @@
  * that so multipart uploads (and any JSON fallback) succeed on mobile Safari.
  */
 
-/** Longest edge after resize — enough detail for receipt OCR. */
-export const MAX_EDGE_PX = 1600;
-const JPEG_QUALITY = 0.82;
+/**
+ * Longest edge after resize. Dense Myanmar/Thai thermal text needs more
+ * pixels than Latin menus; 2048 still fits the upload budget after JPEG.
+ */
+export const MAX_EDGE_PX = 2048;
+const JPEG_QUALITY = 0.88;
 /**
  * Max encoded JPEG size. Kept under Vercel's 4.5 MB body limit with room for
  * multipart framing. Previously 5 MB, which routinely 413'd on phone photos

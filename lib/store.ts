@@ -55,6 +55,12 @@ type Actions = {
     id: string,
     patch: { name?: string; price?: number; quantity?: number }
   ) => void;
+  /** Add a line the extractor missed (e.g. a non-Latin menu name). */
+  addItem: (item?: {
+    name?: string;
+    price?: number;
+    quantity?: number;
+  }) => string;
   removeItem: (id: string) => void;
 
   reset: () => void;
@@ -247,6 +253,30 @@ export const useBillStore = create<State & Actions>()(
             return next;
           }),
         })),
+
+      addItem: (item) => {
+        const id = uid("itm");
+        const quantity = Math.max(1, Math.floor(item?.quantity ?? 1) || 1);
+        const price =
+          typeof item?.price === "number" && Number.isFinite(item.price)
+            ? item.price
+            : 0;
+        const name = (item?.name ?? "New item").trim().slice(0, 200) || "New item";
+        set((s) => ({
+          items: [
+            ...s.items,
+            {
+              id,
+              name,
+              price,
+              quantity,
+              selectedQuantity: 0,
+              splitCount: 1,
+            },
+          ],
+        }));
+        return id;
+      },
 
       removeItem: (id) =>
         set((s) => ({ items: s.items.filter((it) => it.id !== id) })),

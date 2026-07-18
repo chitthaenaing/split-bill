@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   checkBillMath,
   cleanItemName,
+  formatCheckForRepair,
   isJunkItemName,
   normalizeExtractedBill,
   reconcileBill,
@@ -28,6 +29,12 @@ describe("isJunkItemName", () => {
     );
     assert.equal(isJunkItemName("Discount", -50), false);
   });
+
+  it("does not treat non-Latin product names as junk", () => {
+    assert.equal(isJunkItemName("မုန့်ဟင်းခါး"), false);
+    assert.equal(isJunkItemName("ข้าวซอย"), false);
+    assert.equal(isJunkItemName("မုန့်ဟင်းခါး / ขนมจีนน้ำยา"), false);
+  });
 });
 
 describe("cleanItemName", () => {
@@ -45,7 +52,8 @@ describe("normalizeExtractedBill", () => {
       items: [
         { name: "Latte", price: 4.5, quantity: 1 },
         { name: "Subtotal", price: 4.5, quantity: 1 },
-        { name: "", price: 1, quantity: 1 },
+        // Zero-price empty names are noise; priced empty names become Unreadable item.
+        { name: "", price: 0, quantity: 1 },
       ],
       tax: 0.9,
       serviceCharge: 0,
@@ -96,6 +104,78 @@ describe("normalizeExtractedBill", () => {
     });
     assert.ok(bill.items.some((it) => it.price === -20));
     assert.equal(bill.discount, 0);
+  });
+
+  it("keeps Myanmar/Thai-only product names", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "မုန့်ဟင်းခါး / ขนมจีนน้ำยา", price: 60, quantity: 1 },
+        { name: "Burmese Hot Tea", price: 30, quantity: 1 },
+        { name: "Shan Tofu", price: 70, quantity: 1 },
+      ],
+      tax: 11.2,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 160,
+      total: 171.2,
+      taxInclusive: false,
+    });
+    assert.equal(bill.items.length, 3);
+    assert.equal(bill.items[0].name, "မုန့်ဟင်းခါး / ขนมจีนน้ำยา");
+    assert.equal(bill.items[0].price, 60);
+    assert.equal(checkBillMath(bill).ok, true);
+  });
+
+  it("keeps priced rows when the name is empty as Unreadable item", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "", price: 60, quantity: 1 },
+        { name: "Shan Tofu", price: 70, quantity: 1 },
+      ],
+      tax: 0,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 130,
+      total: 130,
+      taxInclusive: true,
+    });
+    assert.equal(bill.items.length, 2);
+    assert.equal(bill.items[0].name, "Unreadable item");
+    assert.equal(bill.items[0].price, 60);
+  });
+});
+
+describe("formatCheckForRepair", () => {
+  it("hints at a missing priced drink/tea row (Mandalay-style shortfall)", () => {
+    // First dish + foods kept; Burmese Hot Tea 30 omitted → sum 330 vs subtotal 360.
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "မုန့်ဟင်းခါး / ขนมจีนน้ำยา", price: 60, quantity: 1 },
+        { name: "Shan Tofu", price: 70, quantity: 1 },
+        { name: "Pone Yay Gyi Rice Salad", price: 80, quantity: 1 },
+        { name: "Rice Noodles Hot Pot", price: 120, quantity: 1 },
+      ],
+      tax: 25.2,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 360,
+      total: 385.2,
+      taxInclusive: false,
+    });
+    const check = checkBillMath(bill);
+    assert.equal(check.ok, false);
+    assert.equal(check.itemsSum, 330);
+    assert.ok(Math.abs(check.itemsDelta - 30) < 0.01);
+    const prompt = formatCheckForRepair(bill, check);
+    assert.match(prompt, /priced product row is likely missing/i);
+    assert.match(prompt, /Burmese Hot Tea|drinks\/tea|distinct price/i);
+    assert.match(prompt, /Unreadable item/);
   });
 });
 
