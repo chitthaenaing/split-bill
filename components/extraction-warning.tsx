@@ -41,12 +41,18 @@ export function ExtractionWarning({
             ))}
           </ul>
           <p className="text-xs text-amber-900/70 dark:text-amber-100/70 pt-1">
-            Items {formatMoney(computedItems, currency)}
+            Extracted items {formatMoney(computedItems, currency)}
             {printedSubtotal != null && (
-              <> · subtotal {formatMoney(printedSubtotal, currency)}</>
+              <>
+                {" "}
+                vs receipt subtotal {formatMoney(printedSubtotal, currency)}
+              </>
             )}
             {printedTotal != null && (
-              <> · total {formatMoney(printedTotal, currency)}</>
+              <>
+                {printedSubtotal != null ? "," : " vs"} receipt total{" "}
+                {formatMoney(printedTotal, currency)}
+              </>
             )}
             . Edit tax/service, or retake the photo.
           </p>

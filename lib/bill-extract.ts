@@ -243,12 +243,12 @@ export function checkBillMath(bill: NormalizedBill): BillCheck {
   }
   if (itemsDelta > MONEY_TOLERANCE) {
     messages.push(
-      `Items sum to ${itemsSum.toFixed(2)}; subtotal is ${bill.subtotal.toFixed(2)} (off by ${itemsDelta.toFixed(2)}).`
+      `Extracted items ${itemsSum.toFixed(2)} ≠ receipt subtotal ${bill.subtotal.toFixed(2)} (off by ${itemsDelta.toFixed(2)}).`
     );
   }
   if (totalDelta > MONEY_TOLERANCE) {
     messages.push(
-      `Expected ${expectedTotal.toFixed(2)} (${bill.taxInclusive ? "incl. tax" : "excl. tax"}); total is ${bill.total.toFixed(2)} (off by ${totalDelta.toFixed(2)}).`
+      `Extracted total ${expectedTotal.toFixed(2)} (${bill.taxInclusive ? "incl. tax" : "excl. tax"}) ≠ receipt total ${bill.total.toFixed(2)} (off by ${totalDelta.toFixed(2)}).`
     );
   }
 
