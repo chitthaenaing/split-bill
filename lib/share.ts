@@ -3,20 +3,17 @@ import { del, list, put } from "@vercel/blob";
 import { customAlphabet } from "nanoid";
 import type { ExtractedBill, StoredBill, StoredPaymentReceipt } from "@/types/bill";
 import { sendPushToTokens } from "./firebase-admin";
+import { isValidShareId, normalizeStoredBill } from "./normalize-stored-bill";
+import { createShareToken, hashShareToken, verifyShareToken } from "./share-tokens";
+
+export { isValidShareId, normalizeStoredBill } from "./normalize-stored-bill";
 
 const newId = customAlphabet(
   "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
   10
 );
 
-/**
- * Validates an id used in URLs. Restricted to alphanumerics so it can't be
- * abused to escape the `bills/{id}/` prefix.
- */
 const ID_RE = /^[A-Za-z0-9]{6,32}$/;
-export function isValidShareId(id: string): boolean {
-  return ID_RE.test(id);
-}
 
 function ensureToken(): void {
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -40,6 +37,21 @@ const MAX_PAYMENT_RECEIPTS_PER_BILL = 40;
 const MAX_PAYER_NAME_LEN = 40;
 const MAX_NOTIFY_TOKENS = 20;
 const MAX_TOKEN_LEN = 4096;
+const MUTATE_MAX_ATTEMPTS = 5;
+
+export class ShareConflictError extends Error {
+  constructor(message = "Could not update the shared bill after concurrent edits. Please try again.") {
+    super(message);
+    this.name = "ShareConflictError";
+  }
+}
+
+export class ShareAuthError extends Error {
+  constructor(message = "Not allowed.") {
+    super(message);
+    this.name = "ShareAuthError";
+  }
+}
 
 /** Trim, strip ASCII control chars, cap length. Returns null if empty. */
 export function sanitizePayerName(raw: unknown): string | null {
@@ -53,16 +65,58 @@ export function sanitizePayerName(raw: unknown): string | null {
   return cleaned.length > 0 ? cleaned : null;
 }
 
+/**
+ * Read-modify-write bill.json with lastWriteId verification + retry so concurrent
+ * payment uploads / notify registrations / deletes don't silently clobber each other.
+ */
+export async function mutateStoredBill(
+  shareId: string,
+  mutator: (current: StoredBill) => StoredBill,
+  opts?: { maxAttempts?: number }
+): Promise<StoredBill | null> {
+  ensureToken();
+  if (!isValidShareId(shareId)) return null;
+
+  const maxAttempts = opts?.maxAttempts ?? MUTATE_MAX_ATTEMPTS;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const current = await getShare(shareId);
+    if (!current) return null;
+
+    const writeId = newId();
+    const next: StoredBill = {
+      ...mutator(current),
+      revision: (current.revision ?? 0) + 1,
+      lastWriteId: writeId,
+    };
+
+    await put(`bills/${shareId}/bill.json`, JSON.stringify(next), {
+      access: "public",
+      contentType: "application/json",
+      cacheControlMaxAge: 0,
+      allowOverwrite: true,
+    });
+
+    const verified = await getShare(shareId);
+    if (verified?.lastWriteId === writeId) {
+      return verified;
+    }
+  }
+
+  throw new ShareConflictError();
+}
+
 export async function createShare(opts: {
   imageBuffer: Buffer;
   imageContentType: string;
   bill: ExtractedBill;
   bankingQrBuffer?: Buffer;
   bankingQrContentType?: string;
-}): Promise<{ id: string }> {
+}): Promise<{ id: string; ownerToken: string }> {
   ensureToken();
 
   const id = newId();
+  const ownerToken = createShareToken();
   const ext = extensionForMime(opts.imageContentType);
 
   const receiptBlob = await put(
@@ -96,6 +150,7 @@ export async function createShare(opts: {
     bankingQrContentType = opts.bankingQrContentType;
   }
 
+  const writeId = newId();
   const stored: StoredBill = {
     id,
     createdAt: Date.now(),
@@ -104,6 +159,9 @@ export async function createShare(opts: {
     ...(bankingQrUrl && bankingQrContentType
       ? { bankingQrUrl, bankingQrContentType }
       : {}),
+    ownerTokenHash: hashShareToken(ownerToken),
+    revision: 1,
+    lastWriteId: writeId,
     currency: opts.bill.currency,
     items: opts.bill.items,
     tax: opts.bill.tax,
@@ -123,36 +181,40 @@ export async function createShare(opts: {
     }
   );
 
-  return { id };
+  return { id, ownerToken };
 }
 
 /**
  * Uploads a payment proof image and appends it to the shared bill metadata.
+ * Returns a one-time `deleteToken` the uploader must present to remove it.
  */
 export async function appendPaymentReceipt(opts: {
   shareId: string;
   imageBuffer: Buffer;
   imageContentType: string;
   payerName: string;
-}): Promise<{ bill: StoredBill; entry: StoredPaymentReceipt } | null> {
+}): Promise<{
+  bill: StoredBill;
+  entry: StoredPaymentReceipt;
+  deleteToken: string;
+} | null> {
   ensureToken();
   if (!isValidShareId(opts.shareId)) return null;
 
+  // Cap check before uploading the blob so we don't leave orphans on a full bill.
   const current = await getShare(opts.shareId);
   if (!current) return null;
-
-  const existing: StoredPaymentReceipt[] = Array.isArray(
-    current.paymentReceipts
-  )
-    ? current.paymentReceipts
-    : [];
-  if (existing.length >= MAX_PAYMENT_RECEIPTS_PER_BILL) {
+  const existingCount = Array.isArray(current.paymentReceipts)
+    ? current.paymentReceipts.length
+    : 0;
+  if (existingCount >= MAX_PAYMENT_RECEIPTS_PER_BILL) {
     throw new Error(
       `This bill already has the maximum number of payment proofs (${MAX_PAYMENT_RECEIPTS_PER_BILL}).`
     );
   }
 
   const proofId = newId();
+  const deleteToken = createShareToken();
   const ext = extensionForMime(opts.imageContentType);
   const path = `bills/${opts.shareId}/payments/${proofId}.${ext}`;
 
@@ -168,23 +230,52 @@ export async function appendPaymentReceipt(opts: {
     contentType: opts.imageContentType,
     uploadedAt: Date.now(),
     payerName: opts.payerName,
+    deleteTokenHash: hashShareToken(deleteToken),
   };
 
-  const next: StoredBill = {
-    ...current,
-    paymentReceipts: [...existing, entry],
-  };
-
-  await put(`bills/${opts.shareId}/bill.json`, JSON.stringify(next), {
-    access: "public",
-    contentType: "application/json",
-    cacheControlMaxAge: 0,
-    allowOverwrite: true,
-  });
+  let bill: StoredBill;
+  try {
+    const next = await mutateStoredBill(opts.shareId, (latest) => {
+      const receipts: StoredPaymentReceipt[] = Array.isArray(
+        latest.paymentReceipts
+      )
+        ? latest.paymentReceipts
+        : [];
+      if (receipts.length >= MAX_PAYMENT_RECEIPTS_PER_BILL) {
+        throw new Error(
+          `This bill already has the maximum number of payment proofs (${MAX_PAYMENT_RECEIPTS_PER_BILL}).`
+        );
+      }
+      // Another writer may have raced ahead; don't double-append the same id.
+      if (receipts.some((r) => r.id === proofId)) {
+        return latest;
+      }
+      return {
+        ...latest,
+        paymentReceipts: [...receipts, entry],
+      };
+    });
+    if (!next) {
+      try {
+        await del(uploaded.url);
+      } catch {
+        // best-effort cleanup
+      }
+      return null;
+    }
+    bill = next;
+  } catch (err) {
+    try {
+      await del(uploaded.url);
+    } catch {
+      // best-effort cleanup
+    }
+    throw err;
+  }
 
   // Best-effort push to the sharer; a notification failure must never break the
   // upload. Prune any tokens FCM rejects so the stored list stays clean.
-  const tokens = Array.isArray(next.notifyTokens) ? next.notifyTokens : [];
+  const tokens = Array.isArray(bill.notifyTokens) ? bill.notifyTokens : [];
   if (tokens.length > 0) {
     try {
       const { invalidTokens } = await sendPushToTokens(tokens, {
@@ -193,33 +284,36 @@ export async function appendPaymentReceipt(opts: {
         url: `/b/${opts.shareId}`,
       });
       if (invalidTokens.length > 0) {
-        const cleaned: StoredBill = {
-          ...next,
-          notifyTokens: tokens.filter((t) => !invalidTokens.includes(t)),
-        };
-        await put(`bills/${opts.shareId}/bill.json`, JSON.stringify(cleaned), {
-          access: "public",
-          contentType: "application/json",
-          cacheControlMaxAge: 0,
-          allowOverwrite: true,
+        const cleaned = await mutateStoredBill(opts.shareId, (latest) => {
+          const currentTokens = Array.isArray(latest.notifyTokens)
+            ? latest.notifyTokens
+            : [];
+          return {
+            ...latest,
+            notifyTokens: currentTokens.filter(
+              (t) => !invalidTokens.includes(t)
+            ),
+          };
         });
-        return { bill: cleaned, entry };
+        if (cleaned) bill = cleaned;
       }
     } catch (err) {
       console.error("[appendPaymentReceipt] push notification failed", err);
     }
   }
 
-  return { bill: next, entry };
+  return { bill, entry, deleteToken };
 }
 
 /**
  * Stores an FCM token for the sharer so they get pushed when a payment proof
  * is uploaded. De-duplicates and caps the list. Idempotent.
+ * Requires the bill's owner token when the bill was created with one.
  */
 export async function registerNotifyToken(opts: {
   shareId: string;
   token: string;
+  ownerToken?: string | null;
 }): Promise<boolean> {
   ensureToken();
   if (!isValidShareId(opts.shareId)) return false;
@@ -229,33 +323,39 @@ export async function registerNotifyToken(opts: {
   const current = await getShare(opts.shareId);
   if (!current) return false;
 
-  const existing = Array.isArray(current.notifyTokens)
-    ? current.notifyTokens
-    : [];
-  if (existing.includes(token)) return true;
+  if (current.ownerTokenHash) {
+    if (!verifyShareToken(opts.ownerToken, current.ownerTokenHash)) {
+      throw new ShareAuthError(
+        "Only the person who shared this bill can enable payment alerts."
+      );
+    }
+  }
 
-  const next: StoredBill = {
-    ...current,
-    notifyTokens: [...existing, token].slice(-MAX_NOTIFY_TOKENS),
-  };
-
-  await put(`bills/${opts.shareId}/bill.json`, JSON.stringify(next), {
-    access: "public",
-    contentType: "application/json",
-    cacheControlMaxAge: 0,
-    allowOverwrite: true,
+  const next = await mutateStoredBill(opts.shareId, (latest) => {
+    const existing = Array.isArray(latest.notifyTokens)
+      ? latest.notifyTokens
+      : [];
+    if (existing.includes(token)) return latest;
+    return {
+      ...latest,
+      notifyTokens: [...existing, token].slice(-MAX_NOTIFY_TOKENS),
+    };
   });
 
-  return true;
+  return next != null;
 }
 
 /**
  * Removes a single payment proof (its blob and its entry in the bill) by id.
+ * Requires the uploader's delete token, or the bill owner's token.
+ * Legacy proofs without a stored hash still allow unauthenticated delete.
  * Idempotent — a missing receipt id just returns the current bill unchanged.
  */
 export async function deletePaymentReceipt(opts: {
   shareId: string;
   receiptId: string;
+  deleteToken?: string | null;
+  ownerToken?: string | null;
 }): Promise<StoredBill | null> {
   ensureToken();
   if (!isValidShareId(opts.shareId)) return null;
@@ -272,6 +372,19 @@ export async function deletePaymentReceipt(opts: {
   const target = existing.find((r) => r.id === opts.receiptId);
   if (!target) return current;
 
+  const isOwner = verifyShareToken(opts.ownerToken, current.ownerTokenHash);
+  if (target.deleteTokenHash) {
+    const isUploader = verifyShareToken(
+      opts.deleteToken,
+      target.deleteTokenHash
+    );
+    if (!isUploader && !isOwner) {
+      throw new ShareAuthError(
+        "Missing or invalid delete token for this payment proof."
+      );
+    }
+  }
+
   try {
     await del(target.url);
   } catch (err) {
@@ -279,19 +392,17 @@ export async function deletePaymentReceipt(opts: {
     console.error("[deletePaymentReceipt] blob delete failed", err);
   }
 
-  const next: StoredBill = {
-    ...current,
-    paymentReceipts: existing.filter((r) => r.id !== opts.receiptId),
-  };
-
-  await put(`bills/${opts.shareId}/bill.json`, JSON.stringify(next), {
-    access: "public",
-    contentType: "application/json",
-    cacheControlMaxAge: 0,
-    allowOverwrite: true,
+  return mutateStoredBill(opts.shareId, (latest) => {
+    const receipts: StoredPaymentReceipt[] = Array.isArray(
+      latest.paymentReceipts
+    )
+      ? latest.paymentReceipts
+      : [];
+    return {
+      ...latest,
+      paymentReceipts: receipts.filter((r) => r.id !== opts.receiptId),
+    };
   });
-
-  return next;
 }
 
 export async function getShare(id: string): Promise<StoredBill | null> {
@@ -315,9 +426,8 @@ export async function getShare(id: string): Promise<StoredBill | null> {
     const res = await fetch(billBlob.url, { cache: "no-store" });
     if (!res.ok) return null;
 
-    const data = (await res.json()) as StoredBill;
-    if (!data || typeof data !== "object") return null;
-    return data;
+    const data = (await res.json()) as unknown;
+    return normalizeStoredBill(data);
   } catch (err) {
     console.error("[getShare]", err);
     return null;

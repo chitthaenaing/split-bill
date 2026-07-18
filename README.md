@@ -43,7 +43,9 @@ Tax, service and rounding are editable too — flip the panel into edit mode if 
 
 ## Sharing
 
-Hit **Share link** once a bill is loaded. The receipt image and extracted items are uploaded to Vercel Blob and you get a URL like `https://your-app/b/abc123XYZ` you can send to anyone at the table. Each recipient opens the link, picks the items they had, and sees their own total — selections are kept local to each device and never shared.
+Hit **Share link** once a bill is loaded. The receipt image and extracted items are uploaded to Vercel Blob (as a compressed multipart upload) and you get a URL like `https://your-app/b/abc123XYZ` you can send to anyone at the table. Each recipient opens the link, picks the items they had, and sees their own total — selections are kept local to each device and never shared.
+
+The creator gets an owner token (stored in `localStorage` on that device) used to enable payment-push alerts and to delete any transfer proof. Recipients who upload a payment screenshot get a delete token for their own proof. Shared bill JSON is updated with conflict retries so concurrent uploads don’t clobber each other, and secrets (FCM tokens, owner/delete hashes) are stripped before the page is rendered.
 
 Set up:
 
@@ -81,6 +83,9 @@ lib/
   openai.ts               prompt + schema + repair retry
   image-prep.ts           client-side resize/JPEG encode
   share.ts                Vercel Blob put/get helpers (server-only)
+  share-tokens.ts         owner/delete token hash helpers
+  share-client.ts         localStorage helpers for share tokens
+  public-bill.ts          strip secrets before rendering shared bills
 types/bill.ts             shared types
 ```
 
