@@ -35,8 +35,8 @@ Set `OPENAI_MODEL` in `.env.local` to any OpenAI vision-capable model. Defaults 
 ## How it works
 
 1. **Upload** — drag a receipt image into the dropzone (or tap on mobile). The photo is resized client-side before upload.
-2. **Extract** — `/api/extract` sends the image to OpenAI with a JSON schema and gets back `{ items, tax, serviceCharge, rounding, currency, subtotal, total }`. The server checks that the numbers add up and asks the model to repair once if they don't.
-3. **Pick** — tap each item you had. The totals panel updates live. Use the pencil on a row to fix a mis-read name or price.
+2. **Extract** — `/api/extract` sends the image to OpenAI with a JSON schema and gets back `{ items, tax, serviceCharge, rounding, currency, subtotal, total }`. Non-Latin item names also get an optional English gloss (`nameTranslated`). The server checks that the numbers add up and asks the model to repair once if they don't.
+3. **Pick** — tap each item you had. The totals panel updates live. Translated names show first with the original underneath. Use **Translate** for names that still need a gloss, or the pencil on a row to fix a mis-read name, translation, or price.
 4. **Your share** — the panel shows your items subtotal plus a proportional share of tax, service and rounding. One tap to copy the total.
 
 Tax, service and rounding are editable too — flip the panel into edit mode if the AI got something off or you want to adjust the tip. If the extracted totals still don't reconcile, a warning banner shows the printed vs computed amounts.
@@ -62,10 +62,11 @@ Tax, service and rounding are read-only on the shared page (they're properties o
 
 ```
 app/
-  api/extract/route.ts    server route that calls OpenAI
-  api/share/route.ts      server route that writes to Vercel Blob
-  b/[id]/                 the public shared-bill page
-  layout.tsx, page.tsx    single-page app shell
+  api/extract/route.ts         server route that calls OpenAI
+  api/translate-items/route.ts English glosses for item names
+  api/share/route.ts           server route that writes to Vercel Blob
+  b/[id]/                      the public shared-bill page
+  layout.tsx, page.tsx         single-page app shell
 components/
   upload-card.tsx         drop zone (empty state)
   items-list.tsx          item checkboxes / quantity steppers (props-based)

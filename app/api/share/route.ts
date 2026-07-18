@@ -21,11 +21,20 @@ function sanitizeBill(bill: ExtractedBill): ExtractedBill | null {
   if (bill.items.length > MAX_BILL_ITEMS) return null;
 
   const items = bill.items
-    .map((it) => ({
-      name: String(it?.name ?? "").slice(0, 200),
-      price: Number(it?.price) || 0,
-      quantity: Math.max(1, Math.floor(Number(it?.quantity) || 1)),
-    }))
+    .map((it) => {
+      const name = String(it?.name ?? "").slice(0, 200);
+      const nameTranslated = String(it?.nameTranslated ?? "")
+        .trim()
+        .slice(0, 200);
+      return {
+        name,
+        ...(nameTranslated && nameTranslated !== name
+          ? { nameTranslated }
+          : {}),
+        price: Number(it?.price) || 0,
+        quantity: Math.max(1, Math.floor(Number(it?.quantity) || 1)),
+      };
+    })
     .filter((it) => it.name.length > 0 || it.price > 0);
 
   return {

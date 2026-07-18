@@ -72,6 +72,7 @@ export function ShareButton() {
             currency,
             items: items.map((it) => ({
               name: it.name,
+              ...(it.nameTranslated ? { nameTranslated: it.nameTranslated } : {}),
               price: it.price,
               quantity: it.quantity,
             })),

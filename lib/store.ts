@@ -50,14 +50,20 @@ type Actions = {
   setRounding: (n: number) => void;
   setDiscount: (n: number) => void;
 
-  /** Correct a mis-read line (name and/or printed line total). */
+  /** Correct a mis-read line (name, translation, and/or printed line total). */
   updateItem: (
     id: string,
-    patch: { name?: string; price?: number; quantity?: number }
+    patch: {
+      name?: string;
+      nameTranslated?: string | null;
+      price?: number;
+      quantity?: number;
+    }
   ) => void;
   /** Add a line the extractor missed (e.g. a non-Latin menu name). */
   addItem: (item?: {
     name?: string;
+    nameTranslated?: string;
     price?: number;
     quantity?: number;
   }) => string;
@@ -118,14 +124,18 @@ export const useBillStore = create<State & Actions>()(
               : meta?.warnings?.length
               ? meta.warnings
               : [],
-          items: (b.items || []).map((it) => ({
-            id: uid("itm"),
-            name: it.name,
-            price: it.price,
-            quantity: Math.max(1, it.quantity || 1),
-            selectedQuantity: 0,
-            splitCount: 1,
-          })),
+          items: (b.items || []).map((it) => {
+            const nameTranslated = it.nameTranslated?.trim().slice(0, 200);
+            return {
+              id: uid("itm"),
+              name: it.name,
+              ...(nameTranslated ? { nameTranslated } : {}),
+              price: it.price,
+              quantity: Math.max(1, it.quantity || 1),
+              selectedQuantity: 0,
+              splitCount: 1,
+            };
+          }),
         });
       },
 
@@ -237,6 +247,13 @@ export const useBillStore = create<State & Actions>()(
             if (typeof patch.name === "string") {
               next.name = patch.name.slice(0, 200);
             }
+            if (patch.nameTranslated === null) {
+              delete next.nameTranslated;
+            } else if (typeof patch.nameTranslated === "string") {
+              const t = patch.nameTranslated.trim().slice(0, 200);
+              if (t) next.nameTranslated = t;
+              else delete next.nameTranslated;
+            }
             if (typeof patch.price === "number" && Number.isFinite(patch.price)) {
               next.price = patch.price;
             }
@@ -262,12 +279,14 @@ export const useBillStore = create<State & Actions>()(
             ? item.price
             : 0;
         const name = (item?.name ?? "New item").trim().slice(0, 200) || "New item";
+        const nameTranslated = item?.nameTranslated?.trim().slice(0, 200);
         set((s) => ({
           items: [
             ...s.items,
             {
               id,
               name,
+              ...(nameTranslated ? { nameTranslated } : {}),
               price,
               quantity,
               selectedQuantity: 0,
@@ -288,7 +307,7 @@ export const useBillStore = create<State & Actions>()(
     }),
     {
       name: "bill-split",
-      version: 7,
+      version: 8,
       partialize: (s) => ({
         receiptDataUrl: s.receiptDataUrl,
         bankingQrDataUrl: s.bankingQrDataUrl,
@@ -306,6 +325,7 @@ export const useBillStore = create<State & Actions>()(
         type LegacyItem = {
           id?: string;
           name?: string;
+          nameTranslated?: string;
           price?: number;
           quantity?: number;
           selected?: boolean;
@@ -320,49 +340,33 @@ export const useBillStore = create<State & Actions>()(
           extractionWarnings?: string[];
         };
         const s = (persistedState ?? {}) as LegacyState;
-        if (version < 3) {
-          const items: BillItem[] = (s.items ?? []).map((it) => {
-            const quantity = Math.max(1, it.quantity ?? 1);
-            const rawSelected =
-              typeof it.selectedQuantity === "number"
-                ? it.selectedQuantity
-                : it.selected
-                ? quantity
-                : 0;
-            const selectedQuantity = clampSelected(
-              { quantity } as BillItem,
-              rawSelected
-            );
-            return {
-              id: it.id ?? uid("itm"),
-              name: it.name ?? "",
-              price: it.price ?? 0,
-              quantity,
-              selectedQuantity,
-              splitCount: clampSplit(it.splitCount ?? 1),
-            };
-          });
+        const mapItem = (it: LegacyItem): BillItem => {
+          const quantity = Math.max(1, it.quantity ?? 1);
+          const rawSelected =
+            typeof it.selectedQuantity === "number"
+              ? it.selectedQuantity
+              : version < 3 && it.selected
+              ? quantity
+              : 0;
+          const selectedQuantity = clampSelected(
+            { quantity } as BillItem,
+            version < 3 ? rawSelected : (it.selectedQuantity ?? 0)
+          );
+          const nameTranslated = it.nameTranslated?.trim().slice(0, 200);
           return {
-            ...initial,
-            ...s,
-            items,
-            discount: Math.max(0, s.discount ?? 0),
-            printedSubtotal: s.printedSubtotal ?? null,
-            printedTotal: s.printedTotal ?? null,
-            extractionWarnings: s.extractionWarnings ?? [],
-          } as State;
-        }
+            id: it.id ?? uid("itm"),
+            name: it.name ?? "",
+            ...(nameTranslated ? { nameTranslated } : {}),
+            price: it.price ?? 0,
+            quantity,
+            selectedQuantity,
+            splitCount: clampSplit(it.splitCount ?? 1),
+          };
+        };
         return {
           ...initial,
           ...s,
-          items: (s.items ?? []).map((it) => ({
-            id: it.id ?? uid("itm"),
-            name: it.name ?? "",
-            price: it.price ?? 0,
-            quantity: Math.max(1, it.quantity ?? 1),
-            selectedQuantity: it.selectedQuantity ?? 0,
-            splitCount: clampSplit(it.splitCount ?? 1),
-          })) as BillItem[],
+          items: (s.items ?? []).map(mapItem),
           bankingQrDataUrl: s.bankingQrDataUrl ?? null,
           discount: Math.max(0, s.discount ?? 0),
           printedSubtotal: s.printedSubtotal ?? null,

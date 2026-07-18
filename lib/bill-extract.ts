@@ -64,6 +64,38 @@ export function cleanItemName(name: string): string {
     .trim();
 }
 
+/**
+ * Normalize an optional English gloss. Returns undefined when empty or when it
+ * duplicates the original name (case-insensitive).
+ */
+export function cleanTranslatedName(
+  translated: unknown,
+  original: string
+): string | undefined {
+  if (typeof translated !== "string") return undefined;
+  const cleaned = cleanItemName(translated).slice(0, 200);
+  if (!cleaned) return undefined;
+  if (cleaned.localeCompare(original, undefined, { sensitivity: "accent" }) === 0) {
+    return undefined;
+  }
+  return cleaned;
+}
+
+/**
+ * True when a receipt name uses a non-Latin script that English speakers often
+ * want a gloss for (Myanmar, Thai, CJK, Hangul, Arabic, etc.).
+ */
+export function likelyNeedsTranslation(name: string): boolean {
+  try {
+    return /\p{Script=Mymr}|\p{Script=Thai}|\p{Script=Hani}|\p{Script=Hira}|\p{Script=Kana}|\p{Script=Hang}|\p{Script=Arab}|\p{Script=Deva}|\p{Script=Khmer}|\p{Script=Laoo}/u.test(
+      name
+    );
+  } catch {
+    // Older runtimes without Unicode property escapes: any non-ASCII letter-ish.
+    return /[^\x00-\x7F]/.test(name);
+  }
+}
+
 /** Net of every line (products + negative promotions). */
 export function netItemsSum(
   items: Array<{ price: number }>,
@@ -118,7 +150,12 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
     .toUpperCase()
     .slice(0, 3) || "USD";
 
-  const items: Array<{ name: string; price: number; quantity: number }> = [];
+  const items: Array<{
+    name: string;
+    nameTranslated?: string;
+    price: number;
+    quantity: number;
+  }> = [];
   for (const it of Array.isArray(parsed.items) ? parsed.items : []) {
     const price = roundMoney(asFinite(it?.price), currency);
     const quantity = Math.max(1, Math.floor(asFinite(it?.quantity, 1)) || 1);
@@ -127,7 +164,11 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
     const name =
       cleaned || (price !== 0 ? "Unreadable item" : "");
     if (!name || isJunkItemName(name, price)) continue;
-    items.push({ name, price, quantity });
+    const raw = it as { nameTranslated?: unknown };
+    const nameTranslated = cleanTranslatedName(raw?.nameTranslated, name);
+    items.push(
+      nameTranslated ? { name, nameTranslated, price, quantity } : { name, price, quantity }
+    );
   }
 
   // Model sometimes puts the promotion only in `discount` — show it as a

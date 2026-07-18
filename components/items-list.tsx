@@ -1,12 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Minus, Pencil, Plus, Trash2, Users, X } from "lucide-react";
+import {
+  Check,
+  Languages,
+  Loader2,
+  Minus,
+  Pencil,
+  Plus,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { itemShare, splitCountOf, unitPrice } from "@/lib/calc";
+import { likelyNeedsTranslation } from "@/lib/bill-extract";
+import { fetchItemTranslations } from "@/lib/translate-items-client";
 import { cn, formatMoney } from "@/lib/utils";
 import type { BillItem } from "@/types/bill";
+
+export type ItemUpdatePatch = {
+  name?: string;
+  nameTranslated?: string | null;
+  price?: number;
+  quantity?: number;
+};
 
 export type ItemsListProps = {
   items: BillItem[];
@@ -18,14 +37,16 @@ export type ItemsListProps = {
   onDecSplit: (id: string) => void;
   onSelectAll: () => void;
   onClearSelection: () => void;
-  /** When set, rows can be corrected (name / line total / quantity). */
-  onUpdateItem?: (
-    id: string,
-    patch: { name?: string; price?: number; quantity?: number }
-  ) => void;
+  /** When set, rows can be corrected (name / translation / line total / quantity). */
+  onUpdateItem?: (id: string, patch: ItemUpdatePatch) => void;
   onRemoveItem?: (id: string) => void;
   /** When set, user can add a line the extractor missed. Returns the new id. */
   onAddItem?: () => string;
+  /**
+   * Apply English glosses for item ids. When set (or when `onUpdateItem` is),
+   * a Translate control appears for non-Latin names missing a gloss.
+   */
+  onApplyTranslations?: (byId: Record<string, string>) => void;
 };
 
 export function ItemsList({
@@ -41,8 +62,11 @@ export function ItemsList({
   onUpdateItem,
   onRemoveItem,
   onAddItem,
+  onApplyTranslations,
 }: ItemsListProps) {
   const [autoEditId, setAutoEditId] = useState<string | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const [translateError, setTranslateError] = useState<string | null>(null);
   const anySelectedRows = items.filter(
     (it) => it.selectedQuantity > 0
   ).length;
@@ -50,6 +74,51 @@ export function ItemsList({
     items.length > 0 &&
     items.every((it) => it.selectedQuantity === it.quantity);
   const canEdit = Boolean(onUpdateItem);
+  const canTranslate = Boolean(onApplyTranslations || onUpdateItem);
+  const translateTargets = items.filter(
+    (it) =>
+      !it.nameTranslated?.trim() &&
+      it.name.trim() &&
+      likelyNeedsTranslation(it.name)
+  );
+
+  const applyTranslations = (byId: Record<string, string>) => {
+    if (onApplyTranslations) {
+      onApplyTranslations(byId);
+      return;
+    }
+    if (!onUpdateItem) return;
+    for (const [id, nameTranslated] of Object.entries(byId)) {
+      onUpdateItem(id, { nameTranslated });
+    }
+  };
+
+  const onTranslate = async () => {
+    if (!canTranslate || translateTargets.length === 0 || translating) return;
+    setTranslating(true);
+    setTranslateError(null);
+    try {
+      const glosses = await fetchItemTranslations(
+        translateTargets.map((it) => it.name)
+      );
+      const byId: Record<string, string> = {};
+      translateTargets.forEach((it, i) => {
+        const gloss = (glosses[i] ?? "").trim().slice(0, 200);
+        if (gloss && gloss !== it.name) byId[it.id] = gloss;
+      });
+      if (Object.keys(byId).length === 0) {
+        setTranslateError("No translations needed for these names.");
+      } else {
+        applyTranslations(byId);
+      }
+    } catch (e) {
+      setTranslateError(
+        e instanceof Error ? e.message : "Translation failed."
+      );
+    } finally {
+      setTranslating(false);
+    }
+  };
 
   return (
     <Card>
@@ -63,8 +132,29 @@ export function ItemsList({
             {items.length === 1 ? "item" : "items"} selected
             {canEdit ? " · tap the pencil to fix a line" : ""}
           </p>
+          {translateError && (
+            <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">
+              {translateError}
+            </p>
+          )}
         </div>
         <div className="flex gap-1">
+          {canTranslate && translateTargets.length > 0 && (
+            <button
+              type="button"
+              onClick={onTranslate}
+              disabled={translating}
+              className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-40"
+              aria-label="Translate item names to English"
+            >
+              {translating ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Languages className="h-3.5 w-3.5" />
+              )}
+              Translate
+            </button>
+          )}
           <button
             type="button"
             onClick={onSelectAll}
@@ -148,16 +238,15 @@ function ItemRow({
   onDec: () => void;
   onIncSplit: () => void;
   onDecSplit: () => void;
-  onUpdate?: (patch: {
-    name?: string;
-    price?: number;
-    quantity?: number;
-  }) => void;
+  onUpdate?: (patch: ItemUpdatePatch) => void;
   onRemove?: () => void;
   onEditClose?: () => void;
 }) {
   const [editing, setEditing] = useState(startEditing);
   const [nameDraft, setNameDraft] = useState(item.name);
+  const [translatedDraft, setTranslatedDraft] = useState(
+    item.nameTranslated ?? ""
+  );
   const [priceDraft, setPriceDraft] = useState(String(item.price ?? ""));
   const [qtyDraft, setQtyDraft] = useState(String(item.quantity ?? 1));
 
@@ -166,6 +255,10 @@ function ItemRow({
   const yourShare = itemShare(item);
   /** What the user pays differs from the line total when taking a subset or sharing. */
   const showsShare = item.selectedQuantity > 0 && yourShare !== lineTotal;
+  const displayName = item.nameTranslated?.trim() || item.name || "Untitled item";
+  const showOriginal =
+    Boolean(item.nameTranslated?.trim()) &&
+    item.nameTranslated!.trim() !== item.name;
 
   const fullySelected =
     item.selectedQuantity > 0 &&
@@ -178,6 +271,7 @@ function ItemRow({
   const openEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
     setNameDraft(item.name);
+    setTranslatedDraft(item.nameTranslated ?? "");
     setPriceDraft(String(item.price ?? ""));
     setQtyDraft(String(item.quantity ?? 1));
     setEditing(true);
@@ -192,8 +286,10 @@ function ItemRow({
     if (!onUpdate) return;
     const price = Number(priceDraft);
     const quantity = Math.max(1, Math.floor(Number(qtyDraft) || 1));
+    const translated = translatedDraft.trim();
     onUpdate({
       name: nameDraft.trim() || item.name,
+      nameTranslated: translated || null,
       price: Number.isFinite(price) ? price : item.price,
       quantity,
     });
@@ -206,9 +302,16 @@ function ItemRow({
         <Input
           value={nameDraft}
           onChange={(e) => setNameDraft(e.target.value)}
-          placeholder="Item name"
+          placeholder="Item name (as on receipt)"
           className="h-9 text-sm"
           aria-label="Item name"
+        />
+        <Input
+          value={translatedDraft}
+          onChange={(e) => setTranslatedDraft(e.target.value)}
+          placeholder="English translation (optional)"
+          className="h-9 text-sm"
+          aria-label="English translation"
         />
         <div className="flex gap-2">
           <label className="flex-1 space-y-1">
@@ -285,8 +388,8 @@ function ItemRow({
           aria-pressed={someSelected}
           aria-label={
             fullySelected
-              ? `Deselect ${item.name}`
-              : `Select ${item.name}`
+              ? `Deselect ${displayName}`
+              : `Select ${displayName}`
           }
           className="flex-1 min-w-0 flex items-center gap-3 px-3 py-2.5 text-left active:scale-[0.995] transition-transform"
         >
@@ -315,8 +418,13 @@ function ItemRow({
                 someSelected ? "text-foreground" : "text-foreground/85"
               )}
             >
-              {item.name || "Untitled item"}
+              {displayName}
             </span>
+            {showOriginal && (
+              <span className="block truncate text-xs text-muted-foreground">
+                {item.name}
+              </span>
+            )}
             {hasStepper && (
               <span className="block text-xs text-muted-foreground">
                 {item.quantity} × {formatMoney(unitPrice(item), currency)} each
@@ -351,7 +459,7 @@ function ItemRow({
           <button
             type="button"
             onClick={openEdit}
-            aria-label={`Edit ${item.name}`}
+            aria-label={`Edit ${displayName}`}
             className="shrink-0 px-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors rounded-r-xl"
           >
             <Pencil className="h-3.5 w-3.5" />

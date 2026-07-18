@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import {
   checkBillMath,
   cleanItemName,
+  cleanTranslatedName,
   formatCheckForRepair,
   isJunkItemName,
+  likelyNeedsTranslation,
   normalizeExtractedBill,
   reconcileBill,
   toExtractedBill,
@@ -46,6 +48,21 @@ describe("cleanItemName", () => {
   });
 });
 
+describe("cleanTranslatedName / likelyNeedsTranslation", () => {
+  it("drops empty or duplicate glosses", () => {
+    assert.equal(cleanTranslatedName("", "Latte"), undefined);
+    assert.equal(cleanTranslatedName("  latte  ", "Latte"), undefined);
+    assert.equal(cleanTranslatedName("Mohinga", "မုန့်ဟင်းခါး"), "Mohinga");
+  });
+
+  it("detects non-Latin scripts that benefit from a gloss", () => {
+    assert.equal(likelyNeedsTranslation("Latte"), false);
+    assert.equal(likelyNeedsTranslation("မုန့်ဟင်းခါး"), true);
+    assert.equal(likelyNeedsTranslation("ข้าวซอย"), true);
+    assert.equal(likelyNeedsTranslation("抹茶ラテ"), true);
+  });
+});
+
 describe("normalizeExtractedBill", () => {
   it("filters junk rows, rounds money, uppercases currency", () => {
     const bill = normalizeExtractedBill({
@@ -69,6 +86,35 @@ describe("normalizeExtractedBill", () => {
     assert.equal(bill.items.length, 1);
     assert.equal(bill.items[0].name, "Latte");
     assert.equal(bill.tax, 0.9);
+  });
+
+  it("keeps English glosses on non-Latin names and drops duplicates", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        {
+          name: "မုန့်ဟင်းခါး",
+          nameTranslated: "Mohinga",
+          price: 60,
+          quantity: 1,
+        },
+        {
+          name: "Latte",
+          nameTranslated: "Latte",
+          price: 40,
+          quantity: 1,
+        },
+      ],
+      tax: 0,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 100,
+      total: 100,
+      taxInclusive: true,
+    });
+    assert.equal(bill.items[0].nameTranslated, "Mohinga");
+    assert.equal(bill.items[1].nameTranslated, undefined);
   });
 
   it("keeps minus promotion lines on the item list", () => {
