@@ -33,6 +33,7 @@ What goes in each field:
       "Latte   3 x 4.00   12.00"                -> price=12.00, quantity=3
       "Margherita Pizza 14.50"                  -> price=14.50, quantity=1
       "Promotion Free Tea (Gold Member) -50.00" -> price=-50.00, quantity=1
+      "မုန့်ဟင်းခါး / ม็อคฮินกา          60.00"  -> name keeps the original script(s), price=60.00, quantity=1
     If the receipt prints a unit price but no line total, multiply unit \u00d7 quantity yourself and put that LINE TOTAL in "price".
 - "quantity": units of this item on this line, as printed. Default 1. Always extract when shown.
 - "discount": always 0. Promotions belong in items with a negative price — do not also put them here.
@@ -46,16 +47,20 @@ What goes in each field:
 
 Accuracy guidance:
 - Locale decimals: "1.234,56" means 1234.56 in many EU receipts; "1,234.56" means 1234.56 in US/UK. Always emit a JSON number (1234.56), never a string.
-- Thai / Southeast Asian receipts often use \u0e3f / THB with VAT 7% and service 5% or 10% calculated on (subtotal + negative promotions). Extract the printed AMOUNTS; do not invent charges.
+- Thai / Southeast Asian / Burmese receipts often use \u0e3f / THB with VAT 7% and service 5% or 10% calculated on (subtotal + negative promotions). Extract the printed AMOUNTS; do not invent charges.
+- Multilingual / non-Latin names: extract EVERY priced product row even when the name is only Myanmar, Thai, Chinese, Japanese, Korean, Arabic, or another non-Latin script — or mixes several scripts with no English. Keep the original script; if an English translation appears on the same row, you may append it in parentheses. Never skip a row because you cannot romanize or translate the name. If the name is illegible but a price is clear, still include the row with name "Unreadable item".
+- Completeness over omission: walk the Items column top-to-bottom and emit one item per priced product/promo row. Do NOT drop a priced line to make the math work, and do NOT invent products that are not on the receipt. Prefer a best-effort name (or "Unreadable item") over omitting a real priced line.
+- Photos may be rotated or sideways — read the receipt text regardless of orientation.
 - Watch for OCR confusables: 0/O, 1/I/l, 5/S, 8/B. Prefer the reading that makes the arithmetic check out.
-- Clean item names: drop trailing OCR garbage like "1.." or lone dots. Keep the real product name.
+- Clean item names: drop trailing OCR garbage like "1.." or lone dots. Keep the real product name (any script).
 - Before answering, run this self-check and fix anything that fails:
     sum(items[i].price where price \u2265 0) \u2248 subtotal
     sum(all items[i].price) + tax + serviceCharge + rounding \u2248 total   (when not taxInclusive)
+  If product lines sum short of the printed subtotal, you likely missed a priced row (often a non-Latin name near the top) — re-read every amount in the price column.
   If tax+service make the total too high by a promotion amount, you missed a minus line — add it to items.
   Tolerance is a few cents. If numbers are off, re-examine items and prices.
-- If a value really isn't on the receipt, return 0 (don't invent). Prefer omitting a doubtful item over inventing one.
-- Use the exact item names from the receipt, lightly cleaned of OCR noise (fix obvious mis-reads, preserve capitalisation).`
+- If a numeric field really isn't on the receipt, return 0 (don't invent).
+- Use the exact item names from the receipt, lightly cleaned of OCR noise (fix obvious mis-reads; preserve capitalisation for Latin text).`
 
 const BILL_SCHEMA = {
   type: "object",
@@ -175,7 +180,7 @@ export async function extractBillFromImage(
       content: [
         {
           type: "text",
-          text: "Extract the bill from this receipt photo. Double-check that the numbers add up before answering.",
+          text: "Extract the bill from this receipt photo. Include every priced product/promo row top-to-bottom — including names in Myanmar, Thai, or other non-Latin scripts with no English. Double-check that the numbers add up before answering.",
         },
         {
           type: "image_url",

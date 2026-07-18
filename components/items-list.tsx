@@ -24,6 +24,8 @@ export type ItemsListProps = {
     patch: { name?: string; price?: number; quantity?: number }
   ) => void;
   onRemoveItem?: (id: string) => void;
+  /** When set, user can add a line the extractor missed. Returns the new id. */
+  onAddItem?: () => string;
 };
 
 export function ItemsList({
@@ -38,7 +40,9 @@ export function ItemsList({
   onClearSelection,
   onUpdateItem,
   onRemoveItem,
+  onAddItem,
 }: ItemsListProps) {
+  const [autoEditId, setAutoEditId] = useState<string | null>(null);
   const anySelectedRows = items.filter(
     (it) => it.selectedQuantity > 0
   ).length;
@@ -90,6 +94,7 @@ export function ItemsList({
               key={it.id}
               item={it}
               currency={currency}
+              startEditing={it.id === autoEditId}
               onToggle={() => onToggle(it.id)}
               onInc={() => onInc(it.id)}
               onDec={() => onDec(it.id)}
@@ -101,8 +106,21 @@ export function ItemsList({
                   : undefined
               }
               onRemove={onRemoveItem ? () => onRemoveItem(it.id) : undefined}
+              onEditClose={() =>
+                setAutoEditId((id) => (id === it.id ? null : id))
+              }
             />
           ))
+        )}
+        {onAddItem && onUpdateItem && (
+          <button
+            type="button"
+            onClick={() => setAutoEditId(onAddItem())}
+            className="w-full mt-1 inline-flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground px-3 py-2.5 rounded-2xl ring-1 ring-inset ring-dashed ring-border hover:bg-muted/60 transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add missing item
+          </button>
         )}
       </CardContent>
     </Card>
@@ -112,6 +130,7 @@ export function ItemsList({
 function ItemRow({
   item,
   currency,
+  startEditing = false,
   onToggle,
   onInc,
   onDec,
@@ -119,9 +138,11 @@ function ItemRow({
   onDecSplit,
   onUpdate,
   onRemove,
+  onEditClose,
 }: {
   item: BillItem;
   currency: string;
+  startEditing?: boolean;
   onToggle: () => void;
   onInc: () => void;
   onDec: () => void;
@@ -133,8 +154,9 @@ function ItemRow({
     quantity?: number;
   }) => void;
   onRemove?: () => void;
+  onEditClose?: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(startEditing);
   const [nameDraft, setNameDraft] = useState(item.name);
   const [priceDraft, setPriceDraft] = useState(String(item.price ?? ""));
   const [qtyDraft, setQtyDraft] = useState(String(item.quantity ?? 1));
@@ -161,6 +183,11 @@ function ItemRow({
     setEditing(true);
   };
 
+  const closeEdit = () => {
+    setEditing(false);
+    onEditClose?.();
+  };
+
   const saveEdit = () => {
     if (!onUpdate) return;
     const price = Number(priceDraft);
@@ -170,7 +197,7 @@ function ItemRow({
       price: Number.isFinite(price) ? price : item.price,
       quantity,
     });
-    setEditing(false);
+    closeEdit();
   };
 
   if (editing && onUpdate) {
@@ -223,7 +250,7 @@ function ItemRow({
           )}
           <button
             type="button"
-            onClick={() => setEditing(false)}
+            onClick={closeEdit}
             className="inline-flex items-center gap-1 text-xs text-muted-foreground px-2.5 py-1.5 rounded-full hover:bg-muted"
           >
             <X className="h-3.5 w-3.5" />

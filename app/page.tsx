@@ -38,6 +38,7 @@ export default function Home() {
   const setServiceCharge = useBillStore((s) => s.setServiceCharge);
   const setRounding = useBillStore((s) => s.setRounding);
   const updateItem = useBillStore((s) => s.updateItem);
+  const addItem = useBillStore((s) => s.addItem);
   const removeItem = useBillStore((s) => s.removeItem);
   const clearExtractionWarnings = useBillStore(
     (s) => s.clearExtractionWarnings
@@ -121,6 +122,7 @@ export default function Home() {
                 onSelectAll={selectAll}
                 onClearSelection={clearSelection}
                 onUpdateItem={updateItem}
+                onAddItem={() => addItem()}
                 onRemoveItem={removeItem}
               />
             </div>

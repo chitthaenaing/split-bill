@@ -120,9 +120,12 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
 
   const items: Array<{ name: string; price: number; quantity: number }> = [];
   for (const it of Array.isArray(parsed.items) ? parsed.items : []) {
-    const name = cleanItemName(String(it?.name ?? "")).slice(0, 200);
     const price = roundMoney(asFinite(it?.price), currency);
     const quantity = Math.max(1, Math.floor(asFinite(it?.quantity, 1)) || 1);
+    // Keep priced rows even when the model couldn't read a non-Latin name.
+    const cleaned = cleanItemName(String(it?.name ?? "")).slice(0, 200);
+    const name =
+      cleaned || (price !== 0 ? "Unreadable item" : "");
     if (!name || isJunkItemName(name, price)) continue;
     items.push({ name, price, quantity });
   }
@@ -401,6 +404,15 @@ export function formatCheckForRepair(
   bill: NormalizedBill,
   check: BillCheck
 ): string {
+  const missingProductsHint =
+    check.itemsDelta > MONEY_TOLERANCE
+      ? [
+          "Product lines do not match the printed subtotal — a priced product row is likely missing or mis-read.",
+          "Re-scan the Items / price column top-to-bottom. Include rows whose names are only Myanmar, Thai, Chinese, or other non-Latin script (no English required).",
+          "If a name is illegible but the price is clear, keep the row as name \"Unreadable item\" with that price. Never drop a priced line to force the math.",
+        ]
+      : [];
+
   return [
     "Previous extraction failed the arithmetic self-check:",
     ...check.messages.map((m) => `- ${m}`),
@@ -411,6 +423,7 @@ export function formatCheckForRepair(
     "Re-read the receipt image carefully and return a corrected extraction.",
     "Remember: each item's `price` is the LINE TOTAL (not unit price).",
     "sum(items with price ≥ 0) must equal subtotal.",
+    ...missingProductsHint,
     "Promotion / Discount / Free-item lines belong in items with a NEGATIVE price (e.g. -50). Do not omit them.",
     "Trust the printed TOTAL / AMOUNT DUE on the receipt — do not invent extra tax or service.",
     bill.taxInclusive
