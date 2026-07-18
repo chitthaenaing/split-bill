@@ -26,7 +26,7 @@ export function getClient(): OpenAI {
 const SYSTEM_PROMPT = `You read photographs of restaurant, cafe, bar and retail receipts and return a clean structured breakdown.
 
 What goes in each field:
-- "items": every product / food / drink / merchandise line AND every promotion / discount / free-item line that has a price. Promotions that print as a minus amount (e.g. "Promotion Free Tea -50.00") MUST be included as their own item with a NEGATIVE price. Combine unpriced sub-modifiers / toppings / notes into the parent line's name. Skip headers, dividers, server names, table numbers, payment method lines, change lines, and anything labelled subtotal / total / amount due / tax / VAT / service / tip / rounding.
+- "items": every product / food / drink / merchandise line AND every promotion / discount / free-item line that has a price. Promotions that print as a minus amount (e.g. "Promotion Free Tea -50.00") MUST be included as their own item with a NEGATIVE price. Only combine sub-modifiers / toppings / notes into the parent line when they have NO amount in the price column. Skip headers, dividers, server names, table numbers, payment method lines, change lines, and anything labelled subtotal / total / amount due / tax / VAT / service / tip / rounding.
 - "price": the LINE TOTAL printed in the price column for this row — exactly the amount shown next to the item. Do NOT divide by quantity. Do NOT put the unit price here. Use a negative number for promotion / discount lines.
     Examples:
       "3  Latte   12.00"                         -> price=12.00, quantity=3
@@ -34,6 +34,7 @@ What goes in each field:
       "Margherita Pizza 14.50"                  -> price=14.50, quantity=1
       "Promotion Free Tea (Gold Member) -50.00" -> price=-50.00, quantity=1
       "မုန့်ဟင်းခါး / ม็อคฮินกา          60.00"  -> name keeps the original script(s), price=60.00, quantity=1
+      "လက်ဖက်ရည်ကြမ်း Burmese Hot Tea   30.00"  -> its OWN item, price=30.00 (never merge into the previous dish)
     If the receipt prints a unit price but no line total, multiply unit \u00d7 quantity yourself and put that LINE TOTAL in "price".
 - "quantity": units of this item on this line, as printed. Default 1. Always extract when shown.
 - "discount": always 0. Promotions belong in items with a negative price — do not also put them here.
@@ -49,14 +50,16 @@ Accuracy guidance:
 - Locale decimals: "1.234,56" means 1234.56 in many EU receipts; "1,234.56" means 1234.56 in US/UK. Always emit a JSON number (1234.56), never a string.
 - Thai / Southeast Asian / Burmese receipts often use \u0e3f / THB with VAT 7% and service 5% or 10% calculated on (subtotal + negative promotions). Extract the printed AMOUNTS; do not invent charges.
 - Multilingual / non-Latin names: extract EVERY priced product row even when the name is only Myanmar, Thai, Chinese, Japanese, Korean, Arabic, or another non-Latin script — or mixes several scripts with no English. Keep the original script; if an English translation appears on the same row, you may append it in parentheses. Never skip a row because you cannot romanize or translate the name. If the name is illegible but a price is clear, still include the row with name "Unreadable item".
-- Completeness over omission: walk the Items column top-to-bottom and emit one item per priced product/promo row. Do NOT drop a priced line to make the math work, and do NOT invent products that are not on the receipt. Prefer a best-effort name (or "Unreadable item") over omitting a real priced line.
+- One price column amount = one item. Walk every amount in the price column top-to-bottom before answering. Small drinks, tea, sides, and bilingual rows between larger dishes are still separate items when they have their own amount — do NOT fold "Burmese Hot Tea" / similar English labels into the previous dish as a translation or modifier if that row has its own price.
+- Completeness over omission: emit one item per priced product/promo row. Do NOT drop a priced line to make the math work, and do NOT invent products that are not on the receipt. Prefer a best-effort name (or "Unreadable item") over omitting a real priced line.
 - Photos may be rotated or sideways — read the receipt text regardless of orientation.
 - Watch for OCR confusables: 0/O, 1/I/l, 5/S, 8/B. Prefer the reading that makes the arithmetic check out.
 - Clean item names: drop trailing OCR garbage like "1.." or lone dots. Keep the real product name (any script).
 - Before answering, run this self-check and fix anything that fails:
+    count(amounts in the price column for products/promos) should equal items.length
     sum(items[i].price where price \u2265 0) \u2248 subtotal
     sum(all items[i].price) + tax + serviceCharge + rounding \u2248 total   (when not taxInclusive)
-  If product lines sum short of the printed subtotal, you likely missed a priced row (often a non-Latin name near the top) — re-read every amount in the price column.
+  If product lines sum short of the printed subtotal, you likely missed a priced row (often a small drink/tea/side, or a bilingual English line between dishes) — re-read every amount in the price column.
   If tax+service make the total too high by a promotion amount, you missed a minus line — add it to items.
   Tolerance is a few cents. If numbers are off, re-examine items and prices.
 - If a numeric field really isn't on the receipt, return 0 (don't invent).
@@ -180,7 +183,7 @@ export async function extractBillFromImage(
       content: [
         {
           type: "text",
-          text: "Extract the bill from this receipt photo. Include every priced product/promo row top-to-bottom — including names in Myanmar, Thai, or other non-Latin scripts with no English. Double-check that the numbers add up before answering.",
+          text: "Extract the bill from this receipt photo. Include every priced product/promo row top-to-bottom — including small drinks/tea/sides and bilingual Myanmar/Thai/English lines that have their own price. Do not merge a priced English name into the previous dish. Double-check that the numbers add up before answering.",
         },
         {
           type: "image_url",

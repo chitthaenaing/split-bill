@@ -150,11 +150,12 @@ describe("normalizeExtractedBill", () => {
 });
 
 describe("formatCheckForRepair", () => {
-  it("hints at missing non-Latin product rows when items sum is short", () => {
+  it("hints at a missing priced drink/tea row (Mandalay-style shortfall)", () => {
+    // First dish + foods kept; Burmese Hot Tea 30 omitted → sum 330 vs subtotal 360.
     const bill = normalizeExtractedBill({
       currency: "THB",
       items: [
-        { name: "Burmese Hot Tea", price: 30, quantity: 1 },
+        { name: "မုန့်ဟင်းခါး / ขนมจีนน้ำยา", price: 60, quantity: 1 },
         { name: "Shan Tofu", price: 70, quantity: 1 },
         { name: "Pone Yay Gyi Rice Salad", price: 80, quantity: 1 },
         { name: "Rice Noodles Hot Pot", price: 120, quantity: 1 },
@@ -169,10 +170,11 @@ describe("formatCheckForRepair", () => {
     });
     const check = checkBillMath(bill);
     assert.equal(check.ok, false);
-    assert.ok(check.itemsDelta > 0);
+    assert.equal(check.itemsSum, 330);
+    assert.ok(Math.abs(check.itemsDelta - 30) < 0.01);
     const prompt = formatCheckForRepair(bill, check);
     assert.match(prompt, /priced product row is likely missing/i);
-    assert.match(prompt, /Myanmar|Thai|non-Latin/i);
+    assert.match(prompt, /Burmese Hot Tea|drinks\/tea|distinct price/i);
     assert.match(prompt, /Unreadable item/);
   });
 });

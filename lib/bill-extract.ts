@@ -408,7 +408,8 @@ export function formatCheckForRepair(
     check.itemsDelta > MONEY_TOLERANCE
       ? [
           "Product lines do not match the printed subtotal — a priced product row is likely missing or mis-read.",
-          "Re-scan the Items / price column top-to-bottom. Include rows whose names are only Myanmar, Thai, Chinese, or other non-Latin script (no English required).",
+          "Re-scan every amount in the Items / price column top-to-bottom. Common misses: small drinks/tea/sides, and bilingual English lines between Myanmar/Thai dish names that have their own price (e.g. \"Burmese Hot Tea 30.00\").",
+          "Do not merge a priced English label into the previous dish as a translation or modifier — a distinct price means a distinct item.",
           "If a name is illegible but the price is clear, keep the row as name \"Unreadable item\" with that price. Never drop a priced line to force the math.",
         ]
       : [];
