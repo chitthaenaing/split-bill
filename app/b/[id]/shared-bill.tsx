@@ -20,6 +20,39 @@ function storageKey(id: string) {
   return `bill-split:share:${id}`;
 }
 
+function translationsKey(id: string) {
+  return `bill-split:share-translations:${id}`;
+}
+
+function loadTranslations(id: string): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(translationsKey(id));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof v === "string" && v.trim()) out[k] = v.trim().slice(0, 200);
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function saveTranslations(id: string, translations: Record<string, string>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      translationsKey(id),
+      JSON.stringify(translations)
+    );
+  } catch {
+    // quota or denied — ignore
+  }
+}
+
 /** Read a pick from either the legacy `number` format or the `{qty, split}` one. */
 function toPick(v: unknown): Pick | null {
   if (typeof v === "number" && Number.isFinite(v) && v >= 0) {
@@ -67,30 +100,45 @@ function saveSelection(id: string, selection: Selection) {
 }
 
 export function SharedBill({ data }: { data: StoredBill }) {
-  const baseItems = useMemo<BillItem[]>(
-    () =>
-      data.items.map((it, i) => ({
-        id: `i${i}`,
-        name: it.name,
-        price: it.price,
-        quantity: Math.max(1, it.quantity || 1),
-        selectedQuantity: 0,
-        splitCount: 1,
-      })),
-    [data.items]
-  );
-
+  const [localTranslations, setLocalTranslations] = useState<
+    Record<string, string>
+  >({});
   const [selection, setSelection] = useState<Selection>({});
   const [hydrated, setHydrated] = useState(false);
 
+  const baseItems = useMemo<BillItem[]>(
+    () =>
+      data.items.map((it, i) => {
+        const id = `i${i}`;
+        const fromShare = it.nameTranslated?.trim();
+        const fromLocal = localTranslations[id]?.trim();
+        const nameTranslated = fromLocal || fromShare;
+        return {
+          id,
+          name: it.name,
+          ...(nameTranslated ? { nameTranslated } : {}),
+          price: it.price,
+          quantity: Math.max(1, it.quantity || 1),
+          selectedQuantity: 0,
+          splitCount: 1,
+        };
+      }),
+    [data.items, localTranslations]
+  );
+
   useEffect(() => {
     setSelection(loadSelection(data.id));
+    setLocalTranslations(loadTranslations(data.id));
     setHydrated(true);
   }, [data.id]);
 
   useEffect(() => {
     if (hydrated) saveSelection(data.id, selection);
   }, [data.id, selection, hydrated]);
+
+  useEffect(() => {
+    if (hydrated) saveTranslations(data.id, localTranslations);
+  }, [data.id, localTranslations, hydrated]);
 
   // The notification service worker asks the page to reload (fallback for tabs
   // it can't navigate directly) so a newly uploaded receipt shows up.
@@ -262,6 +310,9 @@ export function SharedBill({ data }: { data: StoredBill }) {
                 onDecSplit={onDecSplit}
                 onSelectAll={onSelectAll}
                 onClearSelection={onClearSelection}
+                onApplyTranslations={(byId) =>
+                  setLocalTranslations((prev) => ({ ...prev, ...byId }))
+                }
               />
             </div>
             <aside className="space-y-4 lg:sticky lg:top-24 self-start">

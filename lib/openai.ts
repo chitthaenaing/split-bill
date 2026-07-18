@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import type { ExtractedBill } from "@/types/bill";
 import {
   checkBillMath,
+  cleanItemName,
   formatCheckForRepair,
   normalizeExtractedBill,
   toExtractedBill,
@@ -38,6 +39,7 @@ What goes in each field:
       "လက်ဖက်ရည်ကြမ်း Burmese Hot Tea   30.00"  -> its OWN item, price=30.00 (never merge into the previous dish)
     If the receipt prints a unit price but no line total, multiply unit \u00d7 quantity yourself and put that LINE TOTAL in "price".
 - "quantity": units of this item on this line, as printed. Default 1. Always extract when shown.
+- "nameTranslated": a short English gloss of "name" when the printed name is non-Latin, mixed-script, or hard for an English reader (Myanmar, Thai, Chinese, Japanese, Korean, Arabic, etc.). Keep it concise (menu-style). If the printed row already includes English, put that English text here (without repeating the non-Latin script). Use "" when "name" is already plain English / Latin and needs no gloss. Never invent a different dish — translate or romanize the same item only.
 - "discount": always 0. Promotions belong in items with a negative price — do not also put them here.
 - "tax": TAX / VAT / GST / Sales Tax AMOUNT (not the percentage). If multiple tax lines are shown, sum them.
 - "serviceCharge": SERVICE CHARGE / SERVICE / GRATUITY / TIP / AUTO-GRAT amount printed on the receipt (not a handwritten tip unless clearly written as part of the total).
@@ -50,7 +52,7 @@ What goes in each field:
 Accuracy guidance:
 - Locale decimals: "1.234,56" means 1234.56 in many EU receipts; "1,234.56" means 1234.56 in US/UK. Always emit a JSON number (1234.56), never a string.
 - Thai / Southeast Asian / Burmese receipts often use \u0e3f / THB with VAT 7% and service 5% or 10% calculated on (subtotal + negative promotions). Extract the printed AMOUNTS; do not invent charges.
-- Multilingual / non-Latin names: extract EVERY priced product row even when the name is only Myanmar, Thai, Chinese, Japanese, Korean, Arabic, or another non-Latin script — or mixes several scripts with no English. Keep the original script; if an English translation appears on the same row, you may append it in parentheses. Never skip a row because you cannot romanize or translate the name. If the name is illegible but a price is clear, still include the row with name "Unreadable item".
+- Multilingual / non-Latin names: extract EVERY priced product row even when the name is only Myanmar, Thai, Chinese, Japanese, Korean, Arabic, or another non-Latin script — or mixes several scripts with no English. Keep the original script in "name". Put any English gloss in "nameTranslated" (preferred) rather than appending English in parentheses onto "name". Never skip a row because you cannot romanize or translate the name. If the name is illegible but a price is clear, still include the row with name "Unreadable item" and nameTranslated "".
 - One price column amount = one item. Walk every amount in the price column top-to-bottom before answering. Small drinks, tea, sides, and bilingual rows between larger dishes are still separate items when they have their own amount — do NOT fold "Burmese Hot Tea" / similar English labels into the previous dish as a translation or modifier if that row has its own price.
 - Completeness over omission: emit one item per priced product/promo row. Do NOT drop a priced line to make the math work, and do NOT invent products that are not on the receipt. Prefer a best-effort name (or "Unreadable item") over omitting a real priced line.
 - Photos may be rotated or sideways — read the receipt text regardless of orientation.
@@ -81,6 +83,11 @@ const BILL_SCHEMA = {
         additionalProperties: false,
         properties: {
           name: { type: "string" },
+          nameTranslated: {
+            type: "string",
+            description:
+              "English gloss of name for non-Latin/mixed names; empty string when unnecessary.",
+          },
           price: {
             type: "number",
             description:
@@ -88,7 +95,7 @@ const BILL_SCHEMA = {
           },
           quantity: { type: "number" },
         },
-        required: ["name", "price", "quantity"],
+        required: ["name", "nameTranslated", "price", "quantity"],
       },
     },
     tax: { type: "number" },
@@ -241,4 +248,78 @@ export async function extractBillFromImage(
   }
 
   return finalizeExtraction(bill);
+}
+
+const TRANSLATE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    translations: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "English glosses in the same order as the input names. Empty string when no gloss is needed.",
+    },
+  },
+  required: ["translations"],
+} as const;
+
+/**
+ * Translate / gloss a list of receipt item names into short English labels.
+ * Returns one string per input (empty when no gloss is useful).
+ */
+export async function translateItemNames(
+  names: string[],
+  targetLang = "English"
+): Promise<string[]> {
+  const cleaned = names.map((n) => cleanItemName(String(n ?? "")).slice(0, 200));
+  if (cleaned.length === 0) return [];
+
+  const client = getClient();
+  const response = await client.chat.completions.create({
+    model: DEFAULT_MODEL,
+    temperature: 0,
+    messages: [
+      {
+        role: "system",
+        content: `You translate restaurant receipt line-item names into short ${targetLang} menu-style labels.
+Rules:
+- Return exactly one translation per input name, same order and length.
+- Keep promotions/discounts recognizable (e.g. "Free tea promo").
+- If the name is already plain ${targetLang}/Latin and needs no gloss, return "".
+- Do not invent a different dish — translate or lightly romanize the same item.
+- Be concise; no sentences.`,
+      },
+      {
+        role: "user",
+        content: JSON.stringify({ names: cleaned }),
+      },
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "item_translations",
+        strict: true,
+        schema: TRANSLATE_SCHEMA,
+      },
+    },
+  });
+
+  const raw = response.choices[0]?.message?.content;
+  if (!raw) {
+    throw new Error("The model returned an empty response.");
+  }
+
+  let parsed: { translations?: unknown };
+  try {
+    parsed = JSON.parse(raw) as { translations?: unknown };
+  } catch {
+    throw new Error("The model response was not valid JSON.");
+  }
+
+  const list = Array.isArray(parsed.translations) ? parsed.translations : [];
+  return cleaned.map((_name, i) => {
+    const t = list[i];
+    return typeof t === "string" ? t : "";
+  });
 }

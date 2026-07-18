@@ -2,6 +2,12 @@ export type BillItem = {
   id: string;
   name: string;
   /**
+   * Optional English (or other target-language) gloss of `name`.
+   * Set during extraction or via the Translate action when the receipt
+   * name is non-Latin / hard to read. Omitted when unnecessary.
+   */
+  nameTranslated?: string;
+  /**
    * The LINE total for this row as printed on the receipt (not a unit price).
    * For a row "3  Latte   12.00", `price` is 12.00 and `quantity` is 3.
    */
@@ -22,6 +28,8 @@ export type ExtractedBill = {
   currency: string;
   items: Array<{
     name: string;
+    /** English gloss when `name` is non-Latin or mixed-script; omit when unused. */
+    nameTranslated?: string;
     /** Line total printed on the receipt for this row. */
     price: number;
     quantity: number;
@@ -86,6 +94,8 @@ export type StoredBill = {
   currency: string;
   items: Array<{
     name: string;
+    /** English gloss; omitted on older shares and when unused. */
+    nameTranslated?: string;
     price: number;
     quantity: number;
   }>;
