@@ -239,16 +239,16 @@ export function checkBillMath(bill: NormalizedBill): BillCheck {
 
   const messages: string[] = [];
   if (bill.items.length === 0) {
-    messages.push("No line items were extracted from the receipt.");
+    messages.push("No line items found on the receipt.");
   }
   if (itemsDelta > MONEY_TOLERANCE) {
     messages.push(
-      `Item prices sum to ${itemsSum.toFixed(2)} but subtotal is ${bill.subtotal.toFixed(2)} (off by ${itemsDelta.toFixed(2)}).`
+      `Extracted items ${itemsSum.toFixed(2)} ≠ receipt subtotal ${bill.subtotal.toFixed(2)} (off by ${itemsDelta.toFixed(2)}).`
     );
   }
   if (totalDelta > MONEY_TOLERANCE) {
     messages.push(
-      `Expected total ${expectedTotal.toFixed(2)} (${bill.taxInclusive ? "tax-inclusive" : "tax-exclusive"}) but printed total is ${bill.total.toFixed(2)} (off by ${totalDelta.toFixed(2)}).`
+      `Extracted total ${expectedTotal.toFixed(2)} (${bill.taxInclusive ? "incl. tax" : "excl. tax"}) ≠ receipt total ${bill.total.toFixed(2)} (off by ${totalDelta.toFixed(2)}).`
     );
   }
 

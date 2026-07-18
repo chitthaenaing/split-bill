@@ -34,26 +34,27 @@ export function ExtractionWarning({
       <div className="flex items-start gap-3">
         <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
         <div className="flex-1 min-w-0 space-y-1.5">
-          <p className="font-medium">
-            Double-check this bill — the numbers didn&apos;t fully add up
-          </p>
+          <p className="font-medium">Totals don&apos;t match</p>
           <ul className="text-xs space-y-1 text-amber-900/80 dark:text-amber-100/80 list-disc pl-4">
             {warnings.map((w) => (
               <li key={w}>{w}</li>
             ))}
           </ul>
           <p className="text-xs text-amber-900/70 dark:text-amber-100/70 pt-1">
-            Extracted items sum to {formatMoney(computedItems, currency)}
+            Extracted items {formatMoney(computedItems, currency)}
             {printedSubtotal != null && (
               <>
                 {" "}
-                · printed subtotal {formatMoney(printedSubtotal, currency)}
+                vs receipt subtotal {formatMoney(printedSubtotal, currency)}
               </>
             )}
             {printedTotal != null && (
-              <> · printed total {formatMoney(printedTotal, currency)}</>
+              <>
+                {printedSubtotal != null ? "," : " vs"} receipt total{" "}
+                {formatMoney(printedTotal, currency)}
+              </>
             )}
-            . Edit tax / service below, or retake the photo if a line looks wrong.
+            . Edit tax/service, or retake the photo.
           </p>
         </div>
         <button
