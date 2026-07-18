@@ -1,0 +1,28 @@
+{
+  "id": "eu-tax-inclusive",
+  "description": "EU-style inclusive VAT — printed tax is informational; UI tax cleared; rate check skipped for EUR.",
+  "raw": {
+    "currency": "EUR",
+    "items": [
+      { "name": "Espresso", "price": 2.5, "quantity": 1 },
+      { "name": "Croissant", "price": 3.5, "quantity": 1 },
+      { "name": "Orange Juice", "price": 4, "quantity": 1 }
+    ],
+    "tax": 1.67,
+    "serviceCharge": 0,
+    "rounding": 0,
+    "discount": 0,
+    "subtotal": 10,
+    "total": 10,
+    "taxInclusive": true
+  },
+  "expect": {
+    "taxInclusive": true,
+    "taxForUi": 0,
+    "total": 10,
+    "itemCount": 3,
+    "noNegativeItems": true,
+    "reconciled": true,
+    "vatConsistency": "skip"
+  }
+}

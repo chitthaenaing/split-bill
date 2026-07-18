@@ -1,0 +1,33 @@
+{
+  "id": "th-abb-inclusive-air-plus",
+  "description": "Thai ABB Air Plus — Sub Total (Included Vat) 793; printed VAT 51.91 is a few satang off 7% of 793 (51.88). Item prices already include VAT.",
+  "raw": {
+    "currency": "THB",
+    "items": [
+      { "name": "MIXED BEEF NOODLES", "price": 150, "quantity": 1 },
+      { "name": "MANDI WITH BRAISED BEE", "price": 165, "quantity": 1 },
+      { "name": "FRUITPUNCH", "price": 59, "quantity": 1 },
+      { "name": "LEMON TEA", "price": 59, "quantity": 1 },
+      { "name": "BEEF SUKI YAKI SIZZING", "price": 185, "quantity": 1 },
+      { "name": "RICE AND SLICED BEEF S", "price": 145, "quantity": 1 },
+      { "name": "EST COLA", "price": 30, "quantity": 1 },
+      { "name": "ICE", "price": 0, "quantity": 2 }
+    ],
+    "tax": 51.91,
+    "serviceCharge": 0,
+    "rounding": 0,
+    "discount": 0,
+    "subtotal": 793,
+    "total": 793,
+    "taxInclusive": true
+  },
+  "expect": {
+    "taxInclusive": true,
+    "taxForUi": 0,
+    "total": 793,
+    "itemCount": 8,
+    "noNegativeItems": true,
+    "reconciled": true,
+    "vatConsistency": "warn"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "id": "th-exclusive-with-service",
+  "description": "Classic THB tax-exclusive: subtotal + service 5% + VAT 7% on (net + service).",
+  "raw": {
+    "currency": "THB",
+    "items": [
+      { "name": "Pad Thai", "price": 120, "quantity": 1 },
+      { "name": "Green Curry", "price": 140, "quantity": 1 },
+      { "name": "Iced Tea", "price": 40, "quantity": 1 }
+    ],
+    "tax": 22.05,
+    "serviceCharge": 15,
+    "rounding": 0,
+    "discount": 0,
+    "subtotal": 300,
+    "total": 337.05,
+    "taxInclusive": false
+  },
+  "expect": {
+    "taxInclusive": false,
+    "taxForUi": 22.05,
+    "total": 337.05,
+    "itemCount": 3,
+    "noNegativeItems": true,
+    "reconciled": true,
+    "vatConsistency": "ok"
+  }
+}
