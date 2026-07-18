@@ -1,0 +1,27 @@
+{
+  "id": "us-tax-exclusive",
+  "description": "Simple USD tax-exclusive receipt; VAT rate check skipped (no locale rate).",
+  "raw": {
+    "currency": "USD",
+    "items": [
+      { "name": "Soup", "price": 8, "quantity": 1 },
+      { "name": "Salad", "price": 12, "quantity": 1 }
+    ],
+    "tax": 1.75,
+    "serviceCharge": 0,
+    "rounding": 0,
+    "discount": 0,
+    "subtotal": 20,
+    "total": 21.75,
+    "taxInclusive": false
+  },
+  "expect": {
+    "taxInclusive": false,
+    "taxForUi": 1.75,
+    "total": 21.75,
+    "itemCount": 2,
+    "noNegativeItems": true,
+    "reconciled": true,
+    "vatConsistency": "skip"
+  }
+}

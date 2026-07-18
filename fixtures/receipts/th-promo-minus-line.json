@@ -1,0 +1,37 @@
+{
+  "id": "th-promo-minus-line",
+  "description": "Shwe Tea House style — missing promotion is represented as a negative item; VAT/service kept; exclusive math.",
+  "raw": {
+    "currency": "THB",
+    "items": [
+      { "name": "Pop Seint", "price": 50, "quantity": 1 },
+      { "name": "STHN NHAT Coffee", "price": 70, "quantity": 1 },
+      { "name": "STHN NHAT Coffee", "price": 70, "quantity": 1 },
+      { "name": "Kya Saint", "price": 50, "quantity": 1 },
+      { "name": "Steamed Rice", "price": 90, "quantity": 1 },
+      { "name": "Tea Leaf Salad", "price": 90, "quantity": 1 },
+      { "name": "Chicken Curry", "price": 109, "quantity": 1 },
+      { "name": "Mote Hin Gar", "price": 90, "quantity": 1 },
+      { "name": "Fried Chicken", "price": 50, "quantity": 1 },
+      { "name": "Rice", "price": 20, "quantity": 1 },
+      { "name": "SHWE Korean Noodle", "price": 160, "quantity": 1 },
+      { "name": "Promotion Free Tea (Gold Member)", "price": -50, "quantity": 1 }
+    ],
+    "tax": 58.73,
+    "serviceCharge": 39.95,
+    "rounding": 0.32,
+    "discount": 0,
+    "subtotal": 849,
+    "total": 898,
+    "taxInclusive": false
+  },
+  "expect": {
+    "taxInclusive": false,
+    "taxForUi": 58.73,
+    "total": 898,
+    "itemCount": 12,
+    "noNegativeItems": false,
+    "reconciled": true,
+    "vatConsistency": "ok"
+  }
+}

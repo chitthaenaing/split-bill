@@ -7,6 +7,7 @@ import {
   toExtractedBill,
   type NormalizedBill,
 } from "@/lib/bill-extract";
+import { checkVatConsistency } from "@/lib/vat-check";
 
 export const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4o";
 
@@ -129,6 +130,20 @@ export type ExtractionResult = {
   warnings: string[];
 };
 
+/**
+ * Build the API/UI result from a normalized bill: arithmetic status plus soft
+ * VAT consistency warnings (warnings may appear even when reconciled is true).
+ */
+export function finalizeExtraction(bill: NormalizedBill): ExtractionResult {
+  const check = checkBillMath(bill);
+  const vat = checkVatConsistency(bill);
+  return {
+    bill: toExtractedBill(bill),
+    reconciled: check.ok,
+    warnings: [...(check.ok ? [] : check.messages), ...vat.messages],
+  };
+}
+
 type ChatMessage = OpenAI.Chat.Completions.ChatCompletionMessageParam;
 
 async function callModel(
@@ -225,9 +240,5 @@ export async function extractBillFromImage(
     check = checkBillMath(bill);
   }
 
-  return {
-    bill: toExtractedBill(bill),
-    reconciled: check.ok,
-    warnings: check.ok ? [] : check.messages,
-  };
+  return finalizeExtraction(bill);
 }
