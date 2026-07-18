@@ -46,8 +46,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-ring: var(--ring);
-  --font-sans: var(--font-plus-jakarta);
-  --font-display: var(--font-syne);
+  --font-sans: var(--font-manrope);
   --font-mono: var(--font-geist-mono);
 }
 

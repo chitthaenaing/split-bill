@@ -207,7 +207,7 @@ export function SharedBill({ data }: { data: StoredBill }) {
         <div className="mx-auto max-w-5xl px-4 sm:px-6 py-3 flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2.5">
             <AppLogo />
-            <span className="font-[family-name:var(--font-syne)] font-semibold tracking-tight text-base sm:text-lg">
+            <span className="font-semibold tracking-tight text-base sm:text-lg">
               Bill Split
             </span>
           </Link>

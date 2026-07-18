@@ -114,7 +114,7 @@ export function UploadCard() {
       className="mx-auto w-full max-w-xl"
     >
       <div className="text-center mb-9 sm:mb-10">
-        <h1 className="font-[family-name:var(--font-syne)] text-5xl sm:text-6xl font-bold tracking-tight leading-[0.95] text-foreground">
+        <h1 className="text-5xl sm:text-6xl font-bold tracking-tight leading-[0.95] text-foreground">
           Bill Split
         </h1>
         <p className="mt-4 text-lg sm:text-xl font-medium tracking-tight text-foreground/90">

@@ -89,7 +89,7 @@ export function TotalsPanel({
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -6, opacity: 0 }}
               transition={{ duration: 0.18 }}
-              className="block font-[family-name:var(--font-syne)] text-4xl sm:text-[2.75rem] font-bold tracking-tight tabular-nums leading-none"
+              className="block text-4xl sm:text-[2.75rem] font-bold tracking-tight tabular-nums leading-none"
             >
               {formatMoney(split.total, currency)}
             </motion.span>

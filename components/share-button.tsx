@@ -155,7 +155,7 @@ export function ShareButton() {
                 >
                   <div className="flex items-start justify-between gap-3 px-5 sm:px-6 pt-5 sm:pt-6 pb-3">
                     <div>
-                      <h2 className="text-lg font-semibold tracking-tight font-[family-name:var(--font-syne)]">
+                      <h2 className="text-lg font-semibold tracking-tight">
                         Share your bill
                       </h2>
                       <p className="mt-1 text-sm text-muted-foreground">

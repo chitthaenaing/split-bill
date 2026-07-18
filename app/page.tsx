@@ -67,7 +67,7 @@ export default function Home() {
             aria-label="Bill Split"
           >
             <AppLogo />
-            <span className="font-[family-name:var(--font-syne)] font-semibold tracking-tight text-base sm:text-lg">
+            <span className="font-semibold tracking-tight text-base sm:text-lg">
               Bill Split
             </span>
           </button>
