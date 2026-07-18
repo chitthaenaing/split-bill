@@ -203,11 +203,11 @@ export function SharedBill({ data }: { data: StoredBill }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <header className="sticky top-0 z-30 backdrop-blur-md bg-background/70 border-b border-border/60">
+      <header className="sticky top-0 z-30 backdrop-blur-xl bg-background/75 border-b border-border/50">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 py-3 flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2.5">
             <AppLogo />
-            <span className="font-semibold tracking-tight text-base sm:text-lg">
+            <span className="font-[family-name:var(--font-syne)] font-semibold tracking-tight text-base sm:text-lg">
               Bill Split
             </span>
           </Link>
@@ -232,11 +232,11 @@ export function SharedBill({ data }: { data: StoredBill }) {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
+          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
           className="space-y-5"
         >
-          <div className="rounded-2xl border border-accent/20 bg-accent/5 px-4 py-3 text-sm flex items-start gap-3">
-            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent">
+          <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5 text-sm flex items-start gap-3">
+            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent/12 text-accent">
               <Sparkles className="h-3.5 w-3.5" />
             </span>
             <div className="flex-1 min-w-0">
@@ -250,8 +250,8 @@ export function SharedBill({ data }: { data: StoredBill }) {
             </div>
           </div>
 
-          <div className="grid lg:grid-cols-[1fr_360px] gap-6 items-start">
-            <div className="space-y-6 min-w-0">
+          <div className="grid lg:grid-cols-[1fr_340px] gap-5 lg:gap-6 items-start">
+            <div className="space-y-5 min-w-0">
               <ItemsList
                 items={items}
                 currency={data.currency}
@@ -294,7 +294,7 @@ export function SharedBill({ data }: { data: StoredBill }) {
         </motion.div>
       </main>
 
-      <footer className="border-t border-border/60 py-5 px-4 text-center text-xs text-muted-foreground">
+      <footer className="border-t border-border/50 py-5 px-4 text-center text-xs text-muted-foreground">
         Built with Next.js, Tailwind &amp; OpenAI.
       </footer>
     </div>

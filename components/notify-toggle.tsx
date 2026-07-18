@@ -45,7 +45,7 @@ export function NotifyToggle({ shareId }: { shareId: string }) {
 
   if (status === "enabled") {
     return (
-      <div className="flex items-center gap-2 rounded-2xl bg-accent/10 px-4 py-3 text-sm text-foreground">
+      <div className="flex items-center gap-2 rounded-xl bg-accent/10 px-4 py-3 text-sm text-foreground">
         <BellRing className="h-4 w-4 shrink-0 text-accent" />
         <span>You'll be notified on this device when someone pays.</span>
       </div>

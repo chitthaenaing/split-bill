@@ -58,16 +58,16 @@ export default function Home() {
 
   return (
     <div className="flex-1 flex flex-col">
-      <header className="sticky top-0 z-30 backdrop-blur-md bg-background/70 border-b border-border/60">
+      <header className="sticky top-0 z-30 backdrop-blur-xl bg-background/75 border-b border-border/50">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 py-3 flex items-center gap-3">
           <button
             type="button"
             onClick={hasBill ? onReset : undefined}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2.5 group"
             aria-label="Bill Split"
           >
             <AppLogo />
-            <span className="font-semibold tracking-tight text-base sm:text-lg">
+            <span className="font-[family-name:var(--font-syne)] font-semibold tracking-tight text-base sm:text-lg">
               Bill Split
             </span>
           </button>
@@ -99,10 +99,10 @@ export default function Home() {
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-            className="grid lg:grid-cols-[1fr_360px] gap-6 items-start"
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="grid lg:grid-cols-[1fr_340px] gap-5 lg:gap-6 items-start"
           >
-            <div className="space-y-6 min-w-0">
+            <div className="space-y-5 min-w-0">
               <ExtractionWarning
                 warnings={extractionWarnings}
                 currency={currency}
@@ -159,7 +159,7 @@ export default function Home() {
         )}
       </main>
 
-      <footer className="border-t border-border/60 py-5 px-4 text-center text-xs text-muted-foreground">
+      <footer className="border-t border-border/50 py-5 px-4 text-center text-xs text-muted-foreground">
         Built with Next.js, Tailwind &amp; OpenAI.
       </footer>
     </div>

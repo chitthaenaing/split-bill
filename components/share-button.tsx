@@ -151,11 +151,11 @@ export function ShareButton() {
                   exit={{ scale: 0.96, y: 4 }}
                   transition={{ duration: 0.18 }}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-full max-w-md overflow-hidden rounded-3xl border border-border bg-card shadow-xl shadow-black/20"
+                  className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-xl shadow-black/15"
                 >
-                  <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-3">
+                  <div className="flex items-start justify-between gap-3 px-5 sm:px-6 pt-5 sm:pt-6 pb-3">
                     <div>
-                      <h2 className="text-lg font-semibold tracking-tight">
+                      <h2 className="text-lg font-semibold tracking-tight font-[family-name:var(--font-syne)]">
                         Share your bill
                       </h2>
                       <p className="mt-1 text-sm text-muted-foreground">
@@ -166,23 +166,23 @@ export function ShareButton() {
                     <button
                       type="button"
                       onClick={close}
-                      className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
                       aria-label="Close"
                     >
                       <X className="h-4 w-4" />
                     </button>
                   </div>
 
-                  <div className="space-y-4 px-6 pb-6">
+                  <div className="space-y-4 px-5 sm:px-6 pb-5 sm:pb-6">
                     {busy && (
-                      <div className="flex items-center gap-3 rounded-2xl bg-muted/50 px-4 py-4 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-3 rounded-xl bg-muted/50 px-4 py-4 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Uploading receipt and creating link…
                       </div>
                     )}
 
                     {error && (
-                      <div className="flex items-start gap-2.5 rounded-2xl bg-rose-500/10 px-4 py-3 text-sm text-rose-700 dark:text-rose-300">
+                      <div className="flex items-start gap-2.5 rounded-xl bg-rose-500/10 px-4 py-3 text-sm text-rose-700 dark:text-rose-300">
                         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                         <span className="flex-1">{error}</span>
                       </div>
@@ -190,14 +190,14 @@ export function ShareButton() {
 
                     {url && (
                       <>
-                        <div className="flex items-center gap-2 rounded-2xl border border-border bg-muted/60 px-3.5 py-2.5">
+                        <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/50 px-3.5 py-2.5">
                           <span className="flex-1 select-all truncate font-mono text-sm">
                             {url}
                           </span>
                           <button
                             type="button"
                             onClick={copy}
-                            className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-foreground hover:text-background"
+                            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-foreground hover:text-background"
                           >
                             {copied ? (
                               <>

@@ -7,11 +7,11 @@ import { Card, CardContent } from "@/components/ui/card";
 export default function NotFound() {
   return (
     <div className="flex-1 flex flex-col">
-      <header className="sticky top-0 z-30 backdrop-blur-md bg-background/70 border-b border-border/60">
+      <header className="sticky top-0 z-30 backdrop-blur-xl bg-background/75 border-b border-border/50">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 py-3 flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2.5">
             <AppLogo />
-            <span className="font-semibold tracking-tight text-base sm:text-lg">
+            <span className="font-[family-name:var(--font-syne)] font-semibold tracking-tight text-base sm:text-lg">
               Bill Split
             </span>
           </Link>
@@ -21,11 +21,11 @@ export default function NotFound() {
       <main className="flex-1 mx-auto w-full max-w-md px-4 sm:px-6 py-16 sm:py-24">
         <Card className="text-center">
           <CardContent className="p-8 sm:p-10 space-y-4">
-            <div className="mx-auto h-14 w-14 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground">
-              <FileQuestion className="h-7 w-7" />
+            <div className="mx-auto h-12 w-12 rounded-xl bg-muted flex items-center justify-center text-muted-foreground">
+              <FileQuestion className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold tracking-tight">
+              <h1 className="text-xl font-semibold tracking-tight font-[family-name:var(--font-syne)]">
                 Bill not found
               </h1>
               <p className="text-sm text-muted-foreground mt-1">

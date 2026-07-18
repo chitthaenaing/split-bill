@@ -20,7 +20,7 @@ export function ThemeToggle() {
       size="icon"
       aria-label="Toggle theme"
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="rounded-full"
+      className="rounded-xl"
     >
       {mounted ? (
         isDark ? (

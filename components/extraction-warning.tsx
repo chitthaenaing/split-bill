@@ -29,7 +29,7 @@ export function ExtractionWarning({
   return (
     <div
       role="status"
-      className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100"
+      className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100"
     >
       <div className="flex items-start gap-3">
         <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
@@ -60,7 +60,7 @@ export function ExtractionWarning({
           type="button"
           onClick={onDismiss}
           aria-label="Dismiss warning"
-          className="shrink-0 h-7 w-7 rounded-full hover:bg-amber-500/20 flex items-center justify-center transition-colors"
+          className="shrink-0 h-7 w-7 rounded-lg hover:bg-amber-500/20 flex items-center justify-center transition-colors"
         >
           <X className="h-3.5 w-3.5" />
         </button>
