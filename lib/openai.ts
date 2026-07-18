@@ -44,7 +44,7 @@ What goes in each field:
 - "subtotal": the printed items subtotal BEFORE discount (sum of the positive product lines).
 - "total": the printed grand total / amount due.
 - "currency": ISO 4217 code (USD, EUR, GBP, THB, JPY, SGD, AUD, MYR, IDR, INR, etc). Infer from symbols (\u00a3=GBP, \u20ac=EUR, \u00a5=JPY, \u0e3f=THB, RM=MYR, Rp=IDR, S$=SGD, A$=AUD). Default to USD only when nothing suggests another currency.
-- "taxInclusive": true when tax is already baked into item prices / the subtotal (common in EU, AU, JP, "incl. VAT"). false when tax is added on top of the subtotal (common in US / THB VAT-exclusive receipts).
+- "taxInclusive": true when tax is already baked into item prices / the subtotal (common in EU, AU, JP, "incl. VAT", and Thai Tax Invoice / ABB lines labelled "Sub Total (Included Vat)" / "Included Vat"). false when tax is added on top of the subtotal (common in US, and some THB receipts that list VAT after a pre-tax subtotal). On inclusive receipts, still extract the printed VAT amount into "tax", but the grand-total equation must NOT add it again — "Net Total" is only a breakdown of the inclusive total.
 
 Accuracy guidance:
 - Locale decimals: "1.234,56" means 1234.56 in many EU receipts; "1,234.56" means 1234.56 in US/UK. Always emit a JSON number (1234.56), never a string.

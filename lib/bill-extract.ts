@@ -255,8 +255,21 @@ export function reconcileBill(bill: NormalizedBill): NormalizedBill {
   );
   const overshoot = roundMoney(exclusiveExpected - bill.total, currency);
 
+  // When exclusive math overshoots by exactly the printed VAT (or VAT+service),
+  // the receipt is tax-inclusive — Net/VAT are a breakdown, not a missing
+  // promotion. Inventing "Discount -51.91" equal to VAT is wrong (Thai ABB).
+  const overshootIsInclusiveVat =
+    (bill.tax > MONEY_TOLERANCE &&
+      Math.abs(overshoot - bill.tax) <= MONEY_TOLERANCE) ||
+    (bill.tax + bill.serviceCharge > MONEY_TOLERANCE &&
+      Math.abs(overshoot - (bill.tax + bill.serviceCharge)) <= MONEY_TOLERANCE);
+
   // Missing minus line (e.g. Promotion Free Tea -50).
-  if (overshoot > MONEY_TOLERANCE && !bill.items.some((it) => it.price < 0)) {
+  if (
+    overshoot > MONEY_TOLERANCE &&
+    !overshootIsInclusiveVat &&
+    !bill.items.some((it) => it.price < 0)
+  ) {
     candidates.push({
       ...bill,
       taxInclusive: false,
@@ -291,6 +304,17 @@ export function reconcileBill(bill: NormalizedBill): NormalizedBill {
           quantity: 1,
         },
       ],
+    });
+  }
+
+  // Prefer an explicit inclusive flip that clears informational VAT so the
+  // downstream UI never adds it on top of already-inclusive item prices.
+  if (overshootIsInclusiveVat) {
+    candidates.push({
+      ...bill,
+      taxInclusive: true,
+      tax: bill.tax,
+      serviceCharge: bill.serviceCharge,
     });
   }
 
@@ -433,12 +457,19 @@ export function formatCheckForRepair(
   ].join("\n");
 }
 
-/** Drop the taxInclusive flag when handing the bill to the rest of the app. */
+/**
+ * Drop the taxInclusive flag when handing the bill to the rest of the app.
+ *
+ * On tax-inclusive receipts (Thai ABB "Included Vat", EU/AU/JP incl. GST/VAT)
+ * the printed VAT/Net lines are a breakdown of prices that already include tax.
+ * The split UI always adds `tax` on top of selected items, so informational
+ * VAT must be cleared here — otherwise a ฿793 inclusive bill becomes ฿844.91.
+ */
 export function toExtractedBill(bill: NormalizedBill): ExtractedBill {
   return {
     currency: bill.currency,
     items: bill.items,
-    tax: bill.tax,
+    tax: bill.taxInclusive ? 0 : bill.tax,
     serviceCharge: bill.serviceCharge,
     rounding: bill.rounding,
     discount: 0,

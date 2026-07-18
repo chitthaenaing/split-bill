@@ -7,6 +7,7 @@ import {
   isJunkItemName,
   normalizeExtractedBill,
   reconcileBill,
+  toExtractedBill,
 } from "./bill-extract";
 import { computeSplit } from "./calc";
 
@@ -277,5 +278,110 @@ describe("computeSplit with minus items", () => {
     assert.equal(split.selectedSubtotal, 799);
     assert.equal(split.discountShare, 0);
     assert.equal(split.total, 898);
+  });
+});
+
+describe("Thai ABB tax-inclusive VAT (Air Plus / Included Vat)", () => {
+  /**
+   * Tax Invoice (ABB) from Air Plus Restaurant, Central World:
+   *   Sub Total (Included Vat) 793.00
+   *   Net Total                741.09   ← informational breakdown
+   *   VAT                       51.91   ← informational (and often off by a few satang)
+   *   Total                    793.00
+   *
+   * Item prices already include VAT. Adding the printed VAT again would make
+   * the split ฿844.91 instead of the paid ฿793.
+   */
+  const abbItems = [
+    { name: "MIXED BEEF NOODLES", price: 150, quantity: 1 },
+    { name: "MANDI WITH BRAISED BEE", price: 165, quantity: 1 },
+    { name: "FRUITPUNCH", price: 59, quantity: 1 },
+    { name: "LEMON TEA", price: 59, quantity: 1 },
+    { name: "BEEF SUKI YAKI SIZZING", price: 185, quantity: 1 },
+    { name: "RICE AND SLICED BEEF S", price: 145, quantity: 1 },
+    { name: "EST COLA", price: 30, quantity: 1 },
+    { name: "ICE", price: 0, quantity: 2 },
+  ];
+
+  it("does not charge printed VAT again when taxInclusive is set", () => {
+    const normalized = normalizeExtractedBill({
+      currency: "THB",
+      items: abbItems,
+      tax: 51.91,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 793,
+      total: 793,
+      taxInclusive: true,
+    });
+    assert.equal(checkBillMath(normalized).ok, true);
+    assert.equal(normalized.taxInclusive, true);
+
+    const extracted = toExtractedBill(normalized);
+    assert.equal(extracted.tax, 0);
+    assert.equal(extracted.total, 793);
+
+    const splitItems = extracted.items.map((it, i) => ({
+      id: String(i),
+      name: it.name,
+      price: it.price,
+      quantity: it.quantity,
+      selectedQuantity: it.quantity,
+      splitCount: 1,
+    }));
+    const split = computeSplit(
+      splitItems,
+      extracted.tax,
+      extracted.serviceCharge,
+      extracted.rounding
+    );
+    assert.equal(split.total, 793);
+    assert.equal(split.taxShare, 0);
+  });
+
+  it("reconciles a mis-labelled exclusive extract and still zeros VAT for the UI", () => {
+    // Model often returns taxInclusive=false for Thai ABB because a VAT line
+    // is printed — arithmetic then fails (793+51.91 ≠ 793) and reconcile flips.
+    const normalized = normalizeExtractedBill({
+      currency: "THB",
+      items: abbItems,
+      tax: 51.91,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 793,
+      total: 793,
+      taxInclusive: false,
+    });
+    assert.equal(checkBillMath(normalized).ok, true);
+    assert.equal(normalized.taxInclusive, true);
+    assert.equal(
+      normalized.items.some((it) => it.price < 0),
+      false,
+      "must not invent a Discount equal to the VAT"
+    );
+
+    const extracted = toExtractedBill(normalized);
+    assert.equal(extracted.tax, 0);
+    assert.equal(extracted.items.length, abbItems.length);
+
+    const splitItems = extracted.items.map((it, i) => ({
+      id: String(i),
+      name: it.name,
+      price: it.price,
+      quantity: it.quantity,
+      selectedQuantity: it.quantity,
+      splitCount: 1,
+    }));
+    assert.equal(
+      computeSplit(
+        splitItems,
+        extracted.tax,
+        extracted.serviceCharge,
+        extracted.rounding
+      ).total,
+      793
+    );
   });
 });
