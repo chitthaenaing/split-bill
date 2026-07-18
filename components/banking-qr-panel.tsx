@@ -60,11 +60,11 @@ export function BankingQrPanel() {
 
   return (
     <Card className="overflow-hidden">
-      <div className="px-4 py-3 border-b border-border flex items-center gap-2 text-sm font-medium">
+      <div className="px-5 py-3 border-b border-border/70 flex items-center gap-2 text-sm font-medium">
         <QrCode className="h-4 w-4 text-muted-foreground" />
         Payment QR
       </div>
-      <CardContent className="p-4 space-y-3">
+      <CardContent className="p-4 sm:p-5 space-y-3">
         <p className="text-xs text-muted-foreground leading-relaxed">
           Add a photo of your PromptPay or bank QR. It is bundled into the share
           link so people paying you can scan it, then attach a transfer
@@ -74,8 +74,8 @@ export function BankingQrPanel() {
         {!bankingQrDataUrl ? (
           <label
             className={cn(
-              "flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/40 px-4 py-6 cursor-pointer transition-colors",
-              "hover:border-accent/40 hover:bg-accent/5"
+              "flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-6 cursor-pointer transition-colors",
+              "hover:border-accent/40 hover:bg-accent/[0.04]"
             )}
           >
             <Upload className="h-5 w-5 text-muted-foreground" />

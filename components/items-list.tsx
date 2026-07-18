@@ -69,7 +69,7 @@ export function ItemsList({
             type="button"
             onClick={onSelectAll}
             disabled={allRowsFull}
-            className="text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-full hover:bg-muted transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            className="text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
           >
             All
           </button>
@@ -77,13 +77,13 @@ export function ItemsList({
             type="button"
             onClick={onClearSelection}
             disabled={anySelectedRows === 0}
-            className="text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-full hover:bg-muted transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            className="text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
           >
             None
           </button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-1.5">
+      <CardContent className="space-y-1">
         {items.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">
             No items detected on this receipt.
@@ -116,7 +116,7 @@ export function ItemsList({
           <button
             type="button"
             onClick={() => setAutoEditId(onAddItem())}
-            className="w-full mt-1 inline-flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground px-3 py-2.5 rounded-2xl ring-1 ring-inset ring-dashed ring-border hover:bg-muted/60 transition-colors"
+            className="w-full mt-1 inline-flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground px-3 py-2.5 rounded-xl border border-dashed border-border hover:bg-muted/50 transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
             Add missing item
@@ -202,7 +202,7 @@ function ItemRow({
 
   if (editing && onUpdate) {
     return (
-      <div className="rounded-2xl ring-1 ring-inset ring-accent/40 bg-accent/5 px-3 py-3 space-y-2.5">
+      <div className="rounded-xl border border-accent/35 bg-accent/[0.04] px-3 py-3 space-y-2.5">
         <Input
           value={nameDraft}
           onChange={(e) => setNameDraft(e.target.value)}
@@ -251,7 +251,7 @@ function ItemRow({
           <button
             type="button"
             onClick={closeEdit}
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground px-2.5 py-1.5 rounded-full hover:bg-muted"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted"
           >
             <X className="h-3.5 w-3.5" />
             Cancel
@@ -259,7 +259,7 @@ function ItemRow({
           <button
             type="button"
             onClick={saveEdit}
-            className="inline-flex items-center gap-1 text-xs font-medium bg-accent text-accent-foreground px-2.5 py-1.5 rounded-full"
+            className="inline-flex items-center gap-1 text-xs font-medium bg-accent text-accent-foreground px-2.5 py-1.5 rounded-lg"
           >
             <Check className="h-3.5 w-3.5" />
             Save
@@ -272,10 +272,10 @@ function ItemRow({
   return (
     <div
       className={cn(
-        "rounded-2xl ring-1 ring-inset transition-colors",
+        "rounded-xl transition-colors",
         someSelected
-          ? "bg-accent/10 ring-accent/30"
-          : "bg-muted/40 ring-transparent hover:bg-muted"
+          ? "bg-accent/[0.08]"
+          : "hover:bg-muted/60"
       )}
     >
       <div className="flex items-stretch">
@@ -292,17 +292,17 @@ function ItemRow({
         >
           <span
             className={cn(
-              "h-6 w-6 rounded-lg flex items-center justify-center shrink-0 text-[11px] font-semibold transition-all",
+              "h-5 w-5 rounded-md flex items-center justify-center shrink-0 text-[11px] font-semibold transition-all",
               fullySelected
                 ? "bg-accent text-accent-foreground"
                 : partiallySelected
-                ? "bg-accent/30 text-accent ring-1 ring-inset ring-accent/40"
+                ? "bg-accent/25 text-accent border border-accent/40"
                 : "bg-card border border-border"
             )}
             aria-hidden
           >
             {fullySelected ? (
-              <Check className="h-4 w-4" strokeWidth={3} />
+              <Check className="h-3.5 w-3.5" strokeWidth={3} />
             ) : partiallySelected ? (
               item.selectedQuantity
             ) : null}
@@ -352,7 +352,7 @@ function ItemRow({
             type="button"
             onClick={openEdit}
             aria-label={`Edit ${item.name}`}
-            className="shrink-0 px-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+            className="shrink-0 px-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors rounded-r-xl"
           >
             <Pencil className="h-3.5 w-3.5" />
           </button>
@@ -360,7 +360,7 @@ function ItemRow({
       </div>
 
       {(hasStepper || someSelected) && (
-        <div className="flex items-center justify-end gap-x-4 gap-y-2 flex-wrap pl-12 pr-3 pb-2.5 -mt-1">
+        <div className="flex items-center justify-end gap-x-4 gap-y-2 flex-wrap pl-11 pr-3 pb-2.5 -mt-0.5">
           {someSelected && (
             <div className="flex items-center gap-1.5">
               <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
@@ -419,7 +419,7 @@ function Stepper({
 }) {
   return (
     <div className="inline-flex items-center gap-1.5">
-      <div className="inline-flex items-center gap-1 rounded-full bg-card/80 border border-border p-0.5 shadow-sm shadow-black/[0.02]">
+      <div className="inline-flex items-center gap-0.5 rounded-lg bg-card border border-border/80 p-0.5">
         <StepButton
           onClick={onDec}
           disabled={value <= min}
@@ -468,7 +468,7 @@ function StepButton({
       disabled={disabled}
       aria-label={ariaLabel}
       className={cn(
-        "h-7 w-7 rounded-full flex items-center justify-center transition-all active:scale-90",
+        "h-7 w-7 rounded-md flex items-center justify-center transition-all active:scale-90",
         "bg-muted hover:bg-foreground hover:text-background",
         "disabled:bg-transparent disabled:text-muted-foreground/40 disabled:hover:bg-transparent disabled:cursor-not-allowed"
       )}

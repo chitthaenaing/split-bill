@@ -303,11 +303,11 @@ export function PaymentProofsSection({
   return (
     <>
       <Card className="overflow-hidden">
-        <div className="px-4 py-3 border-b border-border flex items-center gap-2 text-sm font-medium">
+        <div className="px-5 py-3 border-b border-border/70 flex items-center gap-2 text-sm font-medium">
           <ImageIcon className="h-4 w-4 text-muted-foreground" />
           {hasReceipts ? "Transfer proofs" : "Your transfer"}
         </div>
-        <CardContent className="p-4 space-y-4">
+        <CardContent className="p-4 sm:p-5 space-y-4">
           {!hasReceipts ? (
             <p className="text-xs text-muted-foreground leading-relaxed">
               Pay the organiser, then attach the bank app screenshot and the name

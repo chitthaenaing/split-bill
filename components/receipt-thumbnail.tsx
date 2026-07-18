@@ -86,7 +86,7 @@ export function ReceiptThumbnail({
           className
         )}
       >
-        <div className="px-4 py-3 border-b border-border flex items-center gap-2 text-sm font-medium">
+        <div className="px-5 py-3 border-b border-border/70 flex items-center gap-2 text-sm font-medium">
           <HeaderIcon className="h-4 w-4 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate">{title}</span>
           {downloadable ? (
@@ -126,7 +126,7 @@ export function ReceiptThumbnail({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="lg:hidden inline-flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-full bg-muted border border-border transition-colors"
+        className="lg:hidden inline-flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg bg-muted/80 border border-border/80 transition-colors"
       >
         <MobileIcon className="h-3.5 w-3.5" />
         {mobileLabel}

@@ -56,29 +56,17 @@ export function TotalsPanel({
 
   return (
     <Card className="overflow-hidden">
-      <div className="bg-gradient-to-br from-accent/10 via-accent/5 to-transparent px-6 pt-6 pb-5 border-b border-border">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
-          You owe
-        </p>
-        <div className="mt-1 flex items-baseline gap-2 flex-wrap">
-          <AnimatePresence mode="popLayout">
-            <motion.span
-              key={split.total}
-              initial={{ y: 6, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -6, opacity: 0 }}
-              transition={{ duration: 0.18 }}
-              className="text-4xl sm:text-5xl font-semibold tracking-tight tabular-nums"
-            >
-              {formatMoney(split.total, currency)}
-            </motion.span>
-          </AnimatePresence>
+      <div className="px-5 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-border/70">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            You owe
+          </p>
           <button
             type="button"
             onClick={copyTotal}
             disabled={split.total === 0}
             aria-label="Copy total"
-            className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-full hover:bg-muted transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
           >
             {copied ? (
               <>
@@ -93,14 +81,28 @@ export function TotalsPanel({
             )}
           </button>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">
+        <div className="mt-1.5">
+          <AnimatePresence mode="popLayout">
+            <motion.span
+              key={split.total}
+              initial={{ y: 6, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -6, opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="block text-4xl sm:text-[2.75rem] font-bold tracking-tight tabular-nums leading-none"
+            >
+              {formatMoney(split.total, currency)}
+            </motion.span>
+          </AnimatePresence>
+        </div>
+        <p className="mt-2.5 text-xs text-muted-foreground">
           {selectedCount === 0
             ? "Pick some items to get started."
-            : `${selectedCount} ${selectedCount === 1 ? "item" : "items"} • ${Math.round(split.ratio * 100)}% of the bill`}
+            : `${selectedCount} ${selectedCount === 1 ? "item" : "items"} · ${Math.round(split.ratio * 100)}% of the bill`}
         </p>
       </div>
 
-      <CardContent className="pt-5 pb-5 space-y-2.5 text-sm">
+      <CardContent className="pt-4 pb-5 space-y-2.5 text-sm">
         <Row
           label="Items"
           value={formatMoney(split.selectedSubtotal, currency)}
@@ -158,7 +160,7 @@ export function TotalsPanel({
           )
         )}
 
-        <div className="pt-2.5 mt-1 border-t border-border flex items-center justify-between">
+        <div className="pt-2.5 mt-1 border-t border-border/70 flex items-center justify-between">
           <span className="font-semibold">Total</span>
           <span className="font-semibold tabular-nums">
             {formatMoney(split.total, currency)}
@@ -170,7 +172,7 @@ export function TotalsPanel({
             type="button"
             onClick={() => setEditing((v) => !v)}
             className={cn(
-              "mt-3 inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full transition-colors",
+              "mt-2 inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors",
               editing
                 ? "bg-accent text-accent-foreground"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted"

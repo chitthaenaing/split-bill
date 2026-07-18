@@ -12,7 +12,7 @@ export function AppLogo({ className }: { className?: string }) {
       height={36}
       priority
       className={cn(
-        "h-9 w-9 shrink-0 rounded-2xl object-cover shadow-sm ring-1 ring-border/60",
+        "h-8 w-8 shrink-0 rounded-xl object-cover ring-1 ring-border/70",
         className
       )}
     />

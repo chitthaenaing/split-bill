@@ -3,31 +3,35 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #fbf7f2;
-  --foreground: #18181b;
+  --background: #f4f6f5;
+  --foreground: #141a18;
   --card: #ffffff;
-  --muted: #f4f1ec;
-  --muted-foreground: #71717a;
-  --border: #e7e2d9;
-  --primary: #18181b;
-  --primary-foreground: #fafafa;
-  --accent: #6366f1;
+  --muted: #e8ecea;
+  --muted-foreground: #5f6b66;
+  --border: #d7deda;
+  --primary: #141a18;
+  --primary-foreground: #f7faf8;
+  --accent: #0f766e;
   --accent-foreground: #ffffff;
-  --ring: #6366f1;
+  --ring: #0f766e;
+  --success: #0f766e;
+  --surface-tint: color-mix(in oklab, var(--accent) 8%, transparent);
 }
 
 .dark {
-  --background: #09090b;
-  --foreground: #fafafa;
-  --card: #131316;
-  --muted: #1c1c20;
-  --muted-foreground: #a1a1aa;
-  --border: #27272a;
-  --primary: #fafafa;
-  --primary-foreground: #09090b;
-  --accent: #818cf8;
-  --accent-foreground: #0b0b10;
-  --ring: #818cf8;
+  --background: #0c1010;
+  --foreground: #eef2f0;
+  --card: #141a19;
+  --muted: #1c2422;
+  --muted-foreground: #9aa8a2;
+  --border: #2a3330;
+  --primary: #eef2f0;
+  --primary-foreground: #0c1010;
+  --accent: #2dd4bf;
+  --accent-foreground: #042f2e;
+  --ring: #2dd4bf;
+  --success: #2dd4bf;
+  --surface-tint: color-mix(in oklab, var(--accent) 12%, transparent);
 }
 
 @theme inline {
@@ -42,7 +46,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-ring: var(--ring);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-manrope);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -54,14 +58,14 @@ body {
 body {
   background:
     radial-gradient(
-      1200px 600px at 10% -10%,
-      color-mix(in oklab, var(--accent) 14%, transparent),
-      transparent 60%
+      900px 480px at 8% -8%,
+      var(--surface-tint),
+      transparent 62%
     ),
     radial-gradient(
-      900px 500px at 100% 0%,
-      color-mix(in oklab, #f472b6 12%, transparent),
-      transparent 55%
+      700px 420px at 96% 4%,
+      color-mix(in oklab, #94a3b8 10%, transparent),
+      transparent 58%
     ),
     var(--background);
   color: var(--foreground);
@@ -73,14 +77,14 @@ body {
 .dark body {
   background:
     radial-gradient(
-      1200px 600px at 10% -10%,
-      color-mix(in oklab, var(--accent) 20%, transparent),
-      transparent 60%
+      900px 480px at 8% -8%,
+      var(--surface-tint),
+      transparent 62%
     ),
     radial-gradient(
-      900px 500px at 100% 0%,
-      color-mix(in oklab, #a855f7 18%, transparent),
-      transparent 55%
+      700px 420px at 96% 4%,
+      color-mix(in oklab, #64748b 14%, transparent),
+      transparent 58%
     ),
     var(--background);
 }

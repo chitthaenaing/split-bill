@@ -108,93 +108,56 @@ export function UploadCard() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0.96, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25 }}
-      className="mx-auto w-full max-w-2xl"
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      className="mx-auto w-full max-w-xl"
     >
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 text-accent text-xs font-medium mb-4 ring-1 ring-accent/20">
-          <Sparkles className="h-3 w-3" />
-          Powered by AI vision
-        </div>
-        <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight">
-          Just pay for what you ate.
+      <div className="text-center mb-9 sm:mb-10">
+        <h1 className="text-5xl sm:text-6xl font-bold tracking-tight leading-[0.95] text-foreground">
+          Bill Split
         </h1>
-        <p className="mt-3 text-muted-foreground max-w-md mx-auto">
+        <p className="mt-4 text-lg sm:text-xl font-medium tracking-tight text-foreground/90">
+          Just pay for what you ate.
+        </p>
+        <p className="mt-3 text-muted-foreground max-w-md mx-auto text-[15px] leading-relaxed">
           Drop in a photo of your receipt, pick the items you had, and we&apos;ll
           do the maths — tax and service included.
         </p>
       </div>
 
-      <Card className="overflow-hidden">
-        <CardContent className="p-6 sm:p-8">
-          {!preview ? (
-            <label
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragging(true);
-              }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={onDrop}
-              className={cn(
-                "flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border bg-muted/40 px-6 py-14 sm:py-20 cursor-pointer transition-all",
-                "hover:border-accent/40 hover:bg-accent/5",
-                dragging && "border-accent bg-accent/10"
-              )}
-            >
-              <span className="h-14 w-14 rounded-2xl bg-accent/10 text-accent flex items-center justify-center">
-                <ImageUp className="h-7 w-7" />
-              </span>
-              <div className="text-center">
-                <p className="font-medium">
-                  Drop your receipt here, or tap to choose
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  JPG, PNG, HEIC — up to 8 MB
-                </p>
-              </div>
-              <input
-                ref={inputRef}
-                type="file"
-                accept="image/*"
-                className="sr-only"
-                onChange={onChange}
-              />
-            </label>
-          ) : (
-            <div className="space-y-5">
-              <div className="relative rounded-2xl overflow-hidden bg-muted aspect-[3/4] sm:aspect-[4/3] max-h-[480px]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={preview}
-                  alt="Receipt preview"
-                  className="w-full h-full object-contain bg-black/5 dark:bg-black/40"
-                />
-                <button
-                  type="button"
-                  onClick={clear}
-                  disabled={busy}
-                  className="absolute top-3 right-3 h-9 w-9 rounded-full bg-black/60 text-white hover:bg-black/80 flex items-center justify-center transition-colors disabled:opacity-40"
-                  aria-label="Remove image"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <p className="text-sm text-muted-foreground flex-1 truncate">
-                  {file?.name}
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => inputRef.current?.click()}
-                  disabled={busy}
-                >
-                  <Upload className="h-4 w-4" />
-                  Replace
-                </Button>
+      <motion.div
+        initial={{ opacity: 0.98, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <Card className="overflow-hidden">
+          <CardContent className="p-5 sm:p-7">
+            {!preview ? (
+              <label
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragging(true);
+                }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={onDrop}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-muted/35 px-6 py-16 sm:py-20 cursor-pointer transition-colors",
+                  "hover:border-accent/45 hover:bg-accent/[0.04]",
+                  dragging && "border-accent bg-accent/[0.07]"
+                )}
+              >
+                <span className="h-12 w-12 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
+                  <ImageUp className="h-6 w-6" />
+                </span>
+                <div className="text-center">
+                  <p className="font-medium">
+                    Drop your receipt here, or tap to choose
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    JPG, PNG, HEIC — up to 8 MB
+                  </p>
+                </div>
                 <input
                   ref={inputRef}
                   type="file"
@@ -202,39 +165,81 @@ export function UploadCard() {
                   className="sr-only"
                   onChange={onChange}
                 />
+              </label>
+            ) : (
+              <div className="space-y-5">
+                <div className="relative rounded-xl overflow-hidden bg-muted aspect-[3/4] sm:aspect-[4/3] max-h-[480px]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={preview}
+                    alt="Receipt preview"
+                    className="w-full h-full object-contain bg-black/5 dark:bg-black/40"
+                  />
+                  <button
+                    type="button"
+                    onClick={clear}
+                    disabled={busy}
+                    className="absolute top-3 right-3 h-9 w-9 rounded-xl bg-black/60 text-white hover:bg-black/80 flex items-center justify-center transition-colors disabled:opacity-40"
+                    aria-label="Remove image"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <p className="text-sm text-muted-foreground flex-1 truncate">
+                    {file?.name}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => inputRef.current?.click()}
+                    disabled={busy}
+                  >
+                    <Upload className="h-4 w-4" />
+                    Replace
+                  </Button>
+                  <input
+                    ref={inputRef}
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={onChange}
+                  />
+                </div>
+
+                <Button
+                  variant="accent"
+                  size="lg"
+                  className="w-full"
+                  disabled={busy}
+                  onClick={extract}
+                >
+                  {busy ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Reading the receipt...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Extract items
+                    </>
+                  )}
+                </Button>
               </div>
+            )}
 
-              <Button
-                variant="accent"
-                size="lg"
-                className="w-full"
-                disabled={busy}
-                onClick={extract}
-              >
-                {busy ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Reading the receipt...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    Extract items
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
+            {error && (
+              <div className="mt-4 text-sm text-rose-600 dark:text-rose-400 bg-rose-500/10 rounded-xl px-4 py-3">
+                {error}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
 
-          {error && (
-            <div className="mt-4 text-sm text-rose-600 dark:text-rose-400 bg-rose-500/10 rounded-xl px-4 py-3">
-              {error}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <p className="text-xs text-muted-foreground text-center mt-6">
+      <p className="text-xs text-muted-foreground text-center mt-6 leading-relaxed">
         Your receipt is sent to our server only to extract the items. Nothing
         is stored.
       </p>
