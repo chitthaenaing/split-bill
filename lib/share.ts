@@ -14,6 +14,7 @@ const newId = customAlphabet(
 );
 
 const ID_RE = /^[A-Za-z0-9]{6,32}$/;
+const STATE_PATH_RE = /\/states\/[A-Za-z0-9]+\.json$/;
 
 function ensureToken(): void {
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -31,6 +32,51 @@ function extensionForMime(mime: string): string {
   if (m.includes("heif")) return "heif";
   if (m.includes("gif")) return "gif";
   return "jpg";
+}
+
+function billJsonPath(shareId: string): string {
+  return `bills/${shareId}/bill.json`;
+}
+
+function billStatePath(shareId: string, writeId: string): string {
+  return `bills/${shareId}/states/${writeId}.json`;
+}
+
+async function fetchBillFromUrl(url: string): Promise<StoredBill | null> {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) return null;
+  const data = (await res.json()) as unknown;
+  return normalizeStoredBill(data);
+}
+
+/**
+ * Persist a bill snapshot. Immutable per-write state files avoid false conflicts
+ * from Blob CDN caching of overwritten bill.json (min cache ~60s).
+ */
+async function writeBillSnapshot(
+  shareId: string,
+  bill: StoredBill,
+  writeId: string
+): Promise<void> {
+  const body = JSON.stringify(bill);
+  await put(billStatePath(shareId, writeId), body, {
+    access: "public",
+    contentType: "application/json",
+    // Immutable pathname — safe to cache hard.
+    cacheControlMaxAge: 60 * 60 * 24 * 365,
+  });
+  // Best-effort mirror for older readers / tooling. Do not CAS-verify this
+  // path — overwrites can read stale from the CDN for up to a minute.
+  try {
+    await put(billJsonPath(shareId), body, {
+      access: "public",
+      contentType: "application/json",
+      cacheControlMaxAge: 60,
+      allowOverwrite: true,
+    });
+  } catch (err) {
+    console.error("[writeBillSnapshot] bill.json mirror failed", err);
+  }
 }
 
 const MAX_PAYMENT_RECEIPTS_PER_BILL = 40;
@@ -66,8 +112,11 @@ export function sanitizePayerName(raw: unknown): string | null {
 }
 
 /**
- * Read-modify-write bill.json with lastWriteId verification + retry so concurrent
- * payment uploads / notify registrations / deletes don't silently clobber each other.
+ * Read-modify-write with immutable state snapshots + tip check via list().
+ *
+ * We used to overwrite bill.json and re-fetch it to verify lastWriteId. Public
+ * Blob CDN can serve the previous body for ~60s after overwrite, so verification
+ * failed even with no concurrent writers ("Could not update… concurrent edits").
  */
 export async function mutateStoredBill(
   shareId: string,
@@ -90,16 +139,29 @@ export async function mutateStoredBill(
       lastWriteId: writeId,
     };
 
-    await put(`bills/${shareId}/bill.json`, JSON.stringify(next), {
-      access: "public",
-      contentType: "application/json",
-      cacheControlMaxAge: 0,
-      allowOverwrite: true,
-    });
+    await writeBillSnapshot(shareId, next, writeId);
 
-    const verified = await getShare(shareId);
-    if (verified?.lastWriteId === writeId) {
-      return verified;
+    // Tip is chosen from list() metadata (uploadedAt), not CDN content of a
+    // reused pathname. Brief re-poll covers list lag; if the tip is still
+    // older than this write, trust our snapshot (don't false-conflict).
+    for (let check = 0; check < 4; check++) {
+      const tip = await getShare(shareId);
+      if (tip?.lastWriteId === writeId) return tip;
+      if (
+        tip &&
+        (tip.revision ?? 0) >= (next.revision ?? 0) &&
+        tip.lastWriteId !== writeId
+      ) {
+        // A peer landed the same or newer generation — re-mutate from tip.
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 40 * (check + 1)));
+    }
+
+    const tip = await getShare(shareId);
+    if (tip?.lastWriteId === writeId) return tip;
+    if (!tip || (tip.revision ?? 0) < (next.revision ?? 0)) {
+      return next;
     }
   }
 
@@ -170,16 +232,7 @@ export async function createShare(opts: {
     discount: Math.max(0, opts.bill.discount || 0),
   };
 
-  await put(
-    `bills/${id}/bill.json`,
-    JSON.stringify(stored),
-    {
-      access: "public",
-      contentType: "application/json",
-      cacheControlMaxAge: 0,
-      allowOverwrite: true,
-    }
-  );
+  await writeBillSnapshot(id, stored, writeId);
 
   return { id, ownerToken };
 }
@@ -192,7 +245,10 @@ export async function appendPaymentReceipt(opts: {
   shareId: string;
   imageBuffer: Buffer;
   imageContentType: string;
-  payerName: string;
+  /** Optional — usually OCR'd from the slip. */
+  payerName?: string | null;
+  /** Transfer amount in bill currency — usually OCR'd from the slip. */
+  amountPaid: number;
 }): Promise<{
   bill: StoredBill;
   entry: StoredPaymentReceipt;
@@ -224,12 +280,14 @@ export async function appendPaymentReceipt(opts: {
     cacheControlMaxAge: 60 * 60 * 24 * 365,
   });
 
+  const payerName = opts.payerName ? sanitizePayerName(opts.payerName) : null;
   const entry: StoredPaymentReceipt = {
     id: proofId,
     url: uploaded.url,
     contentType: opts.imageContentType,
     uploadedAt: Date.now(),
-    payerName: opts.payerName,
+    ...(payerName ? { payerName } : {}),
+    amountPaid: opts.amountPaid,
     deleteTokenHash: hashShareToken(deleteToken),
   };
 
@@ -278,9 +336,10 @@ export async function appendPaymentReceipt(opts: {
   const tokens = Array.isArray(bill.notifyTokens) ? bill.notifyTokens : [];
   if (tokens.length > 0) {
     try {
+      const who = payerName || "Someone";
       const { invalidTokens } = await sendPushToTokens(tokens, {
         title: "New payment receipt",
-        body: `${opts.payerName} uploaded a transfer.`,
+        body: `${who} paid ${opts.amountPaid}.`,
         url: `/b/${opts.shareId}`,
       });
       if (invalidTokens.length > 0) {
@@ -416,18 +475,27 @@ export async function getShare(id: string): Promise<StoredBill | null> {
 
   try {
     const result = await list({ prefix: `bills/${id}/` });
-    const billBlob = result.blobs.find(
+
+    // Prefer immutable state snapshots (newest uploadedAt). Unique URLs mean
+    // CDN cannot return a previous overwrite of the same pathname.
+    const stateBlobs = result.blobs
+      .filter((b) => STATE_PATH_RE.test(b.pathname))
+      .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
+
+    for (const blob of stateBlobs.slice(0, 3)) {
+      const bill = await fetchBillFromUrl(blob.url);
+      if (bill) return bill;
+    }
+
+    const legacy = result.blobs.find(
       (b) =>
         b.pathname.endsWith("/bill.json") ||
-        (b.pathname.includes("/bill") && b.pathname.endsWith(".json"))
+        (b.pathname.includes("/bill") &&
+          b.pathname.endsWith(".json") &&
+          !STATE_PATH_RE.test(b.pathname))
     );
-    if (!billBlob) return null;
-
-    const res = await fetch(billBlob.url, { cache: "no-store" });
-    if (!res.ok) return null;
-
-    const data = (await res.json()) as unknown;
-    return normalizeStoredBill(data);
+    if (!legacy) return null;
+    return fetchBillFromUrl(legacy.url);
   } catch (err) {
     console.error("[getShare]", err);
     return null;

@@ -61,6 +61,7 @@ describe("normalizeStoredBill", () => {
           contentType: "image/png",
           uploadedAt: 1,
           payerName: "Sam",
+          amountPaid: 55.25,
           deleteTokenHash: "d".repeat(64),
         },
         { id: "bad", url: "x" },
@@ -74,5 +75,6 @@ describe("normalizeStoredBill", () => {
     assert.equal(bill!.items.length, 1);
     assert.equal(bill!.paymentReceipts?.length, 1);
     assert.equal(bill!.paymentReceipts?.[0]?.payerName, "Sam");
+    assert.equal(bill!.paymentReceipts?.[0]?.amountPaid, 55.25);
   });
 });

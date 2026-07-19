@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -13,8 +13,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { dataUrlToBlob, prepareReceiptImage } from "@/lib/image-prep";
+import { computePaymentBalance } from "@/lib/payment-balance";
 import { readJsonResponse } from "@/lib/read-json-response";
 import {
   forgetMyProof,
@@ -23,8 +23,8 @@ import {
   rememberMyProof,
   type MyProofEntry,
 } from "@/lib/share-client";
-import { cn } from "@/lib/utils";
-import type { StoredPaymentReceipt } from "@/types/bill";
+import { cn, formatMoney } from "@/lib/utils";
+import type { StoredBill, StoredPaymentReceipt } from "@/types/bill";
 
 async function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -35,24 +35,16 @@ async function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-function NameAndUploadButton({
-  shareId,
+function UploadDropzone({
   busy,
-  payerName,
-  setPayerName,
   onChooseFile,
   onDropFile,
   error,
-  setError,
 }: {
-  shareId: string;
   busy: boolean;
-  payerName: string;
-  setPayerName: (v: string) => void;
   onChooseFile: () => void;
   onDropFile: (file: File) => void;
   error: string | null;
-  setError: (v: string | null) => void;
 }) {
   const [dragActive, setDragActive] = useState(false);
 
@@ -66,27 +58,6 @@ function NameAndUploadButton({
 
   return (
     <div className="space-y-3">
-      <div className="space-y-1.5">
-        <label
-          htmlFor={`payer-name-${shareId}`}
-          className="text-xs font-medium text-foreground"
-        >
-          Name on this transfer
-        </label>
-        <Input
-          id={`payer-name-${shareId}`}
-          value={payerName}
-          onChange={(e) => {
-            setPayerName(e.target.value);
-            setError(null);
-          }}
-          placeholder="Who paid?"
-          maxLength={40}
-          disabled={busy}
-          autoComplete="name"
-        />
-      </div>
-
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -108,7 +79,7 @@ function NameAndUploadButton({
           type="button"
           variant="accent"
           size="sm"
-          disabled={busy || !payerName.trim()}
+          disabled={busy}
           onClick={onChooseFile}
         >
           {busy ? (
@@ -116,10 +87,12 @@ function NameAndUploadButton({
           ) : (
             <Upload className="h-4 w-4" />
           )}
-          Choose screenshot
+          {busy ? "Reading slip…" : "Choose screenshot"}
         </Button>
         <span className="text-[11px] text-muted-foreground">
-          {dragActive ? "Drop to upload" : "or drag & drop a screenshot here"}
+          {dragActive
+            ? "Drop to upload"
+            : "We’ll read the amount and name from the slip"}
         </span>
       </div>
 
@@ -132,19 +105,22 @@ function NameAndUploadButton({
 
 export function PaymentProofsSection({
   shareId,
+  currency,
+  bill,
   receipts: initialReceipts,
 }: {
   shareId: string;
+  currency: string;
+  bill: Pick<
+    StoredBill,
+    "items" | "tax" | "serviceCharge" | "rounding" | "discount"
+  >;
   receipts: StoredPaymentReceipt[];
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  // Driven by the server responses (which return the authoritative list) so
-  // uploads/deletes reflect instantly — the shared bill.json is CDN-cached and
-  // a router.refresh() would read a stale copy for up to its cache window.
   const [receipts, setReceipts] = useState<StoredPaymentReceipt[]>(
     initialReceipts
   );
-  const [payerName, setPayerName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -153,6 +129,7 @@ export function PaymentProofsSection({
   const [lightbox, setLightbox] = useState<{
     url: string;
     payerName?: string;
+    amountPaid?: number;
   } | null>(null);
 
   useEffect(() => {
@@ -170,16 +147,16 @@ export function PaymentProofsSection({
     [myProofs]
   );
 
+  const balance = useMemo(
+    () => computePaymentBalance(bill, receipts),
+    [bill, receipts]
+  );
+
   const hasReceipts = receipts.length > 0;
 
   const upload = useCallback(
     async (file: File) => {
       setError(null);
-      const name = payerName.trim();
-      if (!name) {
-        setError("Add who paid, then choose the transfer screenshot.");
-        return;
-      }
       if (!file.type.startsWith("image/")) {
         setError("Please choose an image file.");
         return;
@@ -194,7 +171,6 @@ export function PaymentProofsSection({
         const prepared = await prepareReceiptImage(rawDataUrl);
         const form = new FormData();
         form.append("file", dataUrlToBlob(prepared), file.name || "proof.jpg");
-        form.append("payerName", name);
 
         const res = await fetch(`/api/share/${shareId}/payment-receipt`, {
           method: "POST",
@@ -221,14 +197,13 @@ export function PaymentProofsSection({
             })
           );
         }
-        setPayerName("");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Upload failed.");
       } finally {
         setBusy(false);
       }
     },
-    [shareId, payerName]
+    [shareId]
   );
 
   const onDelete = useCallback(
@@ -275,13 +250,9 @@ export function PaymentProofsSection({
   );
 
   const triggerFileDialog = useCallback(() => {
-    if (!payerName.trim()) {
-      setError("Add who paid, then choose the transfer screenshot.");
-      return;
-    }
     setError(null);
     fileRef.current?.click();
-  }, [payerName]);
+  }, []);
 
   const onFileSelected = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -292,19 +263,80 @@ export function PaymentProofsSection({
     [upload]
   );
 
+  const remainingLabel =
+    balance.remaining <= 0.005
+      ? "Settled"
+      : `${formatMoney(balance.remaining, currency)} left`;
+
   return (
     <>
       <Card className="overflow-hidden">
         <div className="px-5 py-3 border-b border-border/70 flex items-center gap-2 text-sm font-medium">
           <ImageIcon className="h-4 w-4 text-muted-foreground" />
-          {hasReceipts ? "Transfer proofs" : "Your transfer"}
+          {hasReceipts ? "Payments" : "Your transfer"}
         </div>
         <CardContent className="p-4 sm:p-5 space-y-4">
           {!hasReceipts ? (
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Pay the organiser, then attach the bank app screenshot and the name
-              that should appear on the bill.
+              Pay the organiser, then drop the bank app screenshot. We scan it
+              for the amount and sender — nothing to type.
             </p>
+          ) : null}
+
+          {hasReceipts ? (
+            <div className="rounded-xl border border-border bg-muted/20 px-3.5 py-3 space-y-2.5">
+              <div className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">Bill total</span>
+                <span className="font-medium tabular-nums">
+                  {formatMoney(balance.billTotal, currency)}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">Paid</span>
+                <span className="font-medium tabular-nums">
+                  {formatMoney(balance.paidTotal, currency)}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3 border-t border-border/70 pt-2.5 text-sm">
+                <span className="font-medium text-foreground">Remaining</span>
+                <span
+                  className={cn(
+                    "font-semibold tabular-nums",
+                    balance.remaining <= 0.005
+                      ? "text-emerald-700 dark:text-emerald-400"
+                      : "text-foreground"
+                  )}
+                >
+                  {remainingLabel}
+                </span>
+              </div>
+              {balance.byPayer.length > 0 ? (
+                <ul className="space-y-1 border-t border-border/70 pt-2.5">
+                  {balance.byPayer.map((row) => (
+                    <li
+                      key={row.payerName}
+                      className="flex items-baseline justify-between gap-3 text-xs"
+                    >
+                      <span className="truncate text-muted-foreground">
+                        {row.payerName}
+                        {row.proofCount > 1 ? ` ×${row.proofCount}` : ""}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-foreground">
+                        {row.amountPaid > 0
+                          ? formatMoney(row.amountPaid, currency)
+                          : "—"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {balance.hasUnknownAmounts ? (
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Some older proofs have no scanned amount — remaining may look
+                  high until those are re-uploaded.
+                </p>
+              ) : null}
+            </div>
           ) : null}
 
           {hasReceipts ? (
@@ -313,6 +345,10 @@ export function PaymentProofsSection({
                 const label = (r.payerName ?? "").trim() || "Transfer";
                 const isMine = mine(r.id);
                 const isDeleting = deletingId === r.id;
+                const amountLabel =
+                  typeof r.amountPaid === "number" && r.amountPaid > 0
+                    ? formatMoney(r.amountPaid, currency)
+                    : null;
                 return (
                   <li key={r.id} className="relative">
                     <button
@@ -321,6 +357,7 @@ export function PaymentProofsSection({
                         setLightbox({
                           url: r.url,
                           payerName: r.payerName,
+                          amountPaid: r.amountPaid,
                         })
                       }
                       className="flex w-full gap-3 rounded-xl border border-border bg-muted/20 p-2.5 text-left transition-colors hover:bg-muted/45 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
@@ -342,6 +379,15 @@ export function PaymentProofsSection({
                         <span className="truncate text-sm font-semibold text-foreground">
                           {label}
                         </span>
+                        {amountLabel ? (
+                          <span className="text-sm tabular-nums text-foreground">
+                            {amountLabel}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground">
+                            Amount not scanned
+                          </span>
+                        )}
                         {isMine ? (
                           <span className="text-[11px] text-muted-foreground">
                             You uploaded this
@@ -371,15 +417,11 @@ export function PaymentProofsSection({
           ) : null}
 
           {!hasReceipts ? (
-            <NameAndUploadButton
-              shareId={shareId}
+            <UploadDropzone
               busy={busy}
-              payerName={payerName}
-              setPayerName={setPayerName}
               onChooseFile={triggerFileDialog}
               onDropFile={upload}
               error={error}
-              setError={setError}
             />
           ) : (
             <details className="group rounded-xl border border-border bg-muted/15">
@@ -388,15 +430,11 @@ export function PaymentProofsSection({
                 <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />
               </summary>
               <div className="border-t border-border px-3 py-3">
-                <NameAndUploadButton
-                  shareId={shareId}
+                <UploadDropzone
                   busy={busy}
-                  payerName={payerName}
-                  setPayerName={setPayerName}
                   onChooseFile={triggerFileDialog}
                   onDropFile={upload}
                   error={error}
-                  setError={setError}
                 />
               </div>
             </details>
@@ -448,9 +486,15 @@ export function PaymentProofsSection({
                   className="max-h-[min(72dvh,100%)] max-w-full rounded-2xl object-contain shadow-2xl"
                   onClick={(e) => e.stopPropagation()}
                 />
-                {(lightbox.payerName ?? "").trim() ? (
+                {(lightbox.payerName ?? "").trim() ||
+                (typeof lightbox.amountPaid === "number" &&
+                  lightbox.amountPaid > 0) ? (
                   <p className="max-w-[min(100%,28rem)] text-center text-base font-semibold text-white">
-                    {(lightbox.payerName ?? "").trim()}
+                    {(lightbox.payerName ?? "").trim() || "Transfer"}
+                    {typeof lightbox.amountPaid === "number" &&
+                    lightbox.amountPaid > 0
+                      ? ` · ${formatMoney(lightbox.amountPaid, currency)}`
+                      : ""}
                   </p>
                 ) : null}
               </motion.div>
