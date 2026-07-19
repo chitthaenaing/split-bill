@@ -166,7 +166,7 @@ export function userBillsErrorMessage(err: unknown): string {
       ? String((err as { code: unknown }).code)
       : "";
   if (code === "permission-denied") {
-    return "Firestore blocked this request. Deploy firestore.rules from this repo (users can only read/write their own links).";
+    return "Firestore blocked this request. In Firebase Console → Firestore → Rules, publish the firestore.rules from this repo, then retry.";
   }
   if (code === "unavailable" || code === "failed-precondition") {
     return "Firestore isn't available yet. Create a Firestore database in the Firebase console for project split-bill-noti.";
