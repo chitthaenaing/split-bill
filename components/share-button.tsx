@@ -21,6 +21,10 @@ import { readJsonResponse } from "@/lib/read-json-response";
 import { saveOwnerToken } from "@/lib/share-client";
 import { useBillStore } from "@/lib/store";
 import { recordUserBillLinkClient } from "@/lib/user-bills-client";
+import {
+  getUserPaymentQrClient,
+  paymentQrUrlToDataUrl,
+} from "@/lib/user-profile-client";
 
 type ShareResponse =
   | { id: string; url: string; ownerToken?: string; receiptUrl?: string }
@@ -94,8 +98,21 @@ export function ShareButton() {
       const form = new FormData();
       form.append("file", dataUrlToBlob(preparedReceipt), "receipt.jpg");
       form.append("bill", JSON.stringify(bill));
-      if (bankingQrDataUrl) {
-        const preparedQr = await prepareReceiptImage(bankingQrDataUrl);
+
+      let qrDataUrl = bankingQrDataUrl;
+      if (!qrDataUrl && user) {
+        try {
+          const profile = await getUserPaymentQrClient(user.uid);
+          if (profile?.paymentQrUrl) {
+            qrDataUrl = await paymentQrUrlToDataUrl(profile.paymentQrUrl);
+            useBillStore.getState().setBankingQrDataUrl(qrDataUrl);
+          }
+        } catch {
+          // share without QR rather than fail the whole upload
+        }
+      }
+      if (qrDataUrl) {
+        const preparedQr = await prepareReceiptImage(qrDataUrl);
         form.append("bankingQr", dataUrlToBlob(preparedQr), "banking-qr.jpg");
       }
 

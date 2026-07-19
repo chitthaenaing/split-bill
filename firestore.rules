@@ -1,17 +1,49 @@
 rules_version = '2';
 
-// Bill payloads stay on Vercel Blob. Firestore only stores each signed-in
-// user's share/received link index under users/{uid}/links/{shareId}.
+// Bill payloads stay on Vercel Blob. Firestore stores:
+//   - users/{uid}/links/{shareId}  — shared/received bill index
+//   - users/{uid}                  — optional profile (saved payment QR URL)
 //
 // Reads stay simple (auth + ownership only) so list queries are allowed.
 // Field validation applies on create/update.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId}/links/{shareId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
 
-      allow create, update: if request.auth != null
-        && request.auth.uid == userId
+    function validPaymentQrProfile() {
+      return request.resource.data.keys().hasOnly([
+          'paymentQrUrl', 'paymentQrContentType', 'paymentQrUpdatedAt'
+        ])
+        && request.resource.data.paymentQrUrl is string
+        && request.resource.data.paymentQrUrl.size() > 0
+        && request.resource.data.paymentQrUrl.size() <= 2048
+        && request.resource.data.paymentQrUrl.matches('https://.*')
+        && request.resource.data.paymentQrContentType is string
+        && request.resource.data.paymentQrContentType.size() > 0
+        && request.resource.data.paymentQrContentType.size() <= 64
+        && request.resource.data.paymentQrContentType.matches('image/.*')
+        && request.resource.data.paymentQrUpdatedAt is number;
+    }
+
+    function emptyProfile() {
+      return request.resource.data.keys().hasOnly([]);
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+
+      allow create, update: if isOwner(userId)
+        && (validPaymentQrProfile() || emptyProfile());
+
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/links/{shareId} {
+      allow read: if isOwner(userId);
+
+      allow create, update: if isOwner(userId)
         && shareId.matches('^[A-Za-z0-9]{6,32}$')
         && request.resource.data.keys().hasAll([
           'shareId', 'role', 'createdAt', 'updatedAt',
@@ -34,7 +66,7 @@ service cloud.firestore {
           )
         );
 
-      allow delete: if request.auth != null && request.auth.uid == userId;
+      allow delete: if isOwner(userId);
     }
 
     match /{document=**} {

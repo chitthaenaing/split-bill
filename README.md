@@ -66,9 +66,9 @@ Tax, service and rounding are read-only on the shared page (they're properties o
 
 ## Accounts (optional)
 
-Sign in with Google to keep a cross-device list of bills you **shared** and bills you **opened**. Guest use still works — accounts only add history under **My bills** (`/account`).
+Sign in with Google to keep a cross-device list of bills you **shared** and bills you **opened**, and to **save your payment QR** once so it’s reused on every share. Guest use still works — accounts only add history and the saved QR under **My bills** (`/account`).
 
-Bill payloads stay on Vercel Blob. Firestore only stores a per-user index (`users/{uid}/links/{shareId}`), written from the browser with the signed-in user’s Auth session (no Admin credentials required for accounts).
+Bill payloads (and the saved payment QR image) stay on Vercel Blob. Firestore stores a per-user link index (`users/{uid}/links/{shareId}`) plus an optional profile doc (`users/{uid}` with the payment QR URL), written from the browser with the signed-in user’s Auth session (no Admin credentials required for accounts).
 
 Setup (project `split-bill-noti`):
 
@@ -87,7 +87,8 @@ app/
   api/translate-items/route.ts English glosses for item names
   api/fx/route.ts              Frankfurter mid-market FX rates (cached)
   api/share/route.ts           server route that writes to Vercel Blob
-  account/                     My bills (shared + received)
+  account/                     My bills + saved payment QR
+  api/me/payment-qr/           upload/delete account payment QR (Blob)
   b/[id]/                      the public shared-bill page
   layout.tsx, page.tsx         single-page app shell
 components/
@@ -119,12 +120,15 @@ lib/
   firebase-auth-client.ts Google sign-in helpers
   firebase-admin.ts       Admin SDK (FCM push only)
   user-bills-client.ts    client Firestore user→bill index
+  user-profile-client.ts  saved payment QR (Firestore URL + Blob upload)
+  verify-id-token.ts      Identity Toolkit REST ID-token verify
 fixtures/
   receipts/               arithmetic / VAT scoreboard JSON
   model-transcripts/      mocked model responses for extract+repair
 types/bill.ts             shared types
 types/user-bills.ts       account bill-index types
-firestore.rules           per-user link index rules
+types/user-profile.ts     saved payment QR profile fields
+firestore.rules           per-user link index + profile rules
 ```
 
 ## Currency conversion
@@ -134,7 +138,8 @@ The totals panel can show your share in another currency via [Frankfurter](https
 ## Notes
 
 - Bill data is kept in `localStorage` so a refresh won't lose your selection. Use "New bill" to reset.
-- Sharing works without an account. Google sign-in is optional and only powers “My bills” history (Firestore index + Blob payloads).
+- Sharing works without an account. Google sign-in is optional and powers “My bills” history plus a reusable payment QR (Firestore profile URL + Blob image).
+- After pulling this change, republish `firestore.rules` so the `users/{uid}` profile doc is allowed.
 - Run extraction unit tests with `npm test`.
 - Receipt arithmetic fixtures live in `fixtures/receipts/` (`npm run test:fixtures`).
 - Scripted vision-model transcripts live in `fixtures/model-transcripts/` (`npm run test:transcripts`) — they exercise prompt, JSON schema, repair, and finalize without calling OpenAI.
