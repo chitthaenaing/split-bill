@@ -4,7 +4,7 @@ import type { ExtractedBill } from "@/types/bill";
 export const MONEY_TOLERANCE = 0.05;
 
 const JUNK_ITEM_NAME =
-  /^(sub\s*total|total|grand\s*total|amount\s*due|balance\s*due|change|cash|card|visa|mastercard|amex|payment|paid|thank\s*you|server|table|guest|check\s*#?|chk\s*#?|order\s*#?|tax|vat|gst|service(\s*charge)?|gratuity|tip|rounding|round\s*(up|down)|cash\s*round)$/i;
+  /^(sub\s*total|total(\s*amount)?|grand\s*total|amount\s*due|balance\s*due|change|cash|card|visa|mastercard|amex|payment(\s*amount)?|paid|thank\s*you|server|table|guest|check\s*#?|chk\s*#?|order\s*#?|tax|vat|gst|add\s*gst|service(\s*charge)?|gratuity|tip|rounding|round\s*(up|down|amount)|cash\s*round|total\s*savings)$/i;
 
 export type BillCheck = {
   ok: boolean;
@@ -296,9 +296,10 @@ export function reconcileBill(bill: NormalizedBill): NormalizedBill {
   );
   const overshoot = roundMoney(exclusiveExpected - bill.total, currency);
 
-  // When exclusive math overshoots by exactly the printed VAT (or VAT+service),
-  // the receipt is tax-inclusive — Net/VAT are a breakdown, not a missing
-  // promotion. Inventing "Discount -51.91" equal to VAT is wrong (Thai ABB).
+  // When exclusive math overshoots by exactly the printed VAT/GST (or
+  // VAT+service), the receipt is tax-inclusive — Net/VAT/"ADD GST" are a
+  // breakdown, not a missing promotion. Inventing "Discount -51.91" equal to
+  // VAT is wrong (Thai ABB, Singapore GST-inclusive retail).
   const overshootIsInclusiveVat =
     (bill.tax > MONEY_TOLERANCE &&
       Math.abs(overshoot - bill.tax) <= MONEY_TOLERANCE) ||
@@ -501,10 +502,11 @@ export function formatCheckForRepair(
 /**
  * Drop the taxInclusive flag when handing the bill to the rest of the app.
  *
- * On tax-inclusive receipts (Thai ABB "Included Vat", EU/AU/JP incl. GST/VAT)
- * the printed VAT/Net lines are a breakdown of prices that already include tax.
- * The split UI always adds `tax` on top of selected items, so informational
- * VAT must be cleared here — otherwise a ฿793 inclusive bill becomes ฿844.91.
+ * On tax-inclusive receipts (Thai ABB "Included Vat", SG "ADD GST", EU/AU/JP
+ * incl. GST/VAT) the printed VAT/Net lines are a breakdown of prices that
+ * already include tax. The split UI always adds `tax` on top of selected
+ * items, so informational VAT/GST must be cleared here — otherwise a ฿793
+ * inclusive bill becomes ฿844.91, or an S$44.45 bill becomes S$47.74.
  */
 export function toExtractedBill(bill: NormalizedBill): ExtractedBill {
   return {

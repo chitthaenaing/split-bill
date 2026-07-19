@@ -35,5 +35,11 @@ without calling OpenAI.
 
 `vatConsistency`: `"ok"` (printed VAT matches rate), `"warn"` (soft mismatch),
 or `"skip"` (no rate check — e.g. USD/EUR without a known locale rate).
+Known rates: THB 7%, SGD 8%/9% (either accepted).
+
+Inclusive vs exclusive: keep a `taxInclusive` flag on extract, reconcile with
+arithmetic (flip when exclusive math overshoots by exactly the printed tax),
+and clear informational tax before the split UI. Singapore "ADD GST" and Thai
+"Included Vat" are inclusive breakdowns — never add them on top.
 
 Run the scoreboard: `npm run test:fixtures` (also included in `npm test`).

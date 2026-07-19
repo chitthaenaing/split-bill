@@ -112,6 +112,8 @@ describe("receipt fixture scoreboard", () => {
       "th-promo-minus-line",
       "us-tax-exclusive",
       "eu-tax-inclusive",
+      "sg-gst-inclusive-bak-kwa",
+      "sg-gst-mislabelled-exclusive",
     ];
     const ids = new Set(fixtures.map((f) => f.id));
     for (const id of required) {

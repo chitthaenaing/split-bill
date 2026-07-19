@@ -46,7 +46,7 @@ export const EXTRACTION_SYSTEM_PROMPT = `You read photographs of restaurant, caf
 
 What goes in each field:
 - "items": every product / food / drink / merchandise line AND every promotion / discount / free-item line that has a price. Promotions that print as a minus amount (e.g. "Promotion Free Tea -50.00") MUST be included as their own item with a NEGATIVE price. Only combine sub-modifiers / toppings / notes into the parent line when they have NO amount in the price column. Skip headers, dividers, server names, table numbers, payment method lines, change lines, and anything labelled subtotal / total / amount due / tax / VAT / service / tip / rounding.
-- "price": the LINE TOTAL printed in the price column for this row — exactly the amount shown next to the item. Do NOT divide by quantity. Do NOT put the unit price here. Use a negative number for promotion / discount lines.
+- "price": the LINE TOTAL printed in the price column for this row — exactly the amount shown next to the item. Do NOT divide by quantity. Do NOT put the unit price here. Use a negative number for promotion / discount lines. When a table has Gross / Dis / Net columns (common on Singapore retail receipts), use the Net amount as "price".
     Examples:
       "3  Latte   12.00"                         -> price=12.00, quantity=3
       "Latte   3 x 4.00   12.00"                -> price=12.00, quantity=3
@@ -58,17 +58,18 @@ What goes in each field:
 - "quantity": units of this item on this line, as printed. Default 1. Always extract when shown.
 - "nameTranslated": a short English gloss of "name" when the printed name is non-Latin, mixed-script, or hard for an English reader (Myanmar, Thai, Chinese, Japanese, Korean, Arabic, etc.). Keep it concise (menu-style). If the printed row already includes English, put that English text here (without repeating the non-Latin script). Use "" when "name" is already plain English / Latin and needs no gloss. Never invent a different dish — translate or romanize the same item only.
 - "discount": always 0. Promotions belong in items with a negative price — do not also put them here.
-- "tax": TAX / VAT / GST / Sales Tax AMOUNT (not the percentage). If multiple tax lines are shown, sum them.
+- "tax": TAX / VAT / GST / Sales Tax / ADD GST AMOUNT (not the percentage). If multiple tax lines are shown, sum them. Do NOT invent a tax line from the GST registration number.
 - "serviceCharge": SERVICE CHARGE / SERVICE / GRATUITY / TIP / AUTO-GRAT amount printed on the receipt (not a handwritten tip unless clearly written as part of the total).
-- "rounding": cash-rounding adjustments ("Rounding", "Round Down", "Round Up", "Cash Round"). May be negative. 0 if absent.
-- "subtotal": the printed items subtotal BEFORE discount (sum of the positive product lines).
-- "total": the printed grand total / amount due.
+- "rounding": cash-rounding adjustments ("Rounding", "Round Amount", "Round Down", "Round Up", "Cash Round"). May be negative. When the printed Round Amount reduces the payable total (e.g. Total Amount 44.46 with Round Amount 0.01 and cash due 44.45), store rounding as -0.01. 0 if absent.
+- "subtotal": the printed items subtotal BEFORE discount (sum of the positive product lines). On Gross/Dis/Net tables, prefer the sum of Net line amounts when no separate subtotal is printed.
+- "total": the printed grand total / amount due (after rounding). Not cash tendered / change.
 - "currency": ISO 4217 code (USD, EUR, GBP, THB, JPY, SGD, AUD, MYR, IDR, INR, etc). Infer from symbols (\u00a3=GBP, \u20ac=EUR, \u00a5=JPY, \u0e3f=THB, RM=MYR, Rp=IDR, S$=SGD, A$=AUD). Default to USD only when nothing suggests another currency.
-- "taxInclusive": true when tax is already baked into item prices / the subtotal (common in EU, AU, JP, "incl. VAT", and Thai Tax Invoice / ABB lines labelled "Sub Total (Included Vat)" / "Included Vat"). false when tax is added on top of the subtotal (common in US, and some THB receipts that list VAT after a pre-tax subtotal). On inclusive receipts, still extract the printed VAT amount into "tax", but the grand-total equation must NOT add it again — "Net Total" is only a breakdown of the inclusive total.
+- "taxInclusive": true when tax is already baked into item prices / the subtotal. Common in EU, AU, JP, Singapore (SGD GST — even when labelled "ADD GST"), "incl. VAT" / "incl. GST", and Thai Tax Invoice / ABB lines labelled "Sub Total (Included Vat)" / "Included Vat". false when tax is added on top of the subtotal (common in US, and some THB receipts that list VAT after a pre-tax subtotal). On inclusive receipts, still extract the printed VAT/GST amount into "tax", but the grand-total equation must NOT add it again — "Net Total" / "ADD GST" is only a breakdown of the inclusive total.
 
 Accuracy guidance:
 - Locale decimals: "1.234,56" means 1234.56 in many EU receipts; "1,234.56" means 1234.56 in US/UK. Always emit a JSON number (1234.56), never a string.
 - Thai / Southeast Asian / Burmese receipts often use \u0e3f / THB with VAT 7% and service 5% or 10% calculated on (subtotal + negative promotions). Extract the printed AMOUNTS; do not invent charges.
+- Singapore (SGD) retail / F&B receipts almost always price GST-inclusive. A line like "ADD GST" (or GST amount under Total Amount) is usually an informational breakdown of GST already inside the Net/Total figures — set taxInclusive=true and do not add that GST on top. GST rates have been 8% (2023) or 9% (from 2024); extract the printed amount, do not recompute.
 - Multilingual / non-Latin names: extract EVERY priced product row even when the name is only Myanmar, Thai, Chinese, Japanese, Korean, Arabic, or another non-Latin script — or mixes several scripts with no English. Keep the original script in "name". Put any English gloss in "nameTranslated" (preferred) rather than appending English in parentheses onto "name". Never skip a row because you cannot romanize or translate the name. If the name is illegible but a price is clear, still include the row with name "Unreadable item" and nameTranslated "".
 - One price column amount = one item. Walk every amount in the price column top-to-bottom before answering. Small drinks, tea, sides, and bilingual rows between larger dishes are still separate items when they have their own amount — do NOT fold "Burmese Hot Tea" / similar English labels into the previous dish as a translation or modifier if that row has its own price.
 - Completeness over omission: emit one item per priced product/promo row. Do NOT drop a priced line to make the math work, and do NOT invent products that are not on the receipt. Prefer a best-effort name (or "Unreadable item") over omitting a real priced line.
@@ -79,8 +80,10 @@ Accuracy guidance:
     count(amounts in the price column for products/promos) should equal items.length
     sum(items[i].price where price \u2265 0) \u2248 subtotal
     sum(all items[i].price) + tax + serviceCharge + rounding \u2248 total   (when not taxInclusive)
+    sum(all items[i].price) + serviceCharge + rounding \u2248 total   (when taxInclusive — do NOT add tax again)
   If product lines sum short of the printed subtotal, you likely missed a priced row (often a small drink/tea/side, or a bilingual English line between dishes) — re-read every amount in the price column.
   If tax+service make the total too high by a promotion amount, you missed a minus line — add it to items.
+  If adding GST/VAT makes the total too high by exactly the printed tax (especially SGD "ADD GST" or Thai "Included Vat"), the receipt is taxInclusive — flip the flag instead of inventing a discount.
   Tolerance is a few cents. If numbers are off, re-examine items and prices.
 - If a numeric field really isn't on the receipt, return 0 (don't invent).
 - Use the exact item names from the receipt, lightly cleaned of OCR noise (fix obvious mis-reads; preserve capitalisation for Latin text).`;
@@ -131,7 +134,7 @@ export const EXTRACTION_BILL_SCHEMA = {
     taxInclusive: {
       type: "boolean",
       description:
-        "True if tax is already included in item prices / subtotal. False if tax is added on top.",
+        "True if tax is already included in item prices / subtotal (EU/AU/JP/SG GST, Thai Included Vat). False if tax is added on top (typical US).",
     },
   },
   required: [

@@ -17,10 +17,15 @@ describe("isJunkItemName", () => {
   it("flags totals, tax and payment labels", () => {
     assert.equal(isJunkItemName("Subtotal"), true);
     assert.equal(isJunkItemName("TOTAL"), true);
+    assert.equal(isJunkItemName("Total Amount"), true);
     assert.equal(isJunkItemName("Tax"), true);
+    assert.equal(isJunkItemName("ADD GST"), true);
     assert.equal(isJunkItemName("Service Charge"), true);
     assert.equal(isJunkItemName("Visa"), true);
     assert.equal(isJunkItemName("Rounding"), true);
+    assert.equal(isJunkItemName("Round Amount"), true);
+    assert.equal(isJunkItemName("TOTAL SAVINGS"), true);
+    assert.equal(isJunkItemName("Payment Amount"), true);
   });
 
   it("keeps real menu items and minus promotions", () => {
@@ -428,6 +433,118 @@ describe("Thai ABB tax-inclusive VAT (Air Plus / Included Vat)", () => {
         extracted.rounding
       ).total,
       793
+    );
+  });
+});
+
+describe("Singapore GST-inclusive retail (ADD GST)", () => {
+  /**
+   * SG bakery/retail style receipt:
+   *   Net line totals              44.46
+   *   Total Amount                 44.46
+   *   ADD GST                       3.29  ← informational 8% breakdown
+   *   Round Amount                 -0.01
+   *   Amount due                   44.45
+   *
+   * Item Net prices already include GST. Adding ADD GST again would make the
+   * split S$47.74 instead of the paid S$44.45.
+   */
+  const sgItems = [
+    { name: "Gold Coin Bak Kwa (200g)", price: 11.22, quantity: 1 },
+    { name: "Chicken Bak Kwa (200g)", price: 11.22, quantity: 1 },
+    { name: "Mini Square Bak Kwa (200g)", price: 11.22, quantity: 1 },
+    { name: "Salted Egg Fish Skin (70g)", price: 3.2, quantity: 1 },
+    {
+      name: "Salted Egg Chilli Crab Fish Skin (70g)",
+      price: 0,
+      quantity: 1,
+    },
+    {
+      name: "Salted Egg Chilli Crab Fish Skin (70g)",
+      price: 7.6,
+      quantity: 1,
+    },
+  ];
+
+  it("does not charge ADD GST again when taxInclusive is set", () => {
+    const normalized = normalizeExtractedBill({
+      currency: "SGD",
+      items: sgItems,
+      tax: 3.29,
+      serviceCharge: 0,
+      rounding: -0.01,
+      discount: 0,
+      subtotal: 44.46,
+      total: 44.45,
+      taxInclusive: true,
+    });
+    assert.equal(checkBillMath(normalized).ok, true);
+    assert.equal(normalized.taxInclusive, true);
+
+    const extracted = toExtractedBill(normalized);
+    assert.equal(extracted.tax, 0);
+    assert.equal(extracted.total, 44.45);
+    assert.equal(extracted.rounding, -0.01);
+
+    const splitItems = extracted.items.map((it, i) => ({
+      id: String(i),
+      name: it.name,
+      price: it.price,
+      quantity: it.quantity,
+      selectedQuantity: it.quantity,
+      splitCount: 1,
+    }));
+    const split = computeSplit(
+      splitItems,
+      extracted.tax,
+      extracted.serviceCharge,
+      extracted.rounding
+    );
+    assert.equal(split.total, 44.45);
+    assert.equal(split.taxShare, 0);
+  });
+
+  it("reconciles a mis-labelled exclusive extract and still zeros GST for the UI", () => {
+    // Model often returns taxInclusive=false for SG because of "ADD GST".
+    const normalized = normalizeExtractedBill({
+      currency: "SGD",
+      items: sgItems,
+      tax: 3.29,
+      serviceCharge: 0,
+      rounding: -0.01,
+      discount: 0,
+      subtotal: 44.46,
+      total: 44.45,
+      taxInclusive: false,
+    });
+    assert.equal(checkBillMath(normalized).ok, true);
+    assert.equal(normalized.taxInclusive, true);
+    assert.equal(
+      normalized.items.some((it) => it.price < 0),
+      false,
+      "must not invent a Discount equal to the GST"
+    );
+
+    const extracted = toExtractedBill(normalized);
+    assert.equal(extracted.tax, 0);
+    assert.equal(extracted.items.length, sgItems.length);
+
+    const splitItems = extracted.items.map((it, i) => ({
+      id: String(i),
+      name: it.name,
+      price: it.price,
+      quantity: it.quantity,
+      selectedQuantity: it.quantity,
+      splitCount: 1,
+    }));
+    assert.equal(
+      computeSplit(
+        splitItems,
+        extracted.tax,
+        extracted.serviceCharge,
+        extracted.rounding
+      ).total,
+      44.45
     );
   });
 });
