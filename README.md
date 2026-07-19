@@ -28,6 +28,15 @@ npm run dev
 
 Open <http://localhost:3000>.
 
+### Customer how-to video
+
+A ~30 second walkthrough lives at [`public/how-to-use.mp4`](./public/how-to-use.mp4) (also linked from the home screen as **Watch how it works**). Regenerate it with:
+
+```bash
+npx playwright install chromium   # first time only
+npm run video:howto
+```
+
 ### Swap the model
 
 Set `OPENAI_MODEL` in `.env.local` to any OpenAI vision-capable model. Defaults to `gpt-4o`. Try `gpt-4.1` or `gpt-4.1-mini` for newer alternatives, or `gpt-4o-mini` to trade accuracy for cost.

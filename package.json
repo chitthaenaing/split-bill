@@ -8,7 +8,8 @@
     "start": "next start",
     "test": "tsx --test lib/**/*.test.ts",
     "test:fixtures": "tsx --test lib/receipt-fixtures.test.ts",
-    "test:transcripts": "tsx --test lib/openai-transcripts.test.ts"
+    "test:transcripts": "tsx --test lib/openai-transcripts.test.ts",
+    "video:howto": "node scripts/how-to-video/record.mjs"
   },
   "dependencies": {
     "@vercel/blob": "^2.3.3",

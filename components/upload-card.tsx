@@ -124,6 +124,16 @@ export function UploadCard() {
           Drop in a photo of your receipt, pick the items you had, and we&apos;ll
           do the maths — tax and service included.
         </p>
+        <p className="mt-4">
+          <a
+            href="/how-to-use.mp4"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-semibold text-accent hover:underline underline-offset-4"
+          >
+            Watch how it works (30 sec)
+          </a>
+        </p>
       </div>
 
       <motion.div
