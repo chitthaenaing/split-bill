@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { RotateCcw } from "lucide-react";
+import { AccountMenu } from "@/components/account-menu";
 import { AppLogo } from "@/components/app-logo";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -86,6 +87,7 @@ export default function Home() {
               </div>
             </>
           )}
+          <AccountMenu />
           <ThemeToggle />
         </div>
       </header>

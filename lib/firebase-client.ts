@@ -1,13 +1,12 @@
 "use client";
 
-import { getApp, getApps, initializeApp } from "firebase/app";
 import {
   getMessaging,
   getToken,
   isSupported,
   type Messaging,
 } from "firebase/messaging";
-import { firebaseConfig } from "./firebase-config";
+import { getFirebaseApp } from "./firebase-app";
 
 let messagingPromise: Promise<Messaging | null> | null = null;
 
@@ -18,8 +17,7 @@ function getMessagingIfSupported(): Promise<Messaging | null> {
     messagingPromise = isSupported()
       .then((ok) => {
         if (!ok) return null;
-        const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-        return getMessaging(app);
+        return getMessaging(getFirebaseApp());
       })
       .catch(() => null);
   }

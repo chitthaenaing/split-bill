@@ -10,6 +10,8 @@ A tiny single-page web app for figuring out exactly how much **you** owe from a 
 - **Framer Motion** for subtle motion
 - **OpenAI `gpt-4o`** (vision + JSON-schema structured outputs) for receipt parsing
 - **Vercel Blob** for shareable links (receipt image + bill JSON)
+- **Firebase Auth** (Google sign-in) + **Firestore** for optional account bill history
+- **Firebase Cloud Messaging** for payment push alerts
 - **lucide-react** for icons
 
 ## Getting started
@@ -62,6 +64,19 @@ Set up:
 
 Tax, service and rounding are read-only on the shared page (they're properties of the bill, not of any one recipient). Recipients see a "New bill" link if they want to start their own.
 
+## Accounts (optional)
+
+Sign in with Google to keep a cross-device list of bills you **shared** and bills you **opened**. Guest use still works — accounts only add history under **My bills** (`/account`).
+
+Bill payloads stay on Vercel Blob. Firestore only stores a per-user index (`users/{uid}/links/{shareId}`). All Firestore access goes through server routes with the Admin SDK; deploy `firestore.rules` from this repo (deny client access).
+
+Setup (project `split-bill-noti`):
+
+1. Authentication → Sign-in method → enable **Google**.
+2. Create a **Firestore** database; deploy `firestore.rules`.
+3. Add your production domain under Authentication → Settings → Authorized domains.
+4. Set `FIREBASE_CLIENT_EMAIL` + `FIREBASE_PRIVATE_KEY` (same service account as push) in `.env.local` / Vercel env.
+
 ## Project layout
 
 ```
@@ -70,9 +85,13 @@ app/
   api/translate-items/route.ts English glosses for item names
   api/fx/route.ts              Frankfurter mid-market FX rates (cached)
   api/share/route.ts           server route that writes to Vercel Blob
+  api/me/bills/route.ts        list / record signed-in user bill links
+  account/                     My bills (shared + received)
   b/[id]/                      the public shared-bill page
   layout.tsx, page.tsx         single-page app shell
 components/
+  account-menu.tsx        Google sign-in / account menu
+  auth-provider.tsx       Firebase Auth context
   upload-card.tsx         drop zone (empty state)
   items-list.tsx          item checkboxes / quantity steppers (props-based)
   totals-panel.tsx        live totals + edit mode (props-based)
@@ -95,10 +114,17 @@ lib/
   public-bill.ts          strip secrets before rendering shared bills
   openai-payment.ts       vision extract for transfer screenshots
   payment-balance.ts      paid totals / remaining from scanned slips
+  firebase-app.ts         shared browser Firebase app
+  firebase-auth-client.ts Google sign-in helpers
+  firebase-admin.ts       Admin SDK (push, Auth, Firestore)
+  auth-request.ts         verify Bearer ID tokens
+  user-bills.ts           Firestore user→bill index
 fixtures/
   receipts/               arithmetic / VAT scoreboard JSON
   model-transcripts/      mocked model responses for extract+repair
 types/bill.ts             shared types
+types/user-bills.ts       account bill-index types
+firestore.rules           deny direct client Firestore access
 ```
 
 ## Currency conversion
@@ -108,7 +134,7 @@ The totals panel can show your share in another currency via [Frankfurter](https
 ## Notes
 
 - Bill data is kept in `localStorage` so a refresh won't lose your selection. Use "New bill" to reset.
-- No database, no auth — everything happens in your browser and a few server routes.
+- Sharing works without an account. Google sign-in is optional and only powers “My bills” history (Firestore index + Blob payloads).
 - Run extraction unit tests with `npm test`.
 - Receipt arithmetic fixtures live in `fixtures/receipts/` (`npm run test:fixtures`).
 - Scripted vision-model transcripts live in `fixtures/model-transcripts/` (`npm run test:transcripts`) — they exercise prompt, JSON schema, repair, and finalize without calling OpenAI.

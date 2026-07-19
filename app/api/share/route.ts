@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
+import { verifyBearerUser } from "@/lib/auth-request";
+import { summarizeStoredBill } from "@/lib/bill-summary";
 import { parseDataUrl } from "@/lib/data-url";
 import {
   httpStatusFromError,
   readMultipartImage,
 } from "@/lib/multipart-image";
 import { createShare } from "@/lib/share";
+import { recordUserBillLink } from "@/lib/user-bills";
 import type { ExtractedBill } from "@/types/bill";
 
 export const runtime = "nodejs";
@@ -169,10 +172,26 @@ async function parseShareRequest(req: Request): Promise<{
 export async function POST(req: Request) {
   try {
     const parsed = await parseShareRequest(req);
-    const { id, ownerToken } = await createShare(parsed);
+    const { id, ownerToken, bill } = await createShare(parsed);
 
     const origin = req.headers.get("origin") || new URL(req.url).origin;
     const url = `${origin}/b/${id}`;
+
+    // If the creator is signed in, index this share under their account.
+    // Failures here must not break link creation.
+    const user = await verifyBearerUser(req);
+    if (user) {
+      try {
+        await recordUserBillLink({
+          uid: user.uid,
+          shareId: id,
+          role: "shared",
+          summary: summarizeStoredBill(bill),
+        });
+      } catch (err) {
+        console.error("[/api/share] failed to index user bill", err);
+      }
+    }
 
     return NextResponse.json({ id, url, ownerToken });
   } catch (err) {

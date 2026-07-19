@@ -1,0 +1,11 @@
+rules_version = '2';
+
+// All account link reads/writes go through Next.js API routes using the
+// Firebase Admin SDK. Deny direct client access to Firestore.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

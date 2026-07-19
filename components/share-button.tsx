@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { NotifyToggle } from "@/components/notify-toggle";
 import { itemsTotal } from "@/lib/calc";
 import { dataUrlToBlob, prepareReceiptImage } from "@/lib/image-prep";
+import { authFetch } from "@/lib/auth-fetch";
 import { readJsonResponse } from "@/lib/read-json-response";
 import { saveOwnerToken } from "@/lib/share-client";
 import { useBillStore } from "@/lib/store";
@@ -96,7 +97,7 @@ export function ShareButton() {
         form.append("bankingQr", dataUrlToBlob(preparedQr), "banking-qr.jpg");
       }
 
-      const res = await fetch("/api/share", {
+      const res = await authFetch("/api/share", {
         method: "POST",
         body: form,
       });
