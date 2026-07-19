@@ -279,7 +279,20 @@ export function SharedBill({ data }: { data: StoredBill }) {
         </div>
       </header>
 
-      <RecordReceivedBill shareId={data.id} />
+      <RecordReceivedBill
+        shareId={data.id}
+        summary={{
+          currency: data.currency,
+          total:
+            data.items.reduce((sum, it) => sum + (Number(it.price) || 0), 0) +
+            (Number(data.tax) || 0) +
+            (Number(data.serviceCharge) || 0) +
+            (Number(data.rounding) || 0) -
+            (Number(data.discount) || 0),
+          itemCount: data.items.length,
+          ...(data.receiptUrl ? { receiptUrl: data.receiptUrl } : {}),
+        }}
+      />
 
       <main className="flex-1 mx-auto w-full max-w-5xl px-4 sm:px-6 py-8 sm:py-12">
         <motion.div

@@ -15,8 +15,10 @@ import { AppLogo } from "@/components/app-logo";
 import { useAuth } from "@/components/auth-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { authFetch } from "@/lib/auth-fetch";
-import { readJsonResponse } from "@/lib/read-json-response";
+import {
+  listUserBillLinksClient,
+  userBillsErrorMessage,
+} from "@/lib/user-bills-client";
 import type { UserBillLink, UserBillsResponse } from "@/types/user-bills";
 
 function formatMoney(amount: number, currency: string): string {
@@ -123,18 +125,9 @@ export default function AccountPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await authFetch("/api/me/bills");
-      const data = await readJsonResponse<UserBillsResponse | { error: string }>(
-        res
-      );
-      if (!res.ok || "error" in data) {
-        throw new Error(
-          "error" in data ? data.error : `Request failed (${res.status})`
-        );
-      }
-      setBills(data);
+      setBills(await listUserBillLinksClient(user.uid));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load your bills.");
+      setError(userBillsErrorMessage(e));
       setBills(null);
     } finally {
       setLoading(false);

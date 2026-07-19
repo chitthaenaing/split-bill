@@ -8,12 +8,12 @@ let adminInitFailed = false;
 
 /**
  * Returns an initialised Firebase Admin app, or null when the service-account
- * credentials aren't configured (so push / Firestore degrade rather than
- * throwing). Credentials come from env — see `.env.local.example`.
+ * credentials aren't configured (so push degrades rather than throwing).
+ * Credentials come from env — see `.env.local.example`.
  *
- * ID token verification does **not** use this module (see
- * `verify-firebase-token.ts`) — `firebase-admin/auth` pulls jwks-rsa → jose@6
- * and crashes Vercel/CJS with ERR_REQUIRE_ESM. Firestore is loaded lazily.
+ * Account bill history uses the **client** Firestore SDK (see
+ * `user-bills-client.ts`), not Admin. Avoid importing `firebase-admin/auth` —
+ * it pulls jwks-rsa → jose@6 and can crash Vercel/CJS with ERR_REQUIRE_ESM.
  */
 export function getAdminApp(): App | null {
   if (cachedApp) return cachedApp;
@@ -41,18 +41,6 @@ export function getAdminApp(): App | null {
       "[firebase-admin] Failed to initialise app — check FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY",
       err
     );
-    return null;
-  }
-}
-
-export async function getAdminFirestore() {
-  try {
-    const app = getAdminApp();
-    if (!app) return null;
-    const { getFirestore } = await import("firebase-admin/firestore");
-    return getFirestore(app);
-  } catch (err) {
-    console.error("[firebase-admin] getFirestore failed", err);
     return null;
   }
 }

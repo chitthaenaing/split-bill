@@ -17,13 +17,13 @@ import { NotifyToggle } from "@/components/notify-toggle";
 import { itemsTotal } from "@/lib/calc";
 import { dataUrlToBlob, prepareReceiptImage } from "@/lib/image-prep";
 import { useAuth } from "@/components/auth-provider";
-import { authFetch } from "@/lib/auth-fetch";
 import { readJsonResponse } from "@/lib/read-json-response";
 import { saveOwnerToken } from "@/lib/share-client";
 import { useBillStore } from "@/lib/store";
+import { recordUserBillLinkClient } from "@/lib/user-bills-client";
 
 type ShareResponse =
-  | { id: string; url: string; ownerToken?: string }
+  | { id: string; url: string; ownerToken?: string; receiptUrl?: string }
   | { error: string };
 
 export function ShareButton() {
@@ -119,10 +119,16 @@ export function ShareButton() {
       }
 
       if (user) {
-        void authFetch("/api/me/bills", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ shareId: data.id, role: "shared" }),
+        void recordUserBillLinkClient({
+          uid: user.uid,
+          shareId: data.id,
+          role: "shared",
+          summary: {
+            currency,
+            total: bill.total,
+            itemCount: bill.items.length,
+            ...(data.receiptUrl ? { receiptUrl: data.receiptUrl } : {}),
+          },
         }).catch(() => {
           // best-effort — share link already works
         });
