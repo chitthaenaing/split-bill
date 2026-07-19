@@ -16,3 +16,8 @@ export const firebaseConfig = {
   appId: "1:1078287589697:web:04130fcbe0d2cf6d0e81c0",
   measurementId: "G-082WVDM2CT",
 };
+
+/** Server/client-safe project id (env override, else web config). */
+export function firebaseProjectId(): string {
+  return process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId;
+}

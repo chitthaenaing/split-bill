@@ -174,7 +174,7 @@ export async function createShare(opts: {
   bill: ExtractedBill;
   bankingQrBuffer?: Buffer;
   bankingQrContentType?: string;
-}): Promise<{ id: string; ownerToken: string }> {
+}): Promise<{ id: string; ownerToken: string; bill: StoredBill }> {
   ensureToken();
 
   const id = newId();
@@ -234,7 +234,7 @@ export async function createShare(opts: {
 
   await writeBillSnapshot(id, stored, writeId);
 
-  return { id, ownerToken };
+  return { id, ownerToken, bill: stored };
 }
 
 /**

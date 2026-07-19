@@ -169,12 +169,18 @@ async function parseShareRequest(req: Request): Promise<{
 export async function POST(req: Request) {
   try {
     const parsed = await parseShareRequest(req);
-    const { id, ownerToken } = await createShare(parsed);
+    const { id, ownerToken, bill } = await createShare(parsed);
 
     const origin = req.headers.get("origin") || new URL(req.url).origin;
     const url = `${origin}/b/${id}`;
 
-    return NextResponse.json({ id, url, ownerToken });
+    // Account indexing is done client-side in Firestore (signed-in browser).
+    return NextResponse.json({
+      id,
+      url,
+      ownerToken,
+      receiptUrl: bill.receiptUrl,
+    });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Unknown error while creating share.";

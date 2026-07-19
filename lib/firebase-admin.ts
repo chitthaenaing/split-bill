@@ -1,17 +1,23 @@
 import "server-only";
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
-import { firebaseConfig } from "./firebase-config";
+import { firebaseProjectId } from "./firebase-config";
 
 let cachedApp: App | null = null;
+let adminInitFailed = false;
 
 /**
  * Returns an initialised Firebase Admin app, or null when the service-account
- * credentials aren't configured (so push sending degrades to a no-op rather
- * than throwing). Credentials come from env — see `.env.local.example`.
+ * credentials aren't configured (so push degrades rather than throwing).
+ * Credentials come from env — see `.env.local.example`.
+ *
+ * Account bill history uses the **client** Firestore SDK (see
+ * `user-bills-client.ts`), not Admin. Avoid importing `firebase-admin/auth` —
+ * it pulls jwks-rsa → jose@6 and can crash Vercel/CJS with ERR_REQUIRE_ESM.
  */
-function getAdminApp(): App | null {
+export function getAdminApp(): App | null {
   if (cachedApp) return cachedApp;
+  if (adminInitFailed) return null;
   if (getApps().length) {
     cachedApp = getApps()[0]!;
     return cachedApp;
@@ -20,14 +26,23 @@ function getAdminApp(): App | null {
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   // Private keys are stored with literal "\n"; restore real newlines.
   const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
-  const projectId = process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId;
+  const projectId = firebaseProjectId();
 
   if (!clientEmail || !privateKey || !projectId) return null;
 
-  cachedApp = initializeApp({
-    credential: cert({ projectId, clientEmail, privateKey }),
-  });
-  return cachedApp;
+  try {
+    cachedApp = initializeApp({
+      credential: cert({ projectId, clientEmail, privateKey }),
+    });
+    return cachedApp;
+  } catch (err) {
+    adminInitFailed = true;
+    console.error(
+      "[firebase-admin] Failed to initialise app — check FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY",
+      err
+    );
+    return null;
+  }
 }
 
 export type PushMessage = {
