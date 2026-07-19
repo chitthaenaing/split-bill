@@ -1,19 +1,20 @@
 import "server-only";
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
-import { getAuth, type Auth } from "firebase-admin/auth";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import { firebaseConfig } from "./firebase-config";
 
 let cachedApp: App | null = null;
+let adminInitFailed = false;
 
 /**
  * Returns an initialised Firebase Admin app, or null when the service-account
  * credentials aren't configured (so push / auth / Firestore degrade rather
  * than throwing). Credentials come from env — see `.env.local.example`.
+ *
+ * Auth and Firestore are loaded lazily — a top-level `firebase-admin/auth`
+ * import pulls in jwks-rsa → jose and can crash Vercel/CJS with ERR_REQUIRE_ESM
+ * (jose@6 is ESM-only). Keep messaging/app imports only at module scope.
  */
-let adminInitFailed = false;
-
 export function getAdminApp(): App | null {
   if (cachedApp) return cachedApp;
   if (adminInitFailed) return null;
@@ -44,20 +45,24 @@ export function getAdminApp(): App | null {
   }
 }
 
-export function getAdminAuth(): Auth | null {
+export async function getAdminAuth() {
   try {
     const app = getAdminApp();
-    return app ? getAuth(app) : null;
+    if (!app) return null;
+    const { getAuth } = await import("firebase-admin/auth");
+    return getAuth(app);
   } catch (err) {
     console.error("[firebase-admin] getAuth failed", err);
     return null;
   }
 }
 
-export function getAdminFirestore(): Firestore | null {
+export async function getAdminFirestore() {
   try {
     const app = getAdminApp();
-    return app ? getFirestore(app) : null;
+    if (!app) return null;
+    const { getFirestore } = await import("firebase-admin/firestore");
+    return getFirestore(app);
   } catch (err) {
     console.error("[firebase-admin] getFirestore failed", err);
     return null;

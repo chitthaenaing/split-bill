@@ -9,8 +9,8 @@ import { isValidShareId } from "./normalize-stored-bill";
 
 export type { UserBillLink, UserBillRole, UserBillSummary };
 
-function linksCollection(uid: string) {
-  const db = getAdminFirestore();
+async function linksCollection(uid: string) {
+  const db = await getAdminFirestore();
   if (!db) return null;
   return db.collection("users").doc(uid).collection("links");
 }
@@ -72,7 +72,7 @@ export async function recordUserBillLink(opts: {
   summary: UserBillSummary;
 }): Promise<UserBillLink | null> {
   if (!isValidShareId(opts.shareId)) return null;
-  const col = linksCollection(opts.uid);
+  const col = await linksCollection(opts.uid);
   if (!col) return null;
 
   const summary = sanitizeSummary(opts.summary);
@@ -136,7 +136,7 @@ export async function recordUserBillLink(opts: {
 export async function listUserBillLinks(
   uid: string
 ): Promise<{ shared: UserBillLink[]; received: UserBillLink[] }> {
-  const col = linksCollection(uid);
+  const col = await linksCollection(uid);
   if (!col) return { shared: [], received: [] };
 
   const snap = await col.orderBy("updatedAt", "desc").limit(100).get();

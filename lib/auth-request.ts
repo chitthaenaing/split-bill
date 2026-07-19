@@ -21,7 +21,7 @@ export async function verifyBearerUser(
     const match = /^Bearer\s+(.+)$/i.exec(header.trim());
     if (!match) return null;
 
-    const auth = getAdminAuth();
+    const auth = await getAdminAuth();
     if (!auth) return null;
 
     const decoded = await auth.verifyIdToken(match[1]!.trim());
