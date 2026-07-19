@@ -25,7 +25,24 @@ export function getClient(): OpenAI {
   return new OpenAI({ apiKey });
 }
 
-const SYSTEM_PROMPT = `You read photographs of restaurant, cafe, bar and retail receipts and return a clean structured breakdown.
+/**
+ * Minimal chat-completions surface used by extraction. Tests inject a scripted
+ * client so prompt/repair/finalize regressions are caught without live OpenAI.
+ */
+export type ExtractionModelClient = {
+  chat: {
+    completions: {
+      create: (
+        params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
+      ) => Promise<{
+        choices: Array<{ message?: { content?: string | null } | null } | null>;
+      }>;
+    };
+  };
+};
+
+/** Exported for transcript regression assertions (prompt contract). */
+export const EXTRACTION_SYSTEM_PROMPT = `You read photographs of restaurant, cafe, bar and retail receipts and return a clean structured breakdown.
 
 What goes in each field:
 - "items": every product / food / drink / merchandise line AND every promotion / discount / free-item line that has a price. Promotions that print as a minus amount (e.g. "Promotion Free Tea -50.00") MUST be included as their own item with a NEGATIVE price. Only combine sub-modifiers / toppings / notes into the parent line when they have NO amount in the price column. Skip headers, dividers, server names, table numbers, payment method lines, change lines, and anything labelled subtotal / total / amount due / tax / VAT / service / tip / rounding.
@@ -66,9 +83,10 @@ Accuracy guidance:
   If tax+service make the total too high by a promotion amount, you missed a minus line — add it to items.
   Tolerance is a few cents. If numbers are off, re-examine items and prices.
 - If a numeric field really isn't on the receipt, return 0 (don't invent).
-- Use the exact item names from the receipt, lightly cleaned of OCR noise (fix obvious mis-reads; preserve capitalisation for Latin text).`
+- Use the exact item names from the receipt, lightly cleaned of OCR noise (fix obvious mis-reads; preserve capitalisation for Latin text).`;
 
-const BILL_SCHEMA = {
+/** Exported for transcript regression assertions (schema contract). */
+export const EXTRACTION_BILL_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
@@ -154,7 +172,7 @@ export function finalizeExtraction(bill: NormalizedBill): ExtractionResult {
 type ChatMessage = OpenAI.Chat.Completions.ChatCompletionMessageParam;
 
 async function callModel(
-  client: OpenAI,
+  client: ExtractionModelClient,
   messages: ChatMessage[]
 ): Promise<NormalizedBill> {
   const response = await client.chat.completions.create({
@@ -166,7 +184,7 @@ async function callModel(
       json_schema: {
         name: "bill",
         strict: true,
-        schema: BILL_SCHEMA,
+        schema: EXTRACTION_BILL_SCHEMA,
       },
     },
   });
@@ -187,19 +205,15 @@ async function callModel(
 }
 
 /**
- * Extract a structured bill from a receipt image.
- *
- * Runs a strict JSON-schema vision call, validates arithmetic, and if the
- * numbers don't reconcile, asks the model once more to repair using the
- * mismatch details + the same image.
+ * Extract a structured bill using an injected chat-completions client.
+ * Production uses the real OpenAI SDK; tests inject scripted transcripts.
  */
-export async function extractBillFromImage(
-  imageDataUrl: string
+export async function extractBillFromImageWithClient(
+  imageDataUrl: string,
+  client: ExtractionModelClient
 ): Promise<ExtractionResult> {
-  const client = getClient();
-
   const baseMessages: ChatMessage[] = [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: EXTRACTION_SYSTEM_PROMPT },
     {
       role: "user",
       content: [
@@ -248,6 +262,19 @@ export async function extractBillFromImage(
   }
 
   return finalizeExtraction(bill);
+}
+
+/**
+ * Extract a structured bill from a receipt image.
+ *
+ * Runs a strict JSON-schema vision call, validates arithmetic, and if the
+ * numbers don't reconcile, asks the model once more to repair using the
+ * mismatch details + the same image.
+ */
+export async function extractBillFromImage(
+  imageDataUrl: string
+): Promise<ExtractionResult> {
+  return extractBillFromImageWithClient(imageDataUrl, getClient());
 }
 
 const TRANSLATE_SCHEMA = {

@@ -81,11 +81,15 @@ lib/
   calc.ts                 pure split math (unit-testable)
   bill-extract.ts         normalize + arithmetic reconciliation
   openai.ts               prompt + schema + repair retry
+  openai-transcripts.test.ts  scripted vision response harness
   image-prep.ts           client-side resize/JPEG encode
   share.ts                Vercel Blob put/get helpers (server-only)
   share-tokens.ts         owner/delete token hash helpers
   share-client.ts         localStorage helpers for share tokens
   public-bill.ts          strip secrets before rendering shared bills
+fixtures/
+  receipts/               arithmetic / VAT scoreboard JSON
+  model-transcripts/      mocked model responses for extract+repair
 types/bill.ts             shared types
 ```
 
@@ -94,3 +98,5 @@ types/bill.ts             shared types
 - Bill data is kept in `localStorage` so a refresh won't lose your selection. Use "New bill" to reset.
 - No database, no auth — everything happens in your browser and a single server route.
 - Run extraction unit tests with `npm test`.
+- Receipt arithmetic fixtures live in `fixtures/receipts/` (`npm run test:fixtures`).
+- Scripted vision-model transcripts live in `fixtures/model-transcripts/` (`npm run test:transcripts`) — they exercise prompt, JSON schema, repair, and finalize without calling OpenAI.
