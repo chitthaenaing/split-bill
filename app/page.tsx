@@ -159,7 +159,7 @@ export default function Home() {
         )}
       </main>
 
-      <footer className="border-t border-border/50 py-5 px-4 text-center text-xs text-muted-foreground">
+      <footer className="mt-auto border-t border-border/50 py-5 px-4 text-center text-xs text-muted-foreground">
         Built with Next.js, Tailwind &amp; OpenAI.
       </footer>
     </div>
