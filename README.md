@@ -77,7 +77,7 @@ Setup (project `split-bill-noti`):
 3. Add your production domain under Authentication → Settings → Authorized domains.
 4. Set `FIREBASE_CLIENT_EMAIL` + `FIREBASE_PRIVATE_KEY` (same service account as push) in `.env.local` / Vercel env.
 
-Note: Google ID tokens are verified with `jose@4` against Google’s public JWKS (not `firebase-admin/auth`, which crashes on Vercel via `jwks-rsa` → ESM-only `jose@6`). Firestore/push still use the Admin service account.
+Note: Google ID tokens are verified with the direct `jose@4` dependency against Google’s public JWKS (not `firebase-admin/auth`, which can crash on Vercel via `jwks-rsa` → ESM-only `jose@6`). Firestore/push still use the Admin service account.
 
 ## Project layout
 
