@@ -1,11 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Copy, Pencil } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { computeSplit } from "@/lib/calc";
+import {
+  convertAmount,
+  displayCurrencyOptions,
+  normalizeCurrency,
+} from "@/lib/frankfurter";
+import {
+  loadDisplayCurrency,
+  saveDisplayCurrency,
+} from "@/lib/display-currency";
+import { useFxRate } from "@/lib/use-fx-rate";
 import { cn, formatMoney, formatMoneyPlain } from "@/lib/utils";
 import type { BillItem } from "@/types/bill";
 
@@ -38,6 +48,40 @@ export function TotalsPanel({
     [items, tax, serviceCharge, rounding]
   );
 
+  const billCurrency = normalizeCurrency(currency) || "USD";
+  const currencyOptions = useMemo(
+    () => displayCurrencyOptions(billCurrency),
+    [billCurrency]
+  );
+
+  const [displayCurrency, setDisplayCurrency] = useState(billCurrency);
+  const [prefReady, setPrefReady] = useState(false);
+
+  useEffect(() => {
+    const saved = loadDisplayCurrency();
+    if (saved && currencyOptions.includes(saved)) {
+      setDisplayCurrency(saved);
+    } else {
+      setDisplayCurrency(billCurrency);
+    }
+    setPrefReady(true);
+  }, [billCurrency, currencyOptions]);
+
+  const onDisplayCurrencyChange = (code: string) => {
+    const next = normalizeCurrency(code) || billCurrency;
+    setDisplayCurrency(next);
+    saveDisplayCurrency(next);
+  };
+
+  const needsFx = prefReady && displayCurrency !== billCurrency;
+  const { quote, loading: fxLoading, error: fxError } = useFxRate(
+    billCurrency,
+    needsFx ? displayCurrency : billCurrency
+  );
+
+  const convertedTotal =
+    needsFx && quote ? convertAmount(split.total, quote.rate) : null;
+
   const [editing, setEditing] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -46,6 +90,7 @@ export function TotalsPanel({
 
   const copyTotal = async () => {
     try {
+      // Always copy the bill-currency amount (what you actually pay).
       await navigator.clipboard.writeText(formatMoneyPlain(split.total));
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
@@ -91,10 +136,71 @@ export function TotalsPanel({
               transition={{ duration: 0.18 }}
               className="block text-4xl sm:text-[2.75rem] font-bold tracking-tight tabular-nums leading-none"
             >
-              {formatMoney(split.total, currency)}
+              {formatMoney(split.total, billCurrency)}
             </motion.span>
           </AnimatePresence>
         </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="sr-only">Show total in</span>
+            <span aria-hidden="true">Show in</span>
+            <select
+              value={displayCurrency}
+              onChange={(e) => onDisplayCurrencyChange(e.target.value)}
+              className="h-7 rounded-md border border-border bg-card px-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
+            >
+              {currencyOptions.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {needsFx && (
+            <AnimatePresence mode="wait">
+              {fxLoading ? (
+                <motion.span
+                  key="loading"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-xs text-muted-foreground"
+                >
+                  Converting…
+                </motion.span>
+              ) : convertedTotal != null && quote ? (
+                <motion.span
+                  key={`${displayCurrency}-${quote.rate}-${convertedTotal}`}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="text-sm font-medium tabular-nums text-foreground/90"
+                >
+                  ≈ {formatMoney(convertedTotal, displayCurrency)}
+                  <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">
+                    mid-market
+                    {quote.date ? ` · ${quote.date}` : ""}
+                  </span>
+                </motion.span>
+              ) : fxError ? (
+                <motion.span
+                  key="error"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-xs text-muted-foreground"
+                  title={fxError}
+                >
+                  Rate unavailable
+                </motion.span>
+              ) : null}
+            </AnimatePresence>
+          )}
+        </div>
+
         <p className="mt-2.5 text-xs text-muted-foreground">
           {selectedCount === 0
             ? "Pick some items to get started."
@@ -105,7 +211,7 @@ export function TotalsPanel({
       <CardContent className="pt-4 pb-5 space-y-2.5 text-sm">
         <Row
           label="Items"
-          value={formatMoney(split.selectedSubtotal, currency)}
+          value={formatMoney(split.selectedSubtotal, billCurrency)}
         />
 
         {showEditingControls ? (
@@ -113,14 +219,14 @@ export function TotalsPanel({
             label="Tax"
             value={tax}
             onChange={onTaxChange ?? (() => {})}
-            currency={currency}
+            currency={billCurrency}
           />
         ) : (
           tax > 0 && (
             <Row
               label="Tax share"
-              value={formatMoney(split.taxShare, currency)}
-              hint={`of ${formatMoney(tax, currency)}`}
+              value={formatMoney(split.taxShare, billCurrency)}
+              hint={`of ${formatMoney(tax, billCurrency)}`}
             />
           )
         )}
@@ -130,14 +236,14 @@ export function TotalsPanel({
             label="Service"
             value={serviceCharge}
             onChange={onServiceChange ?? (() => {})}
-            currency={currency}
+            currency={billCurrency}
           />
         ) : (
           serviceCharge > 0 && (
             <Row
               label="Service share"
-              value={formatMoney(split.serviceShare, currency)}
-              hint={`of ${formatMoney(serviceCharge, currency)}`}
+              value={formatMoney(split.serviceShare, billCurrency)}
+              hint={`of ${formatMoney(serviceCharge, billCurrency)}`}
             />
           )
         )}
@@ -147,15 +253,15 @@ export function TotalsPanel({
             label="Rounding"
             value={rounding}
             onChange={onRoundingChange ?? (() => {})}
-            currency={currency}
+            currency={billCurrency}
             allowNegative
           />
         ) : (
           rounding !== 0 && (
             <Row
               label="Rounding"
-              value={formatMoney(split.roundingShare, currency)}
-              hint={`of ${formatMoney(rounding, currency)}`}
+              value={formatMoney(split.roundingShare, billCurrency)}
+              hint={`of ${formatMoney(rounding, billCurrency)}`}
             />
           )
         )}
@@ -163,7 +269,7 @@ export function TotalsPanel({
         <div className="pt-2.5 mt-1 border-t border-border/70 flex items-center justify-between">
           <span className="font-semibold">Total</span>
           <span className="font-semibold tabular-nums">
-            {formatMoney(split.total, currency)}
+            {formatMoney(split.total, billCurrency)}
           </span>
         </div>
 
