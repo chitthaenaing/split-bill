@@ -11,9 +11,11 @@ describe("public-bill", () => {
       contentType: "image/jpeg",
       uploadedAt: 1,
       payerName: "Alex",
+      amountPaid: 42.5,
       deleteTokenHash: "deadbeef".repeat(8),
     });
     assert.equal(publicReceipt.payerName, "Alex");
+    assert.equal(publicReceipt.amountPaid, 42.5);
     assert.equal(publicReceipt.deleteTokenHash, undefined);
   });
 

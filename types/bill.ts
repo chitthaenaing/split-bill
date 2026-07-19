@@ -68,13 +68,31 @@ export type StoredPaymentReceipt = {
   url: string;
   contentType: string;
   uploadedAt: number;
-  /** Who paid — shown to the person who shared the bill. Omitted on older uploads. */
+  /**
+   * Who paid — preferably read from the transfer screenshot via vision.
+   * Omitted on older uploads or when the slip has no readable sender name.
+   */
   payerName?: string;
+  /**
+   * Amount transferred in the bill currency, usually OCR'd from the slip.
+   * Omitted on legacy proofs that only stored a screenshot.
+   */
+  amountPaid?: number;
   /**
    * SHA-256 hex of the uploader's delete token. Never send this to browsers —
    * strip via `toPublicPaymentReceipt`. Omitted on legacy uploads.
    */
   deleteTokenHash?: string;
+};
+
+/** Structured fields pulled from a bank / PromptPay / PayNow transfer screenshot. */
+export type ExtractedPaymentSlip = {
+  /** Transfer amount (the money sent), always > 0 when extraction succeeds. */
+  amount: number;
+  /** Sender / payer name when printed on the slip; empty when absent. */
+  payerName: string;
+  /** ISO 4217 when clearly shown; empty when unknown. */
+  currency: string;
 };
 
 /**

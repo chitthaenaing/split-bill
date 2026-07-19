@@ -338,6 +338,14 @@ export function SharedBill({ data }: { data: StoredBill }) {
               </div>
               <PaymentProofsSection
                 shareId={data.id}
+                currency={data.currency}
+                bill={{
+                  items: data.items,
+                  tax: data.tax,
+                  serviceCharge: data.serviceCharge,
+                  rounding: data.rounding,
+                  discount: data.discount,
+                }}
                 receipts={data.paymentReceipts ?? []}
               />
             </aside>

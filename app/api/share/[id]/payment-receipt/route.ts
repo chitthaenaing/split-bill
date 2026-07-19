@@ -4,25 +4,27 @@ import {
   httpStatusFromError,
   readMultipartImage,
 } from "@/lib/multipart-image";
+import { extractPaymentFromImage } from "@/lib/openai-payment";
 import { toPublicPaymentReceipt } from "@/lib/public-bill";
 import {
   appendPaymentReceipt,
   deletePaymentReceipt,
+  getShare,
   isValidShareId,
-  sanitizePayerName,
   ShareAuthError,
   ShareConflictError,
 } from "@/lib/share";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+/** Vision extract + blob write. */
+export const maxDuration = 90;
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const RECEIPT_ID_RE = /^[A-Za-z0-9]{6,32}$/;
 
 async function parseUploadBody(
   req: Request
-): Promise<{ buffer: Buffer; mime: string; payerName: string }> {
+): Promise<{ buffer: Buffer; mime: string; dataUrl: string }> {
   const contentType = req.headers.get("content-type") || "";
 
   if (contentType.includes("multipart/form-data")) {
@@ -35,20 +37,12 @@ async function parseUploadBody(
       (err as Error & { status: number }).status = 400;
       throw err;
     }
-    const payerName = sanitizePayerName(form.get("payerName"));
-    if (!payerName) {
-      const err = new Error(
-        "Add your name (who is paying) so the bill owner can match this proof."
-      );
-      (err as Error & { status: number }).status = 400;
-      throw err;
-    }
-    return { buffer: image.buffer, mime: image.mime, payerName };
+    const dataUrl = `data:${image.mime};base64,${image.buffer.toString("base64")}`;
+    return { buffer: image.buffer, mime: image.mime, dataUrl };
   }
 
   const body = (await req.json()) as {
     imageDataUrl?: string;
-    payerName?: string;
   };
   const image = body.imageDataUrl ? parseDataUrl(body.imageDataUrl) : null;
   if (!image) {
@@ -61,15 +55,11 @@ async function parseUploadBody(
     (err as Error & { status: number }).status = 413;
     throw err;
   }
-  const payerName = sanitizePayerName(body.payerName);
-  if (!payerName) {
-    const err = new Error(
-      "Add your name (who is paying) so the bill owner can match this proof."
-    );
-    (err as Error & { status: number }).status = 400;
-    throw err;
-  }
-  return { buffer: image.buffer, mime: image.mime, payerName };
+  return {
+    buffer: image.buffer,
+    mime: image.mime,
+    dataUrl: body.imageDataUrl!,
+  };
 }
 
 export async function POST(
@@ -82,13 +72,23 @@ export async function POST(
       return NextResponse.json({ error: "Invalid bill id." }, { status: 400 });
     }
 
-    const { buffer, mime, payerName } = await parseUploadBody(req);
+    const bill = await getShare(id);
+    if (!bill) {
+      return NextResponse.json(
+        { error: "Bill not found or sharing is not configured." },
+        { status: 404 }
+      );
+    }
+
+    const { buffer, mime, dataUrl } = await parseUploadBody(req);
+    const extracted = await extractPaymentFromImage(dataUrl, bill.currency);
 
     const updated = await appendPaymentReceipt({
       shareId: id,
       imageBuffer: buffer,
       imageContentType: mime,
-      payerName,
+      payerName: extracted.payerName || null,
+      amountPaid: extracted.amount,
     });
 
     if (!updated) {
@@ -106,6 +106,8 @@ export async function POST(
       ok: true,
       receiptId: updated.entry.id,
       deleteToken: updated.deleteToken,
+      amountPaid: extracted.amount,
+      payerName: extracted.payerName || undefined,
       paymentReceipts,
     });
   } catch (err) {
@@ -117,8 +119,12 @@ export async function POST(
     const maxed =
       typeof message === "string" &&
       message.includes("maximum number of payment");
-    const status = maxed ? 413 : httpStatusFromError(err, 500);
-    console.error("[/api/share/[id]/payment-receipt]", err);
+    const status = maxed
+      ? 413
+      : httpStatusFromError(err, 500);
+    if (status >= 500) {
+      console.error("[/api/share/[id]/payment-receipt]", err);
+    }
     return NextResponse.json({ error: message }, { status });
   }
 }

@@ -10,6 +10,11 @@ export function toPublicPaymentReceipt(
     contentType: receipt.contentType,
     uploadedAt: receipt.uploadedAt,
     ...(receipt.payerName ? { payerName: receipt.payerName } : {}),
+    ...(typeof receipt.amountPaid === "number" &&
+    Number.isFinite(receipt.amountPaid) &&
+    receipt.amountPaid > 0
+      ? { amountPaid: receipt.amountPaid }
+      : {}),
   };
 }
 

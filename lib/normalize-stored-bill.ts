@@ -60,6 +60,15 @@ export function normalizeStoredBill(data: unknown): StoredBill | null {
             ...(typeof r.payerName === "string" && r.payerName.trim()
               ? { payerName: r.payerName.trim().slice(0, MAX_PAYER_NAME_LEN) }
               : {}),
+            ...(typeof r.amountPaid === "number" &&
+            Number.isFinite(r.amountPaid) &&
+            r.amountPaid > 0
+              ? {
+                  amountPaid:
+                    Math.round(Math.min(r.amountPaid, 1_000_000_000) * 100) /
+                    100,
+                }
+              : {}),
             ...(typeof r.deleteTokenHash === "string"
               ? { deleteTokenHash: r.deleteTokenHash }
               : {}),

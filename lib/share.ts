@@ -192,7 +192,10 @@ export async function appendPaymentReceipt(opts: {
   shareId: string;
   imageBuffer: Buffer;
   imageContentType: string;
-  payerName: string;
+  /** Optional — usually OCR'd from the slip. */
+  payerName?: string | null;
+  /** Transfer amount in bill currency — usually OCR'd from the slip. */
+  amountPaid: number;
 }): Promise<{
   bill: StoredBill;
   entry: StoredPaymentReceipt;
@@ -224,12 +227,14 @@ export async function appendPaymentReceipt(opts: {
     cacheControlMaxAge: 60 * 60 * 24 * 365,
   });
 
+  const payerName = opts.payerName ? sanitizePayerName(opts.payerName) : null;
   const entry: StoredPaymentReceipt = {
     id: proofId,
     url: uploaded.url,
     contentType: opts.imageContentType,
     uploadedAt: Date.now(),
-    payerName: opts.payerName,
+    ...(payerName ? { payerName } : {}),
+    amountPaid: opts.amountPaid,
     deleteTokenHash: hashShareToken(deleteToken),
   };
 
@@ -278,9 +283,10 @@ export async function appendPaymentReceipt(opts: {
   const tokens = Array.isArray(bill.notifyTokens) ? bill.notifyTokens : [];
   if (tokens.length > 0) {
     try {
+      const who = payerName || "Someone";
       const { invalidTokens } = await sendPushToTokens(tokens, {
         title: "New payment receipt",
-        body: `${opts.payerName} uploaded a transfer.`,
+        body: `${who} paid ${opts.amountPaid}.`,
         url: `/b/${opts.shareId}`,
       });
       if (invalidTokens.length > 0) {
