@@ -61,7 +61,7 @@ describe("checkVatConsistency", () => {
     assert.equal(vat.messages.length, 0);
   });
 
-  it("skips non-THB currencies without an explicit rate", () => {
+  it("skips currencies without a known locale rate", () => {
     const bill = normalizeExtractedBill({
       currency: "USD",
       items: [{ name: "Soup", price: 8, quantity: 1 }],
@@ -76,6 +76,61 @@ describe("checkVatConsistency", () => {
     const vat = checkVatConsistency(bill);
     assert.equal(vat.skipped, true);
     assert.equal(vat.ok, true);
+  });
+
+  it("passes inclusive SGD GST at 8% on Total Amount before rounding", () => {
+    const bill = normalizeExtractedBill({
+      currency: "SGD",
+      items: [
+        { name: "Gold Coin Bak Kwa (200g)", price: 11.22, quantity: 1 },
+        { name: "Chicken Bak Kwa (200g)", price: 11.22, quantity: 1 },
+        { name: "Mini Square Bak Kwa (200g)", price: 11.22, quantity: 1 },
+        { name: "Salted Egg Fish Skin (70g)", price: 3.2, quantity: 1 },
+        {
+          name: "Salted Egg Chilli Crab Fish Skin (70g)",
+          price: 0,
+          quantity: 1,
+        },
+        {
+          name: "Salted Egg Chilli Crab Fish Skin (70g)",
+          price: 7.6,
+          quantity: 1,
+        },
+      ],
+      tax: 3.29,
+      serviceCharge: 0,
+      rounding: -0.01,
+      discount: 0,
+      subtotal: 44.46,
+      total: 44.45,
+      taxInclusive: true,
+    });
+
+    const vat = checkVatConsistency(bill);
+    assert.equal(vat.skipped, false);
+    assert.equal(vat.ok, true);
+    assert.equal(vat.expectedVat, 3.29);
+    assert.equal(vat.messages.length, 0);
+  });
+
+  it("passes inclusive SGD GST at 9% (post-2024 rate)", () => {
+    // $100 inclusive @ 9% → GST = 100 × 0.09 / 1.09 ≈ 8.26
+    const bill = normalizeExtractedBill({
+      currency: "SGD",
+      items: [{ name: "Set Lunch", price: 100, quantity: 1 }],
+      tax: 8.26,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 100,
+      total: 100,
+      taxInclusive: true,
+    });
+
+    const vat = checkVatConsistency(bill);
+    assert.equal(vat.ok, true);
+    assert.equal(vat.skipped, false);
+    assert.equal(vat.expectedVat, 8.26);
   });
 });
 

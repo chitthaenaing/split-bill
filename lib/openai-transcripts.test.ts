@@ -108,6 +108,8 @@ function assertPromptContract(calls: CapturedCall[]): string[] {
     "nameTranslated",
     "NEGATIVE",
     "Included Vat",
+    "ADD GST",
+    "Singapore",
     "Myanmar",
   ]) {
     if (!EXTRACTION_SYSTEM_PROMPT.includes(needle)) {
