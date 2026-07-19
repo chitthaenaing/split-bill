@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/components/auth-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PwaRegister } from "@/components/pwa-register";
+import { Analytics } from "@vercel/analytics/next";
 
 const manrope = Manrope({
   variable: "--font-manrope",
@@ -64,6 +65,7 @@ export default function RootLayout({
           <AuthProvider>{children}</AuthProvider>
         </ThemeProvider>
         <PwaRegister />
+        <Analytics />
       </body>
     </html>
   );
