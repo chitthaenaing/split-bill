@@ -12,8 +12,11 @@ let cachedApp: App | null = null;
  * credentials aren't configured (so push / auth / Firestore degrade rather
  * than throwing). Credentials come from env — see `.env.local.example`.
  */
+let adminInitFailed = false;
+
 export function getAdminApp(): App | null {
   if (cachedApp) return cachedApp;
+  if (adminInitFailed) return null;
   if (getApps().length) {
     cachedApp = getApps()[0]!;
     return cachedApp;
@@ -26,20 +29,39 @@ export function getAdminApp(): App | null {
 
   if (!clientEmail || !privateKey || !projectId) return null;
 
-  cachedApp = initializeApp({
-    credential: cert({ projectId, clientEmail, privateKey }),
-  });
-  return cachedApp;
+  try {
+    cachedApp = initializeApp({
+      credential: cert({ projectId, clientEmail, privateKey }),
+    });
+    return cachedApp;
+  } catch (err) {
+    adminInitFailed = true;
+    console.error(
+      "[firebase-admin] Failed to initialise app — check FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY",
+      err
+    );
+    return null;
+  }
 }
 
 export function getAdminAuth(): Auth | null {
-  const app = getAdminApp();
-  return app ? getAuth(app) : null;
+  try {
+    const app = getAdminApp();
+    return app ? getAuth(app) : null;
+  } catch (err) {
+    console.error("[firebase-admin] getAuth failed", err);
+    return null;
+  }
 }
 
 export function getAdminFirestore(): Firestore | null {
-  const app = getAdminApp();
-  return app ? getFirestore(app) : null;
+  try {
+    const app = getAdminApp();
+    return app ? getFirestore(app) : null;
+  } catch (err) {
+    console.error("[firebase-admin] getFirestore failed", err);
+    return null;
+  }
 }
 
 export type PushMessage = {

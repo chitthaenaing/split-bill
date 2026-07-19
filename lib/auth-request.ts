@@ -16,14 +16,14 @@ export type AuthUser = {
 export async function verifyBearerUser(
   req: Request
 ): Promise<AuthUser | null> {
-  const header = req.headers.get("authorization") || "";
-  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
-  if (!match) return null;
-
-  const auth = getAdminAuth();
-  if (!auth) return null;
-
   try {
+    const header = req.headers.get("authorization") || "";
+    const match = /^Bearer\s+(.+)$/i.exec(header.trim());
+    if (!match) return null;
+
+    const auth = getAdminAuth();
+    if (!auth) return null;
+
     const decoded = await auth.verifyIdToken(match[1]!.trim());
     return {
       uid: decoded.uid,

@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { NotifyToggle } from "@/components/notify-toggle";
 import { itemsTotal } from "@/lib/calc";
 import { dataUrlToBlob, prepareReceiptImage } from "@/lib/image-prep";
+import { useAuth } from "@/components/auth-provider";
 import { authFetch } from "@/lib/auth-fetch";
 import { readJsonResponse } from "@/lib/read-json-response";
 import { saveOwnerToken } from "@/lib/share-client";
@@ -26,6 +27,7 @@ type ShareResponse =
   | { error: string };
 
 export function ShareButton() {
+  const { user } = useAuth();
   const items = useBillStore((s) => s.items);
   const currency = useBillStore((s) => s.currency);
   const tax = useBillStore((s) => s.tax);
@@ -97,7 +99,9 @@ export function ShareButton() {
         form.append("bankingQr", dataUrlToBlob(preparedQr), "banking-qr.jpg");
       }
 
-      const res = await authFetch("/api/share", {
+      // Plain fetch for multipart — auth headers can interfere with FormData
+      // boundary handling in some browsers. Index the share separately below.
+      const res = await fetch("/api/share", {
         method: "POST",
         body: form,
       });
@@ -113,12 +117,31 @@ export function ShareButton() {
         saveOwnerToken(data.id, data.ownerToken);
         setOwnerToken(data.ownerToken);
       }
+
+      if (user) {
+        void authFetch("/api/me/bills", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ shareId: data.id, role: "shared" }),
+        }).catch(() => {
+          // best-effort — share link already works
+        });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
       setBusy(false);
     }
-  }, [items, currency, tax, serviceCharge, rounding, receiptDataUrl, bankingQrDataUrl]);
+  }, [
+    items,
+    currency,
+    tax,
+    serviceCharge,
+    rounding,
+    receiptDataUrl,
+    bankingQrDataUrl,
+    user,
+  ]);
 
   const close = () => {
     setOpen(false);
