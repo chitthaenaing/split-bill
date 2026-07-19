@@ -14,38 +14,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { dataUrlToBlob, prepareReceiptImage } from "@/lib/image-prep";
+import { readJsonResponse } from "@/lib/read-json-response";
+import {
+  forgetMyProof,
+  loadMyProofs,
+  loadOwnerToken,
+  rememberMyProof,
+  type MyProofEntry,
+} from "@/lib/share-client";
 import { cn } from "@/lib/utils";
 import type { StoredPaymentReceipt } from "@/types/bill";
-
-/**
- * Proofs uploaded from this device, kept in localStorage so a person can only
- * delete what they themselves added (there is no account behind a share link).
- */
-function myProofsKey(shareId: string) {
-  return `bill-split:my-proofs:${shareId}`;
-}
-
-function loadMyProofs(shareId: string): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(myProofsKey(shareId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((v): v is string => typeof v === "string");
-  } catch {
-    return [];
-  }
-}
-
-function saveMyProofs(shareId: string, ids: string[]) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(myProofsKey(shareId), JSON.stringify(ids));
-  } catch {
-    // quota or denied — ignore
-  }
-}
 
 async function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -169,7 +148,7 @@ export function PaymentProofsSection({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [myProofs, setMyProofs] = useState<string[]>([]);
+  const [myProofs, setMyProofs] = useState<MyProofEntry[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [lightbox, setLightbox] = useState<{
     url: string;
@@ -182,8 +161,13 @@ export function PaymentProofsSection({
   }, [shareId]);
 
   const mine = useCallback(
-    (id: string) => hydrated && myProofs.includes(id),
+    (id: string) => hydrated && myProofs.some((p) => p.id === id),
     [hydrated, myProofs]
+  );
+
+  const deleteTokenFor = useCallback(
+    (id: string) => myProofs.find((p) => p.id === id)?.deleteToken,
+    [myProofs]
   );
 
   const hasReceipts = receipts.length > 0;
@@ -206,18 +190,23 @@ export function PaymentProofsSection({
       }
       setBusy(true);
       try {
-        const imageDataUrl = await fileToDataUrl(file);
+        const rawDataUrl = await fileToDataUrl(file);
+        const prepared = await prepareReceiptImage(rawDataUrl);
+        const form = new FormData();
+        form.append("file", dataUrlToBlob(prepared), file.name || "proof.jpg");
+        form.append("payerName", name);
+
         const res = await fetch(`/api/share/${shareId}/payment-receipt`, {
           method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ imageDataUrl, payerName: name }),
+          body: form,
         });
-        const data = (await res.json()) as {
+        const data = await readJsonResponse<{
           ok?: boolean;
           error?: string;
           receiptId?: string;
+          deleteToken?: string;
           paymentReceipts?: StoredPaymentReceipt[];
-        };
+        }>(res);
         if (!res.ok || !data.ok) {
           throw new Error(data.error || `Upload failed (${res.status})`);
         }
@@ -225,11 +214,12 @@ export function PaymentProofsSection({
           setReceipts(data.paymentReceipts);
         }
         if (data.receiptId) {
-          setMyProofs((prev) => {
-            const next = [...prev, data.receiptId!];
-            saveMyProofs(shareId, next);
-            return next;
-          });
+          setMyProofs(
+            rememberMyProof(shareId, {
+              id: data.receiptId,
+              ...(data.deleteToken ? { deleteToken: data.deleteToken } : {}),
+            })
+          );
         }
         setPayerName("");
       } catch (e) {
@@ -252,34 +242,36 @@ export function PaymentProofsSection({
       setError(null);
       setDeletingId(receiptId);
       try {
+        const deleteToken = deleteTokenFor(receiptId);
+        const ownerToken = loadOwnerToken(shareId);
         const res = await fetch(`/api/share/${shareId}/payment-receipt`, {
           method: "DELETE",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ receiptId }),
+          body: JSON.stringify({
+            receiptId,
+            ...(deleteToken ? { deleteToken } : {}),
+            ...(ownerToken ? { ownerToken } : {}),
+          }),
         });
-        const data = (await res.json()) as {
+        const data = await readJsonResponse<{
           ok?: boolean;
           error?: string;
           paymentReceipts?: StoredPaymentReceipt[];
-        };
+        }>(res);
         if (!res.ok || !data.ok) {
           throw new Error(data.error || `Delete failed (${res.status})`);
         }
         if (Array.isArray(data.paymentReceipts)) {
           setReceipts(data.paymentReceipts);
         }
-        setMyProofs((prev) => {
-          const next = prev.filter((id) => id !== receiptId);
-          saveMyProofs(shareId, next);
-          return next;
-        });
+        setMyProofs(forgetMyProof(shareId, receiptId));
       } catch (e) {
         setError(e instanceof Error ? e.message : "Delete failed.");
       } finally {
         setDeletingId(null);
       }
     },
-    [shareId]
+    [shareId, deleteTokenFor]
   );
 
   const triggerFileDialog = useCallback(() => {

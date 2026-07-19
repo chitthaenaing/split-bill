@@ -1,19 +1,18 @@
 import { NextResponse } from "next/server";
 import { parseDataUrl } from "@/lib/data-url";
+import {
+  httpStatusFromError,
+  readMultipartImage,
+} from "@/lib/multipart-image";
 import { createShare } from "@/lib/share";
 import type { ExtractedBill } from "@/types/bill";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+/** Soft cap after client compression; platform body limit is ~4.5 MB. */
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const MAX_BILL_ITEMS = 200;
-
-type Body = {
-  imageDataUrl?: string;
-  bankingQrDataUrl?: string;
-  bill?: ExtractedBill;
-};
 
 function sanitizeBill(bill: ExtractedBill): ExtractedBill | null {
   if (!bill || typeof bill !== "object") return null;
@@ -49,70 +48,138 @@ function sanitizeBill(bill: ExtractedBill): ExtractedBill | null {
   };
 }
 
-export async function POST(req: Request) {
-  try {
-    const body = (await req.json()) as Body;
+function parseBillJson(raw: unknown): ExtractedBill | null {
+  if (typeof raw === "string") {
+    try {
+      return sanitizeBill(JSON.parse(raw) as ExtractedBill);
+    } catch {
+      return null;
+    }
+  }
+  if (raw && typeof raw === "object") {
+    return sanitizeBill(raw as ExtractedBill);
+  }
+  return null;
+}
 
-    const image = body.imageDataUrl
-      ? parseDataUrl(body.imageDataUrl)
-      : null;
+type JsonBody = {
+  imageDataUrl?: string;
+  bankingQrDataUrl?: string;
+  bill?: ExtractedBill;
+};
+
+async function parseShareRequest(req: Request): Promise<{
+  imageBuffer: Buffer;
+  imageContentType: string;
+  bankingQrBuffer?: Buffer;
+  bankingQrContentType?: string;
+  bill: ExtractedBill;
+}> {
+  const contentType = req.headers.get("content-type") || "";
+
+  if (contentType.includes("multipart/form-data")) {
+    const form = await req.formData();
+    const image = await readMultipartImage(form, "file", MAX_IMAGE_BYTES);
     if (!image) {
-      return NextResponse.json(
-        { error: "Missing or malformed `imageDataUrl`." },
-        { status: 400 }
+      const err = new Error(
+        "Missing receipt image. Send multipart field `file`."
       );
-    }
-    if (image.buffer.length > MAX_IMAGE_BYTES) {
-      return NextResponse.json(
-        { error: "Image is too large (max 8 MB)." },
-        { status: 413 }
-      );
+      (err as Error & { status: number }).status = 400;
+      throw err;
     }
 
-    const bill = body.bill ? sanitizeBill(body.bill) : null;
+    const bill = parseBillJson(form.get("bill"));
     if (!bill) {
-      return NextResponse.json(
-        { error: "Missing or invalid `bill` payload." },
-        { status: 400 }
-      );
+      const err = new Error("Missing or invalid `bill` payload.");
+      (err as Error & { status: number }).status = 400;
+      throw err;
     }
 
     let bankingQrBuffer: Buffer | undefined;
     let bankingQrContentType: string | undefined;
-    if (body.bankingQrDataUrl) {
-      const qr = parseDataUrl(body.bankingQrDataUrl);
+    if (form.has("bankingQr")) {
+      const qr = await readMultipartImage(form, "bankingQr", MAX_IMAGE_BYTES);
       if (!qr) {
-        return NextResponse.json(
-          { error: "Malformed `bankingQrDataUrl` — expected a base64 image data URL." },
-          { status: 400 }
-        );
-      }
-      if (qr.buffer.length > MAX_IMAGE_BYTES) {
-        return NextResponse.json(
-          { error: "Banking QR image is too large (max 8 MB)." },
-          { status: 413 }
-        );
+        const err = new Error("Malformed `bankingQr` image.");
+        (err as Error & { status: number }).status = 400;
+        throw err;
       }
       bankingQrBuffer = qr.buffer;
       bankingQrContentType = qr.mime;
     }
 
-    const { id } = await createShare({
+    return {
       imageBuffer: image.buffer,
       imageContentType: image.mime,
-      bill,
       bankingQrBuffer,
       bankingQrContentType,
-    });
+      bill,
+    };
+  }
+
+  const body = (await req.json()) as JsonBody;
+  const image = body.imageDataUrl ? parseDataUrl(body.imageDataUrl) : null;
+  if (!image) {
+    const err = new Error("Missing or malformed `imageDataUrl`.");
+    (err as Error & { status: number }).status = 400;
+    throw err;
+  }
+  if (image.buffer.length > MAX_IMAGE_BYTES) {
+    const err = new Error("Image is too large (max 4 MB after compression).");
+    (err as Error & { status: number }).status = 413;
+    throw err;
+  }
+
+  const bill = body.bill ? sanitizeBill(body.bill) : null;
+  if (!bill) {
+    const err = new Error("Missing or invalid `bill` payload.");
+    (err as Error & { status: number }).status = 400;
+    throw err;
+  }
+
+  let bankingQrBuffer: Buffer | undefined;
+  let bankingQrContentType: string | undefined;
+  if (body.bankingQrDataUrl) {
+    const qr = parseDataUrl(body.bankingQrDataUrl);
+    if (!qr) {
+      const err = new Error(
+        "Malformed `bankingQrDataUrl` — expected a base64 image data URL."
+      );
+      (err as Error & { status: number }).status = 400;
+      throw err;
+    }
+    if (qr.buffer.length > MAX_IMAGE_BYTES) {
+      const err = new Error("Banking QR image is too large (max 4 MB).");
+      (err as Error & { status: number }).status = 413;
+      throw err;
+    }
+    bankingQrBuffer = qr.buffer;
+    bankingQrContentType = qr.mime;
+  }
+
+  return {
+    imageBuffer: image.buffer,
+    imageContentType: image.mime,
+    bankingQrBuffer,
+    bankingQrContentType,
+    bill,
+  };
+}
+
+export async function POST(req: Request) {
+  try {
+    const parsed = await parseShareRequest(req);
+    const { id, ownerToken } = await createShare(parsed);
 
     const origin = req.headers.get("origin") || new URL(req.url).origin;
     const url = `${origin}/b/${id}`;
 
-    return NextResponse.json({ id, url });
+    return NextResponse.json({ id, url, ownerToken });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Unknown error while creating share.";
+    const status = httpStatusFromError(err, 500);
     console.error("[/api/share]", err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status });
   }
 }

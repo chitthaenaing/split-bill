@@ -10,14 +10,29 @@ type Status = "idle" | "working" | "enabled" | "error";
 /**
  * Lets the bill sharer opt into a push notification that fires when someone
  * uploads a payment receipt. Registers this device's FCM token against the bill.
+ * Requires the owner token returned when the share link was created.
  */
-export function NotifyToggle({ shareId }: { shareId: string }) {
+export function NotifyToggle({
+  shareId,
+  ownerToken,
+}: {
+  shareId: string;
+  ownerToken?: string | null;
+}) {
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState<string | null>(null);
 
   const enable = async () => {
     setStatus("working");
     setMessage(null);
+
+    if (!ownerToken) {
+      setStatus("error");
+      setMessage(
+        "Open Notify from the device that created this share link."
+      );
+      return;
+    }
 
     const result = await requestNotificationToken();
     if ("error" in result) {
@@ -30,7 +45,7 @@ export function NotifyToggle({ shareId }: { shareId: string }) {
       const res = await fetch(`/api/share/${shareId}/notify-token`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token: result.token }),
+        body: JSON.stringify({ token: result.token, ownerToken }),
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {

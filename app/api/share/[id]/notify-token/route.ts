@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
-import { isValidShareId, registerNotifyToken } from "@/lib/share";
+import {
+  isValidShareId,
+  registerNotifyToken,
+  ShareAuthError,
+  ShareConflictError,
+} from "@/lib/share";
 
 export const runtime = "nodejs";
 
-type Body = { token?: string };
+type Body = { token?: string; ownerToken?: string };
 
 export async function POST(
   req: Request,
@@ -24,7 +29,11 @@ export async function POST(
       );
     }
 
-    const ok = await registerNotifyToken({ shareId: id, token });
+    const ok = await registerNotifyToken({
+      shareId: id,
+      token,
+      ownerToken: body.ownerToken,
+    });
     if (!ok) {
       return NextResponse.json(
         { error: "Bill not found or token rejected." },
@@ -34,6 +43,12 @@ export async function POST(
 
     return NextResponse.json({ ok: true });
   } catch (err) {
+    if (err instanceof ShareAuthError) {
+      return NextResponse.json({ error: err.message }, { status: 403 });
+    }
+    if (err instanceof ShareConflictError) {
+      return NextResponse.json({ error: err.message }, { status: 409 });
+    }
     const message =
       err instanceof Error ? err.message : "Failed to register token.";
     console.error("[/api/share/[id]/notify-token]", err);

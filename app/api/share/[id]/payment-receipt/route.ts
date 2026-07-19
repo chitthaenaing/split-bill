@@ -1,19 +1,76 @@
 import { NextResponse } from "next/server";
 import { parseDataUrl } from "@/lib/data-url";
 import {
+  httpStatusFromError,
+  readMultipartImage,
+} from "@/lib/multipart-image";
+import { toPublicPaymentReceipt } from "@/lib/public-bill";
+import {
   appendPaymentReceipt,
   deletePaymentReceipt,
   isValidShareId,
   sanitizePayerName,
+  ShareAuthError,
+  ShareConflictError,
 } from "@/lib/share";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const RECEIPT_ID_RE = /^[A-Za-z0-9]{6,32}$/;
 
-type Body = { imageDataUrl?: string; payerName?: string };
+async function parseUploadBody(
+  req: Request
+): Promise<{ buffer: Buffer; mime: string; payerName: string }> {
+  const contentType = req.headers.get("content-type") || "";
+
+  if (contentType.includes("multipart/form-data")) {
+    const form = await req.formData();
+    const image = await readMultipartImage(form, "file", MAX_IMAGE_BYTES);
+    if (!image) {
+      const err = new Error(
+        "Missing image. Send multipart field `file`."
+      );
+      (err as Error & { status: number }).status = 400;
+      throw err;
+    }
+    const payerName = sanitizePayerName(form.get("payerName"));
+    if (!payerName) {
+      const err = new Error(
+        "Add your name (who is paying) so the bill owner can match this proof."
+      );
+      (err as Error & { status: number }).status = 400;
+      throw err;
+    }
+    return { buffer: image.buffer, mime: image.mime, payerName };
+  }
+
+  const body = (await req.json()) as {
+    imageDataUrl?: string;
+    payerName?: string;
+  };
+  const image = body.imageDataUrl ? parseDataUrl(body.imageDataUrl) : null;
+  if (!image) {
+    const err = new Error("Missing or malformed `imageDataUrl`.");
+    (err as Error & { status: number }).status = 400;
+    throw err;
+  }
+  if (image.buffer.length > MAX_IMAGE_BYTES) {
+    const err = new Error("Image is too large (max 4 MB after compression).");
+    (err as Error & { status: number }).status = 413;
+    throw err;
+  }
+  const payerName = sanitizePayerName(body.payerName);
+  if (!payerName) {
+    const err = new Error(
+      "Add your name (who is paying) so the bill owner can match this proof."
+    );
+    (err as Error & { status: number }).status = 400;
+    throw err;
+  }
+  return { buffer: image.buffer, mime: image.mime, payerName };
+}
 
 export async function POST(
   req: Request,
@@ -25,38 +82,12 @@ export async function POST(
       return NextResponse.json({ error: "Invalid bill id." }, { status: 400 });
     }
 
-    const body = (await req.json()) as Body;
-    const image = body.imageDataUrl
-      ? parseDataUrl(body.imageDataUrl)
-      : null;
-    if (!image) {
-      return NextResponse.json(
-        { error: "Missing or malformed `imageDataUrl`." },
-        { status: 400 }
-      );
-    }
-    if (image.buffer.length > MAX_IMAGE_BYTES) {
-      return NextResponse.json(
-        { error: "Image is too large (max 8 MB)." },
-        { status: 413 }
-      );
-    }
-
-    const payerName = sanitizePayerName(body.payerName);
-    if (!payerName) {
-      return NextResponse.json(
-        {
-          error:
-            "Add your name (who is paying) so the bill owner can match this proof.",
-        },
-        { status: 400 }
-      );
-    }
+    const { buffer, mime, payerName } = await parseUploadBody(req);
 
     const updated = await appendPaymentReceipt({
       shareId: id,
-      imageBuffer: image.buffer,
-      imageContentType: image.mime,
+      imageBuffer: buffer,
+      imageContentType: mime,
       payerName,
     });
 
@@ -67,21 +98,28 @@ export async function POST(
       );
     }
 
+    const paymentReceipts = (updated.bill.paymentReceipts ?? []).map(
+      toPublicPaymentReceipt
+    );
+
     return NextResponse.json({
       ok: true,
       receiptId: updated.entry.id,
-      paymentReceipts: updated.bill.paymentReceipts ?? [],
+      deleteToken: updated.deleteToken,
+      paymentReceipts,
     });
   } catch (err) {
+    if (err instanceof ShareConflictError) {
+      return NextResponse.json({ error: err.message }, { status: 409 });
+    }
     const message =
       err instanceof Error ? err.message : "Unknown error while uploading proof.";
     const maxed =
-      typeof message === "string" && message.includes("maximum number of payment");
+      typeof message === "string" &&
+      message.includes("maximum number of payment");
+    const status = maxed ? 413 : httpStatusFromError(err, 500);
     console.error("[/api/share/[id]/payment-receipt]", err);
-    return NextResponse.json(
-      { error: message },
-      { status: maxed ? 413 : 500 }
-    );
+    return NextResponse.json({ error: message }, { status });
   }
 }
 
@@ -95,7 +133,11 @@ export async function DELETE(
       return NextResponse.json({ error: "Invalid bill id." }, { status: 400 });
     }
 
-    const body = (await req.json()) as { receiptId?: string };
+    const body = (await req.json()) as {
+      receiptId?: string;
+      deleteToken?: string;
+      ownerToken?: string;
+    };
     const receiptId = String(body.receiptId ?? "");
     if (!RECEIPT_ID_RE.test(receiptId)) {
       return NextResponse.json(
@@ -104,7 +146,12 @@ export async function DELETE(
       );
     }
 
-    const updated = await deletePaymentReceipt({ shareId: id, receiptId });
+    const updated = await deletePaymentReceipt({
+      shareId: id,
+      receiptId,
+      deleteToken: body.deleteToken,
+      ownerToken: body.ownerToken,
+    });
     if (!updated) {
       return NextResponse.json(
         { error: "Bill not found or sharing is not configured." },
@@ -114,9 +161,17 @@ export async function DELETE(
 
     return NextResponse.json({
       ok: true,
-      paymentReceipts: updated.paymentReceipts ?? [],
+      paymentReceipts: (updated.paymentReceipts ?? []).map(
+        toPublicPaymentReceipt
+      ),
     });
   } catch (err) {
+    if (err instanceof ShareAuthError) {
+      return NextResponse.json({ error: err.message }, { status: 403 });
+    }
+    if (err instanceof ShareConflictError) {
+      return NextResponse.json({ error: err.message }, { status: 409 });
+    }
     const message =
       err instanceof Error ? err.message : "Unknown error while deleting proof.";
     console.error("[/api/share/[id]/payment-receipt DELETE]", err);

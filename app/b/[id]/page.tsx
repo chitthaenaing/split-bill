@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { toPublicStoredBill } from "@/lib/public-bill";
 import { getShare } from "@/lib/share";
 import { SharedBill } from "./shared-bill";
 
@@ -31,5 +32,5 @@ export default async function Page({
   const { id } = await params;
   const data = await getShare(id);
   if (!data) notFound();
-  return <SharedBill data={data} />;
+  return <SharedBill data={toPublicStoredBill(data)} />;
 }

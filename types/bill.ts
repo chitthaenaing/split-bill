@@ -70,11 +70,17 @@ export type StoredPaymentReceipt = {
   uploadedAt: number;
   /** Who paid — shown to the person who shared the bill. Omitted on older uploads. */
   payerName?: string;
+  /**
+   * SHA-256 hex of the uploader's delete token. Never send this to browsers —
+   * strip via `toPublicPaymentReceipt`. Omitted on legacy uploads.
+   */
+  deleteTokenHash?: string;
 };
 
 /**
  * The shape persisted to Blob storage when a user shares a bill. Recipients
- * load this and run their own independent selection.
+ * load this and run their own independent selection. Secret fields must be
+ * stripped with `toPublicStoredBill` before rendering.
  */
 export type StoredBill = {
   id: string;
@@ -91,6 +97,18 @@ export type StoredBill = {
    * notification when a recipient uploads a payment receipt.
    */
   notifyTokens?: string[];
+  /**
+   * SHA-256 hex of the bill owner's secret. Required to register notify tokens
+   * (and to delete any payment proof). Omitted on legacy shares.
+   */
+  ownerTokenHash?: string;
+  /**
+   * Monotonic revision bumped on every bill.json write. Used with
+   * `lastWriteId` for optimistic concurrency retries.
+   */
+  revision?: number;
+  /** Unique id of the last successful writer; verifies CAS after put. */
+  lastWriteId?: string;
   currency: string;
   items: Array<{
     name: string;

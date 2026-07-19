@@ -14,10 +14,15 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NotifyToggle } from "@/components/notify-toggle";
-import { useBillStore } from "@/lib/store";
 import { itemsTotal } from "@/lib/calc";
+import { dataUrlToBlob, prepareReceiptImage } from "@/lib/image-prep";
+import { readJsonResponse } from "@/lib/read-json-response";
+import { saveOwnerToken } from "@/lib/share-client";
+import { useBillStore } from "@/lib/store";
 
-type ShareResponse = { id: string; url: string } | { error: string };
+type ShareResponse =
+  | { id: string; url: string; ownerToken?: string }
+  | { error: string };
 
 export function ShareButton() {
   const items = useBillStore((s) => s.items);
@@ -32,6 +37,7 @@ export function ShareButton() {
   const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState<string | null>(null);
   const [shareId, setShareId] = useState<string | null>(null);
+  const [ownerToken, setOwnerToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -60,32 +66,41 @@ export function ShareButton() {
     setError(null);
     setUrl(null);
     setShareId(null);
+    setOwnerToken(null);
     try {
       const subtotal = itemsTotal(items);
+      const bill = {
+        currency,
+        items: items.map((it) => ({
+          name: it.name,
+          ...(it.nameTranslated ? { nameTranslated: it.nameTranslated } : {}),
+          price: it.price,
+          quantity: it.quantity,
+        })),
+        tax,
+        serviceCharge,
+        rounding,
+        discount: 0,
+        subtotal,
+        total: subtotal + tax + serviceCharge + rounding,
+      };
+
+      // Compress like /api/extract so share uploads stay under the serverless
+      // body limit on mobile (base64 JSON previously 413'd large photos).
+      const preparedReceipt = await prepareReceiptImage(receiptDataUrl);
+      const form = new FormData();
+      form.append("file", dataUrlToBlob(preparedReceipt), "receipt.jpg");
+      form.append("bill", JSON.stringify(bill));
+      if (bankingQrDataUrl) {
+        const preparedQr = await prepareReceiptImage(bankingQrDataUrl);
+        form.append("bankingQr", dataUrlToBlob(preparedQr), "banking-qr.jpg");
+      }
+
       const res = await fetch("/api/share", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          imageDataUrl: receiptDataUrl,
-          ...(bankingQrDataUrl ? { bankingQrDataUrl } : {}),
-          bill: {
-            currency,
-            items: items.map((it) => ({
-              name: it.name,
-              ...(it.nameTranslated ? { nameTranslated: it.nameTranslated } : {}),
-              price: it.price,
-              quantity: it.quantity,
-            })),
-            tax,
-            serviceCharge,
-            rounding,
-            discount: 0,
-            subtotal,
-            total: subtotal + tax + serviceCharge + rounding,
-          },
-        }),
+        body: form,
       });
-      const data = (await res.json()) as ShareResponse;
+      const data = await readJsonResponse<ShareResponse>(res);
       if (!res.ok || "error" in data) {
         throw new Error(
           "error" in data ? data.error : `Request failed (${res.status})`
@@ -93,6 +108,10 @@ export function ShareButton() {
       }
       setUrl(data.url);
       setShareId(data.id);
+      if (data.ownerToken) {
+        saveOwnerToken(data.id, data.ownerToken);
+        setOwnerToken(data.ownerToken);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
@@ -246,7 +265,10 @@ export function ShareButton() {
 
                         {shareId && (
                           <div className="border-t border-border pt-4">
-                            <NotifyToggle shareId={shareId} />
+                            <NotifyToggle
+                              shareId={shareId}
+                              ownerToken={ownerToken}
+                            />
                           </div>
                         )}
                       </>
