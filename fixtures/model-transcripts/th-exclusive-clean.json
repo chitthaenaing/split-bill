@@ -1,0 +1,33 @@
+{
+  "id": "th-exclusive-clean",
+  "description": "Clean first-pass THB exclusive extract with service + VAT. Baseline for prompt/schema contract (single call, no repair).",
+  "imageDataUrl": "data:image/jpeg;base64,AAAA",
+  "responses": [
+    {
+      "content": {
+        "currency": "THB",
+        "items": [
+          { "name": "Pad Thai", "nameTranslated": "", "price": 120, "quantity": 1 },
+          { "name": "Green Curry", "nameTranslated": "", "price": 140, "quantity": 1 },
+          { "name": "Iced Tea", "nameTranslated": "", "price": 40, "quantity": 1 }
+        ],
+        "tax": 22.05,
+        "serviceCharge": 15,
+        "rounding": 0,
+        "discount": 0,
+        "subtotal": 300,
+        "total": 337.05,
+        "taxInclusive": false
+      }
+    }
+  ],
+  "expect": {
+    "calls": 1,
+    "reconciled": true,
+    "taxForUi": 22.05,
+    "total": 337.05,
+    "itemCount": 3,
+    "hasNegativeItem": false,
+    "hasRepairPrompt": false
+  }
+}

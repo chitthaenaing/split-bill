@@ -1,0 +1,41 @@
+{
+  "id": "th-promo-local-reconcile",
+  "description": "Shwe Tea House — model omits the -50 promo line but keeps printed VAT/service. Local reconcile must add a negative Discount without a second model call, and must not shrink VAT.",
+  "imageDataUrl": "data:image/jpeg;base64,AAAA",
+  "responses": [
+    {
+      "content": {
+        "currency": "THB",
+        "items": [
+          { "name": "Pop Seint", "nameTranslated": "", "price": 50, "quantity": 1 },
+          { "name": "STHN NHAT Coffee", "nameTranslated": "", "price": 70, "quantity": 1 },
+          { "name": "STHN NHAT Coffee", "nameTranslated": "", "price": 70, "quantity": 1 },
+          { "name": "Kya Saint", "nameTranslated": "", "price": 50, "quantity": 1 },
+          { "name": "Steamed Rice", "nameTranslated": "", "price": 90, "quantity": 1 },
+          { "name": "Tea Leaf Salad", "nameTranslated": "", "price": 90, "quantity": 1 },
+          { "name": "Chicken Curry", "nameTranslated": "", "price": 109, "quantity": 1 },
+          { "name": "Mote Hin Gar", "nameTranslated": "", "price": 90, "quantity": 1 },
+          { "name": "Fried Chicken", "nameTranslated": "", "price": 50, "quantity": 1 },
+          { "name": "Rice", "nameTranslated": "", "price": 20, "quantity": 1 },
+          { "name": "SHWE Korean Noodle", "nameTranslated": "", "price": 160, "quantity": 1 }
+        ],
+        "tax": 58.73,
+        "serviceCharge": 39.95,
+        "rounding": 0.32,
+        "discount": 0,
+        "subtotal": 849,
+        "total": 898,
+        "taxInclusive": false
+      }
+    }
+  ],
+  "expect": {
+    "calls": 1,
+    "reconciled": true,
+    "taxForUi": 58.73,
+    "total": 898,
+    "itemCount": 12,
+    "hasNegativeItem": true,
+    "hasRepairPrompt": false
+  }
+}

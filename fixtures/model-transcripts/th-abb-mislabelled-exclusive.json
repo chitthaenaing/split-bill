@@ -1,0 +1,38 @@
+{
+  "id": "th-abb-mislabelled-exclusive",
+  "description": "Thai ABB Air Plus — model wrongly sets taxInclusive=false; local reconcile must flip inclusive and clear VAT for the UI without inventing a VAT-sized discount. Single model call (no repair).",
+  "imageDataUrl": "data:image/jpeg;base64,AAAA",
+  "responses": [
+    {
+      "content": {
+        "currency": "THB",
+        "items": [
+          { "name": "MIXED BEEF NOODLES", "nameTranslated": "", "price": 150, "quantity": 1 },
+          { "name": "MANDI WITH BRAISED BEE", "nameTranslated": "", "price": 165, "quantity": 1 },
+          { "name": "FRUITPUNCH", "nameTranslated": "", "price": 59, "quantity": 1 },
+          { "name": "LEMON TEA", "nameTranslated": "", "price": 59, "quantity": 1 },
+          { "name": "BEEF SUKI YAKI SIZZING", "nameTranslated": "", "price": 185, "quantity": 1 },
+          { "name": "RICE AND SLICED BEEF S", "nameTranslated": "", "price": 145, "quantity": 1 },
+          { "name": "EST COLA", "nameTranslated": "", "price": 30, "quantity": 1 },
+          { "name": "ICE", "nameTranslated": "", "price": 0, "quantity": 2 }
+        ],
+        "tax": 51.91,
+        "serviceCharge": 0,
+        "rounding": 0,
+        "discount": 0,
+        "subtotal": 793,
+        "total": 793,
+        "taxInclusive": false
+      }
+    }
+  ],
+  "expect": {
+    "calls": 1,
+    "reconciled": true,
+    "taxForUi": 0,
+    "total": 793,
+    "itemCount": 8,
+    "hasNegativeItem": false,
+    "hasRepairPrompt": false
+  }
+}

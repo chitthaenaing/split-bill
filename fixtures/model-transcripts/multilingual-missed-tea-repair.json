@@ -1,0 +1,100 @@
+{
+  "id": "multilingual-missed-tea-repair",
+  "description": "Mandalay-style shortfall — first response drops Burmese Hot Tea (30) so product sum ≠ subtotal; repair call must restore the priced tea row with an English gloss.",
+  "imageDataUrl": "data:image/jpeg;base64,AAAA",
+  "responses": [
+    {
+      "content": {
+        "currency": "THB",
+        "items": [
+          {
+            "name": "မုန့်ဟင်းခါး / ขนมจีนน้ำยา",
+            "nameTranslated": "Mohinga",
+            "price": 60,
+            "quantity": 1
+          },
+          {
+            "name": "Shan Tofu",
+            "nameTranslated": "",
+            "price": 70,
+            "quantity": 1
+          },
+          {
+            "name": "Pone Yay Gyi Rice Salad",
+            "nameTranslated": "",
+            "price": 80,
+            "quantity": 1
+          },
+          {
+            "name": "Rice Noodles Hot Pot",
+            "nameTranslated": "",
+            "price": 120,
+            "quantity": 1
+          }
+        ],
+        "tax": 25.2,
+        "serviceCharge": 0,
+        "rounding": 0,
+        "discount": 0,
+        "subtotal": 360,
+        "total": 385.2,
+        "taxInclusive": false
+      }
+    },
+    {
+      "content": {
+        "currency": "THB",
+        "items": [
+          {
+            "name": "မုန့်ဟင်းခါး / ขนมจีนน้ำยา",
+            "nameTranslated": "Mohinga",
+            "price": 60,
+            "quantity": 1
+          },
+          {
+            "name": "လက်ဖက်ရည်ကြမ်း Burmese Hot Tea",
+            "nameTranslated": "Burmese Hot Tea",
+            "price": 30,
+            "quantity": 1
+          },
+          {
+            "name": "Shan Tofu",
+            "nameTranslated": "",
+            "price": 70,
+            "quantity": 1
+          },
+          {
+            "name": "Pone Yay Gyi Rice Salad",
+            "nameTranslated": "",
+            "price": 80,
+            "quantity": 1
+          },
+          {
+            "name": "Rice Noodles Hot Pot",
+            "nameTranslated": "",
+            "price": 120,
+            "quantity": 1
+          }
+        ],
+        "tax": 25.2,
+        "serviceCharge": 0,
+        "rounding": 0,
+        "discount": 0,
+        "subtotal": 360,
+        "total": 385.2,
+        "taxInclusive": false
+      }
+    }
+  ],
+  "expect": {
+    "calls": 2,
+    "reconciled": true,
+    "taxForUi": 25.2,
+    "total": 385.2,
+    "itemCount": 5,
+    "hasNegativeItem": false,
+    "hasRepairPrompt": true,
+    "nameTranslatedIncludes": ["Mohinga", "Burmese Hot Tea"],
+    "itemNameIncludes": ["မုန့်ဟင်းခါး", "လက်ဖက်ရည်ကြမ်း"]
+  }
+}
