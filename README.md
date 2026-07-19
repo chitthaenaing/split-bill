@@ -66,6 +66,7 @@ Tax, service and rounding are read-only on the shared page (they're properties o
 app/
   api/extract/route.ts         server route that calls OpenAI
   api/translate-items/route.ts English glosses for item names
+  api/fx/route.ts              Frankfurter mid-market FX rates (cached)
   api/share/route.ts           server route that writes to Vercel Blob
   b/[id]/                      the public shared-bill page
   layout.tsx, page.tsx         single-page app shell
@@ -80,6 +81,9 @@ lib/
   store.ts                Zustand store for the creator flow
   calc.ts                 pure split math (unit-testable)
   bill-extract.ts         normalize + arithmetic reconciliation
+  frankfurter.ts          Frankfurter rate fetch + convert helpers
+  display-currency.ts     per-device preferred display currency
+  use-fx-rate.ts          client hook for `/api/fx`
   openai.ts               prompt + schema + repair retry
   openai-transcripts.test.ts  scripted vision response harness
   image-prep.ts           client-side resize/JPEG encode
@@ -93,10 +97,14 @@ fixtures/
 types/bill.ts             shared types
 ```
 
+## Currency conversion
+
+The totals panel can show your share in another currency via [Frankfurter](https://www.frankfurter.app/) (central-bank mid-market daily rates). Split math stays in the receipt currency; the converted amount is display-only. Your preferred display currency is stored in `localStorage`. Rates are fetched through `/api/fx` and cached for a few hours.
+
 ## Notes
 
 - Bill data is kept in `localStorage` so a refresh won't lose your selection. Use "New bill" to reset.
-- No database, no auth — everything happens in your browser and a single server route.
+- No database, no auth — everything happens in your browser and a few server routes.
 - Run extraction unit tests with `npm test`.
 - Receipt arithmetic fixtures live in `fixtures/receipts/` (`npm run test:fixtures`).
 - Scripted vision-model transcripts live in `fixtures/model-transcripts/` (`npm run test:transcripts`) — they exercise prompt, JSON schema, repair, and finalize without calling OpenAI.
