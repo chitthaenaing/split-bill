@@ -104,7 +104,8 @@ export const useBillStore = create<State & Actions>()(
       loadFromExtraction: (b, receiptDataUrl, meta) => {
         set({
           receiptDataUrl,
-          bankingQrDataUrl: null,
+          // Keep the organiser's payment QR across new receipts — it belongs
+          // to the account/device, not to a single bill.
           currency: b.currency || "USD",
           tax: b.tax || 0,
           serviceCharge: b.serviceCharge || 0,
@@ -300,14 +301,19 @@ export const useBillStore = create<State & Actions>()(
       removeItem: (id) =>
         set((s) => ({ items: s.items.filter((it) => it.id !== id) })),
 
-      reset: () => set({ ...initial }),
+      reset: () =>
+        set((s) => ({
+          ...initial,
+          // Preserve payment QR when starting a new bill.
+          bankingQrDataUrl: s.bankingQrDataUrl,
+        })),
 
       setBankingQrDataUrl: (dataUrl) =>
         set({ bankingQrDataUrl: dataUrl && dataUrl.length > 0 ? dataUrl : null }),
     }),
     {
       name: "bill-split",
-      version: 8,
+      version: 9,
       partialize: (s) => ({
         receiptDataUrl: s.receiptDataUrl,
         bankingQrDataUrl: s.bankingQrDataUrl,

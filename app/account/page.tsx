@@ -13,6 +13,7 @@ import {
 import { AccountMenu } from "@/components/account-menu";
 import { AppLogo } from "@/components/app-logo";
 import { useAuth } from "@/components/auth-provider";
+import { BankingQrPanel } from "@/components/banking-qr-panel";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -171,7 +172,8 @@ export default function AccountPage() {
             </Link>
             <h1 className="text-2xl font-semibold tracking-tight">My bills</h1>
             <p className="text-sm text-muted-foreground">
-              Links you shared and bills you opened while signed in.
+              Save a payment QR ahead of time, plus links you shared and opened
+              while signed in.
             </p>
           </div>
 
@@ -184,8 +186,8 @@ export default function AccountPage() {
             <div className="space-y-4 rounded-2xl border border-border px-5 py-8 text-center">
               <Inbox className="mx-auto h-8 w-8 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                Sign in with Google to keep a history of your shared and
-                received bills across devices.
+                Sign in with Google to save your payment QR and keep a history
+                of shared and received bills across devices.
               </p>
               <Button
                 variant="accent"
@@ -206,32 +208,38 @@ export default function AccountPage() {
                 Sign in with Google
               </Button>
             </div>
-          ) : loading && !bills ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground py-12 justify-center">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading your bills…
-            </div>
-          ) : error ? (
-            <div className="space-y-3 rounded-xl border border-rose-500/30 bg-rose-500/5 px-4 py-4 text-sm">
-              <p className="text-rose-700 dark:text-rose-300">{error}</p>
-              <Button variant="outline" size="sm" onClick={() => void load()}>
-                Retry
-              </Button>
-            </div>
-          ) : bills ? (
+          ) : (
             <div className="space-y-8">
-              <BillSection
-                title="Shared by you"
-                empty="You haven’t shared a bill while signed in yet."
-                links={bills.shared}
-              />
-              <BillSection
-                title="Opened by you"
-                empty="Open a shared link while signed in and it’ll show up here."
-                links={bills.received}
-              />
+              <BankingQrPanel variant="account" />
+
+              {loading && !bills ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading your bills…
+                </div>
+              ) : error ? (
+                <div className="space-y-3 rounded-xl border border-rose-500/30 bg-rose-500/5 px-4 py-4 text-sm">
+                  <p className="text-rose-700 dark:text-rose-300">{error}</p>
+                  <Button variant="outline" size="sm" onClick={() => void load()}>
+                    Retry
+                  </Button>
+                </div>
+              ) : bills ? (
+                <>
+                  <BillSection
+                    title="Shared by you"
+                    empty="You haven’t shared a bill while signed in yet."
+                    links={bills.shared}
+                  />
+                  <BillSection
+                    title="Opened by you"
+                    empty="Open a shared link while signed in and it’ll show up here."
+                    links={bills.received}
+                  />
+                </>
+              ) : null}
             </div>
-          ) : null}
+          )}
         </motion.div>
       </main>
 
