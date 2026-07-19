@@ -16,6 +16,7 @@
   --ring: #0f766e;
   --success: #0f766e;
   --surface-tint: color-mix(in oklab, var(--accent) 8%, transparent);
+  --page-glow: color-mix(in oklab, #94a3b8 10%, transparent);
 }
 
 .dark {
@@ -32,6 +33,7 @@
   --ring: #2dd4bf;
   --success: #2dd4bf;
   --surface-tint: color-mix(in oklab, var(--accent) 12%, transparent);
+  --page-glow: color-mix(in oklab, #64748b 14%, transparent);
 }
 
 @theme inline {
@@ -50,12 +52,10 @@
   --font-mono: var(--font-geist-mono);
 }
 
-html,
-body {
-  height: 100%;
-}
-
-body {
+/* Paint the full page wash on html so tall pages, the footer, and
+   overscroll all share the same canvas (not the browser default). */
+html {
+  min-height: 100%;
   background:
     radial-gradient(
       900px 480px at 8% -8%,
@@ -64,29 +64,19 @@ body {
     ),
     radial-gradient(
       700px 420px at 96% 4%,
-      color-mix(in oklab, #94a3b8 10%, transparent),
+      var(--page-glow),
       transparent 58%
     ),
     var(--background);
+}
+
+body {
+  min-height: 100%;
+  background: transparent;
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-}
-
-.dark body {
-  background:
-    radial-gradient(
-      900px 480px at 8% -8%,
-      var(--surface-tint),
-      transparent 62%
-    ),
-    radial-gradient(
-      700px 420px at 96% 4%,
-      color-mix(in oklab, #64748b 14%, transparent),
-      transparent 58%
-    ),
-    var(--background);
 }
 
 /* Hide spinners on number inputs */
