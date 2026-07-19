@@ -1,5 +1,5 @@
 import "server-only";
-import { getAdminAuth } from "./firebase-admin";
+import { verifyFirebaseIdToken } from "./verify-firebase-token";
 
 export type AuthUser = {
   uid: string;
@@ -10,8 +10,7 @@ export type AuthUser = {
 
 /**
  * Verify a Firebase ID token from `Authorization: Bearer <token>`.
- * Returns null when the header is missing, credentials aren't configured,
- * or the token is invalid — callers decide whether that's an error.
+ * Returns null when the header is missing or the token is invalid.
  */
 export async function verifyBearerUser(
   req: Request
@@ -20,18 +19,9 @@ export async function verifyBearerUser(
     const header = req.headers.get("authorization") || "";
     const match = /^Bearer\s+(.+)$/i.exec(header.trim());
     if (!match) return null;
-
-    const auth = await getAdminAuth();
-    if (!auth) return null;
-
-    const decoded = await auth.verifyIdToken(match[1]!.trim());
-    return {
-      uid: decoded.uid,
-      email: decoded.email ?? null,
-      name: decoded.name ?? null,
-      picture: typeof decoded.picture === "string" ? decoded.picture : null,
-    };
-  } catch {
+    return await verifyFirebaseIdToken(match[1]!.trim());
+  } catch (err) {
+    console.error("[auth] ID token verification failed", err);
     return null;
   }
 }
@@ -47,9 +37,7 @@ export async function requireBearerUser(req: Request): Promise<AuthUser> {
 
   const user = await verifyBearerUser(req);
   if (!user) {
-    const err = new Error(
-      "Could not verify your account. Sign in again, or check that Firebase Admin credentials are configured."
-    );
+    const err = new Error("Your session expired. Sign in again.");
     (err as Error & { status: number }).status = 401;
     throw err;
   }

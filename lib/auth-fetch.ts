@@ -21,5 +21,18 @@ export async function authFetch(
   if (typeof FormData !== "undefined" && init.body instanceof FormData) {
     headers.delete("Content-Type");
   }
-  return fetch(input, { ...init, headers });
+
+  const res = await fetch(input, { ...init, headers });
+  // One retry with a forced refresh when the server rejects a stale ID token.
+  if (res.status !== 401) return res;
+
+  const fresh = await getIdToken(true);
+  if (!fresh || fresh === token) return res;
+
+  const retryHeaders = new Headers(init.headers);
+  retryHeaders.set("Authorization", `Bearer ${fresh}`);
+  if (typeof FormData !== "undefined" && init.body instanceof FormData) {
+    retryHeaders.delete("Content-Type");
+  }
+  return fetch(input, { ...init, headers: retryHeaders });
 }

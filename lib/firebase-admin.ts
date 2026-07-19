@@ -1,19 +1,19 @@
 import "server-only";
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
-import { firebaseConfig } from "./firebase-config";
+import { firebaseProjectId } from "./firebase-config";
 
 let cachedApp: App | null = null;
 let adminInitFailed = false;
 
 /**
  * Returns an initialised Firebase Admin app, or null when the service-account
- * credentials aren't configured (so push / auth / Firestore degrade rather
- * than throwing). Credentials come from env — see `.env.local.example`.
+ * credentials aren't configured (so push / Firestore degrade rather than
+ * throwing). Credentials come from env — see `.env.local.example`.
  *
- * Auth and Firestore are loaded lazily — a top-level `firebase-admin/auth`
- * import pulls in jwks-rsa → jose and can crash Vercel/CJS with ERR_REQUIRE_ESM
- * (jose@6 is ESM-only). Keep messaging/app imports only at module scope.
+ * ID token verification does **not** use this module (see
+ * `verify-firebase-token.ts`) — `firebase-admin/auth` pulls jwks-rsa → jose@6
+ * and crashes Vercel/CJS with ERR_REQUIRE_ESM. Firestore is loaded lazily.
  */
 export function getAdminApp(): App | null {
   if (cachedApp) return cachedApp;
@@ -26,7 +26,7 @@ export function getAdminApp(): App | null {
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   // Private keys are stored with literal "\n"; restore real newlines.
   const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
-  const projectId = process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId;
+  const projectId = firebaseProjectId();
 
   if (!clientEmail || !privateKey || !projectId) return null;
 
@@ -41,18 +41,6 @@ export function getAdminApp(): App | null {
       "[firebase-admin] Failed to initialise app — check FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY",
       err
     );
-    return null;
-  }
-}
-
-export async function getAdminAuth() {
-  try {
-    const app = getAdminApp();
-    if (!app) return null;
-    const { getAuth } = await import("firebase-admin/auth");
-    return getAuth(app);
-  } catch (err) {
-    console.error("[firebase-admin] getAuth failed", err);
     return null;
   }
 }

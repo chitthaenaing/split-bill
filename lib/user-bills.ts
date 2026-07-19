@@ -137,7 +137,13 @@ export async function listUserBillLinks(
   uid: string
 ): Promise<{ shared: UserBillLink[]; received: UserBillLink[] }> {
   const col = await linksCollection(uid);
-  if (!col) return { shared: [], received: [] };
+  if (!col) {
+    const err = new Error(
+      "Accounts aren't configured on the server (missing Firebase Admin credentials or Firestore)."
+    );
+    (err as Error & { status: number }).status = 503;
+    throw err;
+  }
 
   const snap = await col.orderBy("updatedAt", "desc").limit(100).get();
   const shared: UserBillLink[] = [];
