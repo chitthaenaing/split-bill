@@ -13,6 +13,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  imageFileFromDataTransfer,
+  isEditablePasteTarget,
+} from "@/lib/clipboard-image";
 import { dataUrlToBlob, prepareReceiptImage } from "@/lib/image-prep";
 import { computePaymentBalance } from "@/lib/payment-balance";
 import { readJsonResponse } from "@/lib/read-json-response";
@@ -38,12 +42,12 @@ async function fileToDataUrl(file: File): Promise<string> {
 function UploadDropzone({
   busy,
   onChooseFile,
-  onDropFile,
+  onImageFile,
   error,
 }: {
   busy: boolean;
   onChooseFile: () => void;
-  onDropFile: (file: File) => void;
+  onImageFile: (file: File) => void;
   error: string | null;
 }) {
   const [dragActive, setDragActive] = useState(false);
@@ -52,13 +56,18 @@ function UploadDropzone({
     e.preventDefault();
     setDragActive(false);
     if (busy) return;
-    const file = e.dataTransfer.files?.[0];
-    if (file) onDropFile(file);
+    const file =
+      imageFileFromDataTransfer(e.dataTransfer) ??
+      e.dataTransfer.files?.[0] ??
+      null;
+    if (file) onImageFile(file);
   };
 
   return (
     <div className="space-y-3">
       <div
+        role="region"
+        aria-label="Upload transfer screenshot. Choose a file, drop an image, or paste from the clipboard."
         onDragOver={(e) => {
           e.preventDefault();
           if (!busy) setDragActive(true);
@@ -92,7 +101,7 @@ function UploadDropzone({
         <span className="text-[11px] text-muted-foreground">
           {dragActive
             ? "Drop to upload"
-            : "We’ll read the amount and name from the slip"}
+            : "Drop or paste a screenshot — we’ll read the amount and name"}
         </span>
       </div>
 
@@ -206,6 +215,21 @@ export function PaymentProofsSection({
     [shareId]
   );
 
+  // Allow Cmd/Ctrl+V (and mobile paste) anywhere on the share page when the
+  // user isn't typing in a field — common after copying a bank screenshot.
+  useEffect(() => {
+    const onWindowPaste = (e: ClipboardEvent) => {
+      if (busy) return;
+      if (isEditablePasteTarget(e.target)) return;
+      const file = imageFileFromDataTransfer(e.clipboardData);
+      if (!file) return;
+      e.preventDefault();
+      void upload(file);
+    };
+    window.addEventListener("paste", onWindowPaste);
+    return () => window.removeEventListener("paste", onWindowPaste);
+  }, [busy, upload]);
+
   const onDelete = useCallback(
     async (receiptId: string) => {
       if (
@@ -278,8 +302,8 @@ export function PaymentProofsSection({
         <CardContent className="p-4 sm:p-5 space-y-4">
           {!hasReceipts ? (
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Pay the organiser, then drop the bank app screenshot. We scan it
-              for the amount and sender — nothing to type.
+              Pay the organiser, then drop or paste the bank app screenshot. We
+              scan it for the amount and sender — nothing to type.
             </p>
           ) : null}
 
@@ -420,7 +444,7 @@ export function PaymentProofsSection({
             <UploadDropzone
               busy={busy}
               onChooseFile={triggerFileDialog}
-              onDropFile={upload}
+              onImageFile={upload}
               error={error}
             />
           ) : (
@@ -433,7 +457,7 @@ export function PaymentProofsSection({
                 <UploadDropzone
                   busy={busy}
                   onChooseFile={triggerFileDialog}
-                  onDropFile={upload}
+                  onImageFile={upload}
                   error={error}
                 />
               </div>
