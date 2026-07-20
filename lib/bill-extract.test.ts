@@ -6,6 +6,7 @@ import {
   cleanTranslatedName,
   formatCheckForRepair,
   isJunkItemName,
+  liftLeadingQuantity,
   likelyNeedsTranslation,
   normalizeExtractedBill,
   reconcileBill,
@@ -53,6 +54,41 @@ describe("cleanItemName", () => {
   });
 });
 
+describe("liftLeadingQuantity", () => {
+  it("lifts a glued leading qty when quantity defaulted to 1", () => {
+    assert.deepEqual(liftLeadingQuantity("2 Kya Saint", 1), {
+      name: "Kya Saint",
+      quantity: 2,
+    });
+    assert.deepEqual(liftLeadingQuantity("3  Latte", 1), {
+      name: "Latte",
+      quantity: 3,
+    });
+  });
+
+  it("does not override an explicit multi-qty or leave single units alone", () => {
+    assert.deepEqual(liftLeadingQuantity("2 Kya Saint", 2), {
+      name: "2 Kya Saint",
+      quantity: 2,
+    });
+    assert.deepEqual(liftLeadingQuantity("Kya Saint", 1), {
+      name: "Kya Saint",
+      quantity: 1,
+    });
+  });
+
+  it("does not treat hyphenated or plus drink names as a qty column", () => {
+    assert.deepEqual(liftLeadingQuantity("7-Up", 1), {
+      name: "7-Up",
+      quantity: 1,
+    });
+    assert.deepEqual(liftLeadingQuantity("100 Plus", 1), {
+      name: "100 Plus",
+      quantity: 1,
+    });
+  });
+});
+
 describe("cleanTranslatedName / likelyNeedsTranslation", () => {
   it("drops empty or duplicate glosses", () => {
     assert.equal(cleanTranslatedName("", "Latte"), undefined);
@@ -91,6 +127,59 @@ describe("normalizeExtractedBill", () => {
     assert.equal(bill.items.length, 1);
     assert.equal(bill.items[0].name, "Latte");
     assert.equal(bill.tax, 0.9);
+  });
+
+  it("lifts a leading qty glued into the item name when quantity defaulted to 1", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "2 Kya Saint", price: 100, quantity: 1 },
+        { name: "Pop Seint", price: 50, quantity: 1 },
+      ],
+      tax: 0,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 150,
+      total: 150,
+      printedItemUnits: 3,
+      taxInclusive: false,
+    });
+
+    assert.equal(bill.items[0].name, "Kya Saint");
+    assert.equal(bill.items[0].quantity, 2);
+    assert.equal(bill.printedItemUnits, 3);
+    assert.equal(checkBillMath(bill).ok, true);
+  });
+
+  it("flags quantity undercount when Items footer disagrees even if money reconciles", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "Kya Saint", price: 100, quantity: 1 },
+        { name: "Pop Seint", price: 50, quantity: 1 },
+        { name: "Daily Special Menu (Mutton)", price: 120, quantity: 1 },
+        { name: "Fried Rice Royal Bean with Fried Egg", price: 90, quantity: 1 },
+        { name: "Mote Hin Gar Soup", price: 25, quantity: 1 },
+        { name: "Rice with Shrimp Kaprao", price: 159, quantity: 1 },
+      ],
+      tax: 39.98,
+      serviceCharge: 27.2,
+      rounding: -0.18,
+      discount: 0,
+      subtotal: 544,
+      total: 611,
+      printedItemUnits: 7,
+      taxInclusive: false,
+    });
+
+    const check = checkBillMath(bill);
+    assert.equal(check.ok, false);
+    assert.equal(check.quantitySum, 6);
+    assert.equal(check.quantityDelta, 1);
+    assert.match(check.messages.join(" "), /Items count 7/);
+    const repair = formatCheckForRepair(bill, check);
+    assert.match(repair, /leftmost quantity/i);
   });
 
   it("keeps English glosses on non-Latin names and drops duplicates", () => {

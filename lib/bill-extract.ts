@@ -12,6 +12,10 @@ export type BillCheck = {
   itemsSum: number;
   /** |itemsSum - subtotal| */
   itemsDelta: number;
+  /** Sum of line quantities (units). */
+  quantitySum: number;
+  /** |quantitySum - printedItemUnits| when a printed count is present; else 0. */
+  quantityDelta: number;
   /** Expected grand total given taxInclusive flag. */
   expectedTotal: number;
   /** |expectedTotal - total| */
@@ -21,6 +25,11 @@ export type BillCheck = {
 
 export type NormalizedBill = ExtractedBill & {
   taxInclusive: boolean;
+  /**
+   * Printed unit count from an Items/Qty footer when present (e.g. Items: 7).
+   * 0 means absent — quantity-sum checks are skipped.
+   */
+  printedItemUnits: number;
 };
 
 function roundMoney(n: number, currency: string): number {
@@ -62,6 +71,26 @@ export function cleanItemName(name: string): string {
     .replace(/\s+\d+\.{2,}$/g, "")
     .replace(/[.\s]+$/g, "")
     .trim();
+}
+
+/**
+ * When the model leaves quantity at 1 but glues a leading qty digit onto the
+ * name ("2 Kya Saint"), lift that digit into quantity and strip it from name.
+ *
+ * Only applies when quantity is still the default 1 — never overrides an
+ * explicit multi-qty. Skips names that look like products that start with a
+ * number+hyphen/plus ("7-Up", "100 Plus") rather than a qty column.
+ */
+export function liftLeadingQuantity(
+  name: string,
+  quantity: number
+): { name: string; quantity: number } {
+  if (quantity !== 1) return { name, quantity };
+  const m = /^(\d{1,2})\s+(\p{L}.*)$/u.exec(name);
+  if (!m) return { name, quantity };
+  const leading = Number(m[1]);
+  if (!Number.isFinite(leading) || leading < 2) return { name, quantity };
+  return { name: m[2].trim(), quantity: leading };
 }
 
 /**
@@ -143,6 +172,7 @@ export function expectedGrandTotal(bill: NormalizedBill): number {
 export function normalizeExtractedBill(raw: unknown): NormalizedBill {
   const parsed = (raw ?? {}) as Partial<ExtractedBill> & {
     taxInclusive?: boolean;
+    printedItemUnits?: unknown;
   };
 
   const currency = String(parsed.currency || "USD")
@@ -158,14 +188,17 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
   }> = [];
   for (const it of Array.isArray(parsed.items) ? parsed.items : []) {
     const price = roundMoney(asFinite(it?.price), currency);
-    const quantity = Math.max(1, Math.floor(asFinite(it?.quantity, 1)) || 1);
+    let quantity = Math.max(1, Math.floor(asFinite(it?.quantity, 1)) || 1);
     // Keep priced rows even when the model couldn't read a non-Latin name.
-    const cleaned = cleanItemName(String(it?.name ?? "")).slice(0, 200);
+    let cleaned = cleanItemName(String(it?.name ?? "")).slice(0, 200);
+    const lifted = liftLeadingQuantity(cleaned, quantity);
+    cleaned = lifted.name;
+    quantity = lifted.quantity;
     const name =
       cleaned || (price !== 0 ? "Unreadable item" : "");
     if (!name || isJunkItemName(name, price)) continue;
-    const raw = it as { nameTranslated?: unknown };
-    const nameTranslated = cleanTranslatedName(raw?.nameTranslated, name);
+    const rawItem = it as { nameTranslated?: unknown };
+    const nameTranslated = cleanTranslatedName(rawItem?.nameTranslated, name);
     items.push(
       nameTranslated ? { name, nameTranslated, price, quantity } : { name, price, quantity }
     );
@@ -193,6 +226,10 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
   );
   const rounding = roundMoney(asFinite(parsed.rounding), currency);
   const taxInclusive = Boolean(parsed.taxInclusive);
+  const printedItemUnits = Math.max(
+    0,
+    Math.floor(asFinite(parsed.printedItemUnits, 0)) || 0
+  );
 
   const productSum = productItemsSum(items, currency);
 
@@ -214,6 +251,7 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
     subtotal,
     total,
     taxInclusive,
+    printedItemUnits,
   };
 
   if (total === 0) {
@@ -234,6 +272,14 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
 export function checkBillMath(bill: NormalizedBill): BillCheck {
   const itemsSum = productItemsSum(bill.items, bill.currency);
   const itemsDelta = Math.abs(itemsSum - bill.subtotal);
+  const quantitySum = bill.items.reduce(
+    (s, it) => s + Math.max(0, Math.floor(it.quantity || 0)),
+    0
+  );
+  const quantityDelta =
+    bill.printedItemUnits > 0
+      ? Math.abs(quantitySum - bill.printedItemUnits)
+      : 0;
   const expectedTotal = expectedGrandTotal(bill);
   const totalDelta = Math.abs(expectedTotal - bill.total);
 
@@ -246,6 +292,11 @@ export function checkBillMath(bill: NormalizedBill): BillCheck {
       `Extracted items ${itemsSum.toFixed(2)} ≠ receipt subtotal ${bill.subtotal.toFixed(2)} (off by ${itemsDelta.toFixed(2)}).`
     );
   }
+  if (bill.printedItemUnits > 0 && quantityDelta > 0) {
+    messages.push(
+      `Extracted quantities sum to ${quantitySum} ≠ receipt Items count ${bill.printedItemUnits}. Re-read the leftmost qty digit on each item row.`
+    );
+  }
   if (totalDelta > MONEY_TOLERANCE) {
     messages.push(
       `Extracted total ${expectedTotal.toFixed(2)} (${bill.taxInclusive ? "incl. tax" : "excl. tax"}) ≠ receipt total ${bill.total.toFixed(2)} (off by ${totalDelta.toFixed(2)}).`
@@ -256,6 +307,8 @@ export function checkBillMath(bill: NormalizedBill): BillCheck {
     ok: messages.length === 0,
     itemsSum,
     itemsDelta,
+    quantitySum,
+    quantityDelta,
     expectedTotal,
     totalDelta,
     messages,
@@ -480,6 +533,17 @@ export function formatCheckForRepair(
         ]
       : [];
 
+  const quantityHint =
+    bill.printedItemUnits > 0 && check.quantityDelta > 0
+      ? [
+          `Quantity units (${check.quantitySum}) do not match the printed Items count (${bill.printedItemUnits}).`,
+          "Re-read the leftmost quantity digit on EVERY item row (Thai/SEA POS often prints \"2  ItemName  100.00\").",
+          "Do not confuse Table / Guests counts above the items with line quantities.",
+          "Keep each item's `price` as the LINE TOTAL; only correct `quantity` (and strip a leading qty digit from `name` if you glued it there).",
+          "Update printedItemUnits only if you mis-read the Items footer — usually the footer is correct and a line quantity is wrong.",
+        ]
+      : [];
+
   return [
     "Previous extraction failed the arithmetic self-check:",
     ...check.messages.map((m) => `- ${m}`),
@@ -491,6 +555,7 @@ export function formatCheckForRepair(
     "Remember: each item's `price` is the LINE TOTAL (not unit price).",
     "sum(items with price ≥ 0) must equal subtotal.",
     ...missingProductsHint,
+    ...quantityHint,
     "Promotion / Discount / Free-item lines belong in items with a NEGATIVE price (e.g. -50). Do not omit them.",
     "Trust the printed TOTAL / AMOUNT DUE on the receipt — do not invent extra tax or service.",
     bill.taxInclusive

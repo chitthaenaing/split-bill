@@ -1,0 +1,60 @@
+{
+  "id": "th-leading-qty-undercount-repair",
+  "description": "FoodStory-style THB receipt: first line is \"2 Kya Saint 100.00\" but the model defaults quantity to 1. Money still reconciles; printed Items: 7 must trigger repair so quantity becomes 2.",
+  "imageDataUrl": "data:image/jpeg;base64,AAAA",
+  "responses": [
+    {
+      "content": {
+        "currency": "THB",
+        "items": [
+          { "name": "Kya Saint", "nameTranslated": "", "price": 100, "quantity": 1 },
+          { "name": "Pop Seint", "nameTranslated": "", "price": 50, "quantity": 1 },
+          { "name": "Daily Special Menu (Mutton)", "nameTranslated": "", "price": 120, "quantity": 1 },
+          { "name": "Fried Rice Royal Bean with Fried Egg", "nameTranslated": "", "price": 90, "quantity": 1 },
+          { "name": "Mote Hin Gar Soup", "nameTranslated": "", "price": 25, "quantity": 1 },
+          { "name": "Rice with Shrimp Kaprao", "nameTranslated": "", "price": 159, "quantity": 1 }
+        ],
+        "tax": 39.98,
+        "serviceCharge": 27.2,
+        "rounding": -0.18,
+        "discount": 0,
+        "subtotal": 544,
+        "total": 611,
+        "printedItemUnits": 7,
+        "taxInclusive": false
+      }
+    },
+    {
+      "content": {
+        "currency": "THB",
+        "items": [
+          { "name": "Kya Saint", "nameTranslated": "", "price": 100, "quantity": 2 },
+          { "name": "Pop Seint", "nameTranslated": "", "price": 50, "quantity": 1 },
+          { "name": "Daily Special Menu (Mutton)", "nameTranslated": "", "price": 120, "quantity": 1 },
+          { "name": "Fried Rice Royal Bean with Fried Egg", "nameTranslated": "", "price": 90, "quantity": 1 },
+          { "name": "Mote Hin Gar Soup", "nameTranslated": "", "price": 25, "quantity": 1 },
+          { "name": "Rice with Shrimp Kaprao", "nameTranslated": "", "price": 159, "quantity": 1 }
+        ],
+        "tax": 39.98,
+        "serviceCharge": 27.2,
+        "rounding": -0.18,
+        "discount": 0,
+        "subtotal": 544,
+        "total": 611,
+        "printedItemUnits": 7,
+        "taxInclusive": false
+      }
+    }
+  ],
+  "expect": {
+    "calls": 2,
+    "reconciled": true,
+    "taxForUi": 39.98,
+    "total": 611,
+    "itemCount": 6,
+    "hasNegativeItem": false,
+    "hasRepairPrompt": true,
+    "itemNameIncludes": ["Kya Saint"],
+    "itemQuantityIncludes": [{ "nameIncludes": "Kya Saint", "quantity": 2 }]
+  }
+}

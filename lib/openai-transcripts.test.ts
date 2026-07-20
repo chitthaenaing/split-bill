@@ -20,6 +20,8 @@ type TranscriptExpect = {
   hasRepairPrompt: boolean;
   nameTranslatedIncludes?: string[];
   itemNameIncludes?: string[];
+  /** Optional: assert a specific item's quantity by name fragment. */
+  itemQuantityIncludes?: Array<{ nameIncludes: string; quantity: number }>;
 };
 
 type TranscriptFixture = {
@@ -111,6 +113,8 @@ function assertPromptContract(calls: CapturedCall[]): string[] {
     "ADD GST",
     "Singapore",
     "Myanmar",
+    "printedItemUnits",
+    "leading qty",
   ]) {
     if (!EXTRACTION_SYSTEM_PROMPT.includes(needle)) {
       failures.push(`system prompt missing "${needle}"`);
@@ -136,7 +140,7 @@ function assertPromptContract(calls: CapturedCall[]): string[] {
       };
     };
     const required = schema.required ?? [];
-    for (const key of ["taxInclusive", "items", "discount", "total"]) {
+    for (const key of ["taxInclusive", "items", "discount", "total", "printedItemUnits"]) {
       if (!required.includes(key)) {
         failures.push(`bill schema required[] missing "${key}"`);
       }
@@ -224,8 +228,8 @@ async function evaluateFixture(fixture: TranscriptFixture): Promise<string[]> {
   }
   if (exp.hasRepairPrompt) {
     const joined = repairTexts.join("\n");
-    if (!/priced product row is likely missing|drinks\/tea|distinct price/i.test(joined)) {
-      failures.push("repair prompt missing missing-row guidance");
+    if (!/priced product row is likely missing|drinks\/tea|distinct price|leftmost quantity|Items count/i.test(joined)) {
+      failures.push("repair prompt missing missing-row or quantity guidance");
     }
   }
 
@@ -239,6 +243,18 @@ async function evaluateFixture(fixture: TranscriptFixture): Promise<string[]> {
     const hit = result.bill.items.some((it) => it.name.includes(fragment));
     if (!hit) {
       failures.push(`missing item name fragment "${fragment}"`);
+    }
+  }
+  for (const spec of exp.itemQuantityIncludes ?? []) {
+    const hit = result.bill.items.find((it) =>
+      it.name.includes(spec.nameIncludes)
+    );
+    if (!hit) {
+      failures.push(`missing item for quantity assert "${spec.nameIncludes}"`);
+    } else if (hit.quantity !== spec.quantity) {
+      failures.push(
+        `quantity for "${spec.nameIncludes}": got ${hit.quantity}, want ${spec.quantity}`
+      );
     }
   }
 
@@ -258,6 +274,7 @@ describe("model transcript harness", () => {
       "th-promo-local-reconcile",
       "multilingual-missed-tea-repair",
       "th-exclusive-clean",
+      "th-leading-qty-undercount-repair",
     ];
     const ids = new Set(fixtures.map((f) => f.id));
     for (const id of required) {
