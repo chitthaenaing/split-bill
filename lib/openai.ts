@@ -50,12 +50,14 @@ What goes in each field:
     Examples:
       "3  Latte   12.00"                         -> price=12.00, quantity=3
       "Latte   3 x 4.00   12.00"                -> price=12.00, quantity=3
+      "2  Kya Saint                    100.00"  -> price=100.00, quantity=2  (leading qty column; 100 is the LINE TOTAL for both)
       "Margherita Pizza 14.50"                  -> price=14.50, quantity=1
       "Promotion Free Tea (Gold Member) -50.00" -> price=-50.00, quantity=1
       "မုန့်ဟင်းခါး / ม็อคฮินกา          60.00"  -> name keeps the original script(s), price=60.00, quantity=1
       "လက်ဖက်ရည်ကြမ်း Burmese Hot Tea   30.00"  -> its OWN item, price=30.00 (never merge into the previous dish)
     If the receipt prints a unit price but no line total, multiply unit \u00d7 quantity yourself and put that LINE TOTAL in "price".
-- "quantity": units of this item on this line, as printed. Default 1. Always extract when shown.
+- "quantity": units of this item on this line, as printed in the qty / count column (often the leftmost number on the row). Do NOT default to 1 when a leading digit is printed. Do NOT confuse Table / Guests / Staff IDs above the items with line quantities. Put the digit in "quantity", not in "name" (name should be "Kya Saint", not "2 Kya Saint"). Only use 1 when the receipt truly shows one unit or omits qty.
+- "printedItemUnits": when the receipt prints a footer like "Items: 7" / "Item(s): 7" / "Qty: 7" counting sold units, put that number here. It must equal sum(items[i].quantity). Use 0 when no such count is printed.
 - "nameTranslated": a short English gloss of "name" when the printed name is non-Latin, mixed-script, or hard for an English reader (Myanmar, Thai, Chinese, Japanese, Korean, Arabic, etc.). Keep it concise (menu-style). If the printed row already includes English, put that English text here (without repeating the non-Latin script). Use "" when "name" is already plain English / Latin and needs no gloss. Never invent a different dish — translate or romanize the same item only.
 - "discount": always 0. Promotions belong in items with a negative price — do not also put them here.
 - "tax": TAX / VAT / GST / Sales Tax / ADD GST AMOUNT (not the percentage). If multiple tax lines are shown, sum them. Do NOT invent a tax line from the GST registration number.
@@ -76,11 +78,14 @@ Accuracy guidance:
 - Photos may be rotated or sideways — read the receipt text regardless of orientation.
 - Watch for OCR confusables: 0/O, 1/I/l, 5/S, 8/B. Prefer the reading that makes the arithmetic check out.
 - Clean item names: drop trailing OCR garbage like "1.." or lone dots. Keep the real product name (any script).
+- Thai / SEA POS receipts (FoodStory, etc.) often print a dedicated quantity column on the far left of each item row ("2  Kya Saint  100.00"). Read that column for every row. A line total that looks like a round drink/food price with quantity=1 is a common miss when the left digit was actually 2+.
 - Before answering, run this self-check and fix anything that fails:
     count(amounts in the price column for products/promos) should equal items.length
+    sum(items[i].quantity) should equal printedItemUnits when printedItemUnits > 0 (e.g. "Items: 7")
     sum(items[i].price where price \u2265 0) \u2248 subtotal
     sum(all items[i].price) + tax + serviceCharge + rounding \u2248 total   (when not taxInclusive)
     sum(all items[i].price) + serviceCharge + rounding \u2248 total   (when taxInclusive — do NOT add tax again)
+  If sum(quantity) is short of "Items: N", re-read the leftmost digit on every item row — do not leave quantity at 1 when 2+ is printed.
   If product lines sum short of the printed subtotal, you likely missed a priced row (often a small drink/tea/side, or a bilingual English line between dishes) — re-read every amount in the price column.
   If tax+service make the total too high by a promotion amount, you missed a minus line — add it to items.
   If adding GST/VAT makes the total too high by exactly the printed tax (especially SGD "ADD GST" or Thai "Included Vat"), the receipt is taxInclusive — flip the flag instead of inventing a discount.
@@ -114,7 +119,11 @@ export const EXTRACTION_BILL_SCHEMA = {
             description:
               "Line total for this row. Negative for promotion/discount lines.",
           },
-          quantity: { type: "number" },
+          quantity: {
+            type: "number",
+            description:
+              "Units on this line from the qty column (leading digit). Not the Table/Guests count.",
+          },
         },
         required: ["name", "nameTranslated", "price", "quantity"],
       },
@@ -131,6 +140,11 @@ export const EXTRACTION_BILL_SCHEMA = {
     },
     subtotal: { type: "number" },
     total: { type: "number" },
+    printedItemUnits: {
+      type: "number",
+      description:
+        "Printed unit count from an Items/Qty footer (e.g. Items: 7). 0 if absent.",
+    },
     taxInclusive: {
       type: "boolean",
       description:
@@ -146,6 +160,7 @@ export const EXTRACTION_BILL_SCHEMA = {
     "discount",
     "subtotal",
     "total",
+    "printedItemUnits",
     "taxInclusive",
   ],
 } as const;
@@ -222,7 +237,7 @@ export async function extractBillFromImageWithClient(
       content: [
         {
           type: "text",
-          text: "Extract the bill from this receipt photo. Include every priced product/promo row top-to-bottom — including small drinks/tea/sides and bilingual Myanmar/Thai/English lines that have their own price. Do not merge a priced English name into the previous dish. Double-check that the numbers add up before answering.",
+          text: "Extract the bill from this receipt photo. Include every priced product/promo row top-to-bottom — including small drinks/tea/sides and bilingual Myanmar/Thai/English lines that have their own price. Read the leftmost quantity digit on each item row (do not default every line to 1). Do not merge a priced English name into the previous dish. Double-check that the numbers — and quantity units vs any Items: N footer — add up before answering.",
         },
         {
           type: "image_url",
