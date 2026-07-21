@@ -1,8 +1,8 @@
 {
   "id": "us-tax-exclusive",
-  "description": "Simple EUR tax-exclusive receipt; VAT rate check skipped (no locale rate). (USD from the model is remapped to THB, so this fixture uses EUR to cover the skip path.)",
+  "description": "Simple USD tax-exclusive receipt; VAT rate check skipped (no locale rate).",
   "raw": {
-    "currency": "EUR",
+    "currency": "USD",
     "items": [
       { "name": "Soup", "price": 8, "quantity": 1 },
       { "name": "Salad", "price": 12, "quantity": 1 }

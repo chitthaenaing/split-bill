@@ -115,8 +115,8 @@ function assertPromptContract(calls: CapturedCall[]): string[] {
     "Myanmar",
     "printedItemUnits",
     "leading qty",
-    "Default to THB",
-    "Do NOT emit USD",
+    "defaults empty currency to THB",
+    "do NOT guess USD",
   ]) {
     if (!EXTRACTION_SYSTEM_PROMPT.includes(needle)) {
       failures.push(`system prompt missing "${needle}"`);

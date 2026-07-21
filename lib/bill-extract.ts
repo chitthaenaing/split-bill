@@ -127,23 +127,16 @@ export function likelyNeedsTranslation(name: string): boolean {
 }
 
 /**
- * Resolve ISO currency from the model. Empty/missing → THB.
- *
- * Models emit USD when no currency symbol is printed (their training prior),
- * which is exactly the HTOO's Curry / bare-amount SEA case. Treat USD as
- * "unknown" and use THB. Other codes (EUR, GBP, SGD, …) are kept — those
- * require a clear symbol the model rarely invents.
+ * Resolve ISO currency from the model. Empty / missing / junk → THB.
+ * Keeps an explicit USD (or any other code) when the model extracted one.
  */
 export function resolveBillCurrency(rawCurrency: unknown): string {
-  const currency =
-    String(rawCurrency || "THB")
-      .trim()
-      .toUpperCase()
-      .replace(/[^A-Z]/g, "")
-      .slice(0, 3) || "THB";
-
-  if (currency === "USD") return "THB";
-  return currency;
+  const currency = String(rawCurrency ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z]/g, "")
+    .slice(0, 3);
+  return currency || "THB";
 }
 
 /** Net of every line (products + negative promotions). */

@@ -119,7 +119,7 @@ describe("normalizeExtractedBill", () => {
     assert.equal(missing.currency, "THB");
 
     const empty = normalizeExtractedBill({
-      currency: "  ",
+      currency: "",
       items: [{ name: "Rice Salad", price: 70, quantity: 1 }],
       tax: 0,
       serviceCharge: 0,
@@ -132,39 +132,9 @@ describe("normalizeExtractedBill", () => {
     assert.equal(empty.currency, "THB");
   });
 
-  it("treats model USD as unknown and maps it to THB", () => {
-    // Bare-amount receipts have no currency symbol; models still emit USD.
-    const bare = normalizeExtractedBill({
+  it("keeps an explicit USD when the model extracted one", () => {
+    const us = normalizeExtractedBill({
       currency: "USD",
-      items: [{ name: "Rice Salad", price: 70, quantity: 1 }],
-      tax: 0,
-      serviceCharge: 0,
-      rounding: 0,
-      discount: 0,
-      subtotal: 70,
-      total: 70,
-      taxInclusive: false,
-    });
-    assert.equal(bare.currency, "THB");
-
-    const myanmar = normalizeExtractedBill({
-      currency: "USD",
-      items: [
-        { name: "ထမင်းသုပ်", nameTranslated: "Rice Salad", price: 70, quantity: 1 },
-      ],
-      tax: 0,
-      serviceCharge: 0,
-      rounding: 0,
-      discount: 0,
-      subtotal: 70,
-      total: 70,
-      taxInclusive: false,
-    });
-    assert.equal(myanmar.currency, "THB");
-
-    // Explicit non-USD codes are kept (EUR requires a clear symbol).
-    const eur = normalizeExtractedBill({
-      currency: "EUR",
       items: [{ name: "Latte", price: 4.5, quantity: 1 }],
       tax: 0.4,
       serviceCharge: 0,
@@ -174,7 +144,7 @@ describe("normalizeExtractedBill", () => {
       total: 4.9,
       taxInclusive: false,
     });
-    assert.equal(eur.currency, "EUR");
+    assert.equal(us.currency, "USD");
   });
 
   it("filters junk rows, rounds money, uppercases currency", () => {
