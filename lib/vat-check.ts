@@ -20,6 +20,13 @@ export const SG_GST_RATES = [0.09, 0.08] as const;
  */
 export const VAT_MATCH_TOLERANCE = 0.01;
 
+/**
+ * Soft VAT warnings are only for near-miss printer/rounding noise. A charge
+ * that is many baht off the statutory rate is probably not VAT at all
+ * (service, mis-read total, invented gap-fill) — don't claim a 7% mismatch.
+ */
+export const VAT_SOFT_WARN_MAX_DELTA = 1;
+
 export type VatConsistencyResult = {
   ok: boolean;
   /** Skipped when currency/rate is not applicable or no printed tax. */
@@ -124,6 +131,18 @@ export function checkVatConsistency(
     };
   }
 
+  // Far from the statutory rate — not soft printer noise. Skip rather than
+  // warn about "expected 7% VAT" on a charge that likely isn't VAT.
+  if (best.delta > VAT_SOFT_WARN_MAX_DELTA) {
+    return {
+      ok: true,
+      skipped: true,
+      expectedVat: best.expectedVat,
+      printedVat,
+      messages: [],
+    };
+  }
+
   const pct = Math.round(best.rate * 100);
   const mode = bill.taxInclusive ? "inclusive" : "exclusive";
   const messages = [
@@ -137,4 +156,39 @@ export function checkVatConsistency(
     printedVat,
     messages,
   };
+}
+
+/**
+ * True when `amount` is within VAT_SOFT_WARN_MAX_DELTA of a known statutory
+ * VAT/GST for this currency. Checks both exclusive (net+service)×rate and
+ * inclusive base×rate/(1+rate). Used by reconcile to avoid labelling
+ * unexplained gaps as "tax" on THB receipts with no VAT line, while still
+ * treating real ABB/ADD-GST breakdown amounts as plausible tax.
+ */
+export function looksLikeStatutoryVat(
+  amount: number,
+  net: number,
+  serviceCharge: number,
+  currency: string,
+  inclusiveBase?: number
+): boolean {
+  if (amount <= MONEY_TOLERANCE) return false;
+  const rates = ratesForCurrency(currency);
+  if (rates == null || rates.length === 0) return false;
+  const exclusiveBase = net + serviceCharge;
+  const inclBase =
+    inclusiveBase != null && Number.isFinite(inclusiveBase)
+      ? inclusiveBase
+      : exclusiveBase;
+  for (const rate of rates) {
+    const exclusiveExpected = round2(exclusiveBase * rate);
+    if (Math.abs(exclusiveExpected - amount) <= VAT_SOFT_WARN_MAX_DELTA) {
+      return true;
+    }
+    const inclusiveExpected = round2((inclBase * rate) / (1 + rate));
+    if (Math.abs(inclusiveExpected - amount) <= VAT_SOFT_WARN_MAX_DELTA) {
+      return true;
+    }
+  }
+  return false;
 }

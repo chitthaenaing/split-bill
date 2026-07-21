@@ -14,6 +14,10 @@ export type ExtractionWarningProps = {
   onDismiss: () => void;
 };
 
+function isVatSoftWarning(w: string): boolean {
+  return /printed vat .+ differs from expected/i.test(w);
+}
+
 export function ExtractionWarning({
   warnings,
   currency,
@@ -25,6 +29,8 @@ export function ExtractionWarning({
   if (!warnings.length) return null;
 
   const computedItems = itemsTotal(items);
+  const onlyVatSoft = warnings.every(isVatSoftWarning);
+  const title = onlyVatSoft ? "VAT looks off" : "Totals don't match";
 
   return (
     <div
@@ -34,7 +40,7 @@ export function ExtractionWarning({
       <div className="flex items-start gap-3">
         <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
         <div className="flex-1 min-w-0 space-y-1.5">
-          <p className="font-medium">Totals don&apos;t match</p>
+          <p className="font-medium">{title}</p>
           <ul className="text-xs space-y-1 text-amber-900/80 dark:text-amber-100/80 list-disc pl-4">
             {warnings.map((w) => (
               <li key={w}>{w}</li>

@@ -1,4 +1,5 @@
 import type { ExtractedBill } from "@/types/bill";
+import { looksLikeStatutoryVat } from "@/lib/vat-check";
 
 /** Absolute tolerance for money reconciliation (covers float + 1-cent OCR noise). */
 export const MONEY_TOLERANCE = 0.05;
@@ -474,18 +475,43 @@ export function reconcileBill(bill: NormalizedBill): NormalizedBill {
       });
     }
 
-    candidates.push({
-      ...bill,
-      taxInclusive: false,
-      tax: exclusiveGap,
-      serviceCharge: 0,
-    });
-    candidates.push({
-      ...bill,
-      taxInclusive: false,
-      tax: 0,
-      serviceCharge: exclusiveGap,
-    });
+    // Prefer serviceCharge for unexplained gaps that are not ~statutory VAT
+    // (common on Thai/SEA POS receipts with bare totals and no tax line).
+    // Inventing tax=gap then trips the THB 7% soft check with a confusing warning.
+    const gapIsVat = looksLikeStatutoryVat(
+      exclusiveGap,
+      net,
+      bill.serviceCharge,
+      currency,
+      bill.total
+    );
+    if (gapIsVat) {
+      candidates.push({
+        ...bill,
+        taxInclusive: false,
+        tax: exclusiveGap,
+        serviceCharge: 0,
+      });
+      candidates.push({
+        ...bill,
+        taxInclusive: false,
+        tax: 0,
+        serviceCharge: exclusiveGap,
+      });
+    } else {
+      candidates.push({
+        ...bill,
+        taxInclusive: false,
+        tax: 0,
+        serviceCharge: exclusiveGap,
+      });
+      candidates.push({
+        ...bill,
+        taxInclusive: false,
+        tax: exclusiveGap,
+        serviceCharge: 0,
+      });
+    }
     candidates.push({
       ...bill,
       taxInclusive: true,
@@ -502,10 +528,27 @@ export function reconcileBill(bill: NormalizedBill): NormalizedBill {
         !bill.items.some((it) => it.price < 0)
         ? 0
         : 1,
+      // Prefer not labelling a non-VAT gap as tax (HTOO's Curry-style).
+      // Inclusive ABB/ADD-GST amounts still count as plausible via the
+      // inclusive statutory check (pass bill.total as the inclusive base).
+      taxPlausible:
+        c.tax <= MONEY_TOLERANCE ||
+        looksLikeStatutoryVat(
+          c.tax,
+          net,
+          c.serviceCharge,
+          currency,
+          c.total
+        )
+          ? 0
+          : 1,
     }))
     .filter((x) => x.check.ok)
     .sort((a, b) => {
       if (a.addedMinus !== b.addedMinus) return a.addedMinus - b.addedMinus;
+      if (a.taxPlausible !== b.taxPlausible) {
+        return a.taxPlausible - b.taxPlausible;
+      }
       const gapPositive = bill.total > net + MONEY_TOLERANCE;
       if (gapPositive && a.c.taxInclusive !== b.c.taxInclusive) {
         return Number(a.c.taxInclusive) - Number(b.c.taxInclusive);

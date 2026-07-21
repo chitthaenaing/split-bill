@@ -78,6 +78,31 @@ describe("checkVatConsistency", () => {
     assert.equal(vat.ok, true);
   });
 
+  it("skips far mismatches that are not soft printer noise (HTOO-style)", () => {
+    // Gap-filled "tax" of 100 on a 306 subtotal is nowhere near 7% (21.42).
+    // Build the bill without reconcile so tax stays at 100 for this unit test.
+    const vat = checkVatConsistency({
+      currency: "THB",
+      items: [
+        { name: "Rice Salad", price: 79, quantity: 1 },
+        { name: "Burmese Tomato Shrimp", price: 79, quantity: 1 },
+        { name: "Dried Mutton Salad", price: 59, quantity: 1 },
+        { name: "Garlic Oil Vermicelli", price: 89, quantity: 1 },
+      ],
+      tax: 100,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 306,
+      total: 406,
+      taxInclusive: false,
+      printedItemUnits: 0,
+    });
+    assert.equal(vat.ok, true);
+    assert.equal(vat.skipped, true);
+    assert.equal(vat.messages.length, 0);
+  });
+
   it("passes inclusive SGD GST at 8% on Total Amount before rounding", () => {
     const bill = normalizeExtractedBill({
       currency: "SGD",
@@ -166,5 +191,30 @@ describe("finalizeExtraction", () => {
       result.warnings[0] ?? "",
       /Printed VAT 51\.91 differs from expected 7% inclusive VAT 51\.88/
     );
+  });
+
+  it("does not warn about 7% VAT when a non-VAT gap was filled (HTOO's Curry)", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "Rice Salad", price: 79, quantity: 1 },
+        { name: "Burmese Tomato Shrimp", price: 79, quantity: 1 },
+        { name: "Dried Mutton Salad", price: 59, quantity: 1 },
+        { name: "Garlic Oil Vermicelli", price: 89, quantity: 1 },
+      ],
+      tax: 0,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 306,
+      total: 406,
+      taxInclusive: false,
+    });
+
+    const result = finalizeExtraction(bill);
+    assert.equal(result.reconciled, true);
+    assert.equal(result.bill.tax, 0);
+    assert.equal(result.bill.serviceCharge, 100);
+    assert.equal(result.warnings.length, 0);
   });
 });
