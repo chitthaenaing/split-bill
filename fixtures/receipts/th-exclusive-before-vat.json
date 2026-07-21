@@ -1,11 +1,11 @@
 {
-  "id": "th-kimono-exclusive-before-vat",
-  "description": "Thai F&B tax-exclusive: Sub-total → Service 10% → Before VAT → VAT 7% → Rounding → Total (Kimono-style).",
+  "id": "th-exclusive-before-vat",
+  "description": "Thai F&B tax-exclusive: Sub-total → Service → Before VAT → VAT 7% → Rounding → Total.",
   "raw": {
     "currency": "THB",
     "items": [
-      { "name": "Beef Don", "price": 500, "quantity": 1 },
-      { "name": "Salmon Sashimi", "price": 527, "quantity": 1 }
+      { "name": "Item A", "price": 500, "quantity": 1 },
+      { "name": "Item B", "price": 527, "quantity": 1 }
     ],
     "tax": 79.08,
     "serviceCharge": 102.7,

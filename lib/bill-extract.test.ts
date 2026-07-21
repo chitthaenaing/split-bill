@@ -55,8 +55,8 @@ describe("Thai Before VAT exclusive receipts", () => {
     const bill = normalizeExtractedBill({
       currency: "THB",
       items: [
-        { name: "Beef Don", price: 500, quantity: 1 },
-        { name: "Salmon Sashimi", price: 527, quantity: 1 },
+        { name: "Item A", price: 500, quantity: 1 },
+        { name: "Item B", price: 527, quantity: 1 },
         { name: "Before VAT", price: 1129.7, quantity: 1 },
         { name: "Service Charge (10%)", price: 102.7, quantity: 1 },
         { name: "VAT (7%)", price: 79.08, quantity: 1 },
@@ -81,8 +81,8 @@ describe("Thai Before VAT exclusive receipts", () => {
     const bill = normalizeExtractedBill({
       currency: "THB",
       items: [
-        { name: "Beef Don", price: 500, quantity: 1 },
-        { name: "Salmon Sashimi", price: 527, quantity: 1 },
+        { name: "Item A", price: 500, quantity: 1 },
+        { name: "Item B", price: 527, quantity: 1 },
       ],
       tax: 79.08,
       serviceCharge: 102.7,
@@ -90,7 +90,7 @@ describe("Thai Before VAT exclusive receipts", () => {
       discount: 0,
       subtotal: 1027,
       total: 1209,
-      // Model often marks Japanese restaurants inclusive even in Thailand.
+      // Model sometimes marks cuisine brands as inclusive even when VAT is added.
       taxInclusive: true,
     });
     assert.equal(bill.taxInclusive, false);

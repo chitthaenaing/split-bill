@@ -70,7 +70,7 @@ What goes in each field:
 
 Accuracy guidance:
 - Locale decimals: "1.234,56" means 1234.56 in many EU receipts; "1,027.00" / "1,234.56" means 1027.00 / 1234.56 in TH/US/UK (comma thousands). Always emit a JSON number (1027 or 1234.56), never a string — strip thousands separators.
-- Thai / Southeast Asian / Burmese receipts often use \u0e3f / THB with VAT 7% and service 5% or 10%. Extract the printed AMOUNTS; do not invent charges. Classic Thai F&B tax-EXCLUSIVE layout (Kimono / FoodStory / many Bangkok restaurants):
+- Thai / Southeast Asian / Burmese receipts often use \u0e3f / THB with VAT 7% and service 5% or 10%. Extract the printed AMOUNTS; do not invent charges. Classic Thai F&B tax-EXCLUSIVE layout (FoodStory / many Bangkok restaurants):
     Sub-total (items only)
     Service Charge (5% or 10%)   → serviceCharge
     Before VAT                   → intermediate total ONLY — skip; not an item, not tax
