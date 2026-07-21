@@ -23,6 +23,10 @@ describe("isJunkItemName", () => {
     assert.equal(isJunkItemName("Tax"), true);
     assert.equal(isJunkItemName("ADD GST"), true);
     assert.equal(isJunkItemName("Service Charge"), true);
+    assert.equal(isJunkItemName("Service Charge (10%)"), true);
+    assert.equal(isJunkItemName("VAT (7%)"), true);
+    assert.equal(isJunkItemName("Before VAT"), true);
+    assert.equal(isJunkItemName("Before Tax"), true);
     assert.equal(isJunkItemName("Visa"), true);
     assert.equal(isJunkItemName("Rounding"), true);
     assert.equal(isJunkItemName("Round Amount"), true);
@@ -131,6 +135,57 @@ describe("additionalCharges", () => {
     assert.equal(split.additionalShares[0].share, 20);
     assert.equal(split.additionalShares[1].share, 5);
     assert.equal(split.total, 145);
+  });
+});
+
+describe("Thai Before VAT exclusive receipts", () => {
+  it("drops Before VAT / Service Charge (10%) / VAT (7%) rows leaked into items", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "Item A", price: 500, quantity: 1 },
+        { name: "Item B", price: 527, quantity: 1 },
+        { name: "Before VAT", price: 1129.7, quantity: 1 },
+        { name: "Service Charge (10%)", price: 102.7, quantity: 1 },
+        { name: "VAT (7%)", price: 79.08, quantity: 1 },
+      ],
+      tax: 79.08,
+      serviceCharge: 102.7,
+      rounding: 0.22,
+      discount: 0,
+      subtotal: 1027,
+      total: 1209,
+      taxInclusive: false,
+    });
+    assert.equal(bill.items.length, 2);
+    assert.equal(bill.taxInclusive, false);
+    assert.equal(bill.tax, 79.08);
+    assert.equal(bill.serviceCharge, 102.7);
+    assert.equal(bill.rounding, 0.22);
+    assert.equal(checkBillMath(bill).ok, true);
+  });
+
+  it("flips a mis-labelled inclusive extract on Thai Before-VAT receipts", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "Item A", price: 500, quantity: 1 },
+        { name: "Item B", price: 527, quantity: 1 },
+      ],
+      tax: 79.08,
+      serviceCharge: 102.7,
+      rounding: 0.22,
+      discount: 0,
+      subtotal: 1027,
+      total: 1209,
+      // Model sometimes marks cuisine brands as inclusive even when VAT is added.
+      taxInclusive: true,
+    });
+    assert.equal(bill.taxInclusive, false);
+    const extracted = toExtractedBill(bill);
+    assert.equal(extracted.tax, 79.08);
+    assert.equal(extracted.serviceCharge, 102.7);
+    assert.equal(extracted.total, 1209);
   });
 });
 

@@ -119,6 +119,7 @@ function assertPromptContract(calls: CapturedCall[]): string[] {
     "do NOT guess USD",
     "additionalCharges",
     "Daily Special",
+    "Before VAT",
   ]) {
     if (!EXTRACTION_SYSTEM_PROMPT.includes(needle)) {
       failures.push(`system prompt missing "${needle}"`);

@@ -5,7 +5,7 @@ import { looksLikeStatutoryVat } from "@/lib/vat-check";
 export const MONEY_TOLERANCE = 0.05;
 
 const JUNK_ITEM_NAME =
-  /^(sub\s*total|total(\s*amount)?|grand\s*total|amount\s*due|balance\s*due|change|cash|card|visa|mastercard|amex|payment(\s*amount)?|paid|thank\s*you|server|table|guest|check\s*#?|chk\s*#?|order\s*#?|tax|vat|gst|add\s*gst|service(\s*charge)?|gratuity|tip|rounding|round\s*(up|down|amount)|cash\s*round|total\s*savings)$/i;
+  /^(sub[\s-]*total|total(\s*amount)?|grand\s*total|amount\s*due|balance\s*due|before\s*(vat|tax|gst)|after\s*(vat|tax|gst)|change|cash|card|visa|mastercard|amex|payment(\s*amount)?|paid|thank\s*you|server|table|guest|check\s*#?|chk\s*#?|order\s*#?|tax|vat(\s*\(?\s*\d+\s*%\s*\)?)?|gst(\s*\(?\s*\d+\s*%\s*\)?)?|add\s*gst|service(\s*charge)?(\s*\(?\s*\d+\s*%\s*\)?)?|gratuity|tip|rounding|round\s*(up|down|amount)|cash\s*round|total\s*savings|items?:?\s*\d+)$/i;
 
 /**
  * Fee lines that belong in `additionalCharges`, not as pickable items.

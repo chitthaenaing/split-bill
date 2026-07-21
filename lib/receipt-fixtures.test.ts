@@ -112,6 +112,7 @@ describe("receipt fixture scoreboard", () => {
       "th-promo-minus-line",
       "th-delivery-packaging-fees",
       "th-shwe-daily-special-between-salads",
+      "th-exclusive-before-vat",
       "us-tax-exclusive",
       "eu-tax-inclusive",
       "sg-gst-inclusive-bak-kwa",
