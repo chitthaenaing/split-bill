@@ -127,29 +127,14 @@ export function likelyNeedsTranslation(name: string): boolean {
 }
 
 /**
- * True when receipt text points at Thailand / Burmese-in-Thailand locale.
- * Used to override a model that still emits USD on bare-amount SEA receipts.
+ * Resolve ISO currency from the model. Empty/missing → THB.
+ *
+ * Models emit USD when no currency symbol is printed (their training prior),
+ * which is exactly the HTOO's Curry / bare-amount SEA case. Treat USD as
+ * "unknown" and use THB. Other codes (EUR, GBP, SGD, …) are kept — those
+ * require a clear symbol the model rarely invents.
  */
-export function suggestsThailandLocale(text: string): boolean {
-  if (!text) return false;
-  try {
-    if (/\p{Script=Mymr}|\p{Script=Thai}/u.test(text)) return true;
-  } catch {
-    // fall through to Latin cues
-  }
-  return /\b(burmese|myanmar|baht|thb|pad\s*thai|tom\s*yum|som\s*tum|mango\s*sticky|tax\s*invoice|abb)\b/i.test(
-    text
-  );
-}
-
-/**
- * Resolve ISO currency from the model, defaulting to THB and correcting a
- * common miss: USD on Thai/SEA receipts that print bare amounts (no $).
- */
-export function resolveBillCurrency(
-  rawCurrency: unknown,
-  localeText: string
-): string {
+export function resolveBillCurrency(rawCurrency: unknown): string {
   const currency =
     String(rawCurrency || "THB")
       .trim()
@@ -157,11 +142,7 @@ export function resolveBillCurrency(
       .replace(/[^A-Z]/g, "")
       .slice(0, 3) || "THB";
 
-  // Models often emit USD when no symbol is printed. If the receipt clearly
-  // looks Thai/Burmese, prefer THB over that weak USD guess.
-  if (currency === "USD" && suggestsThailandLocale(localeText)) {
-    return "THB";
-  }
+  if (currency === "USD") return "THB";
   return currency;
 }
 
@@ -216,10 +197,7 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
   };
 
   const rawItems = Array.isArray(parsed.items) ? parsed.items : [];
-  const localeText = rawItems
-    .map((it) => `${it?.name ?? ""} ${it?.nameTranslated ?? ""}`)
-    .join("\n");
-  const currency = resolveBillCurrency(parsed.currency, localeText);
+  const currency = resolveBillCurrency(parsed.currency);
 
   const items: Array<{
     name: string;

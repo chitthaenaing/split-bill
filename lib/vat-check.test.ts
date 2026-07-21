@@ -63,7 +63,7 @@ describe("checkVatConsistency", () => {
 
   it("skips currencies without a known locale rate", () => {
     const bill = normalizeExtractedBill({
-      currency: "USD",
+      currency: "EUR",
       items: [{ name: "Soup", price: 8, quantity: 1 }],
       tax: 0.7,
       serviceCharge: 0,
