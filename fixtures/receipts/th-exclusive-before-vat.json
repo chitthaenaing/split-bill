@@ -1,0 +1,28 @@
+{
+  "id": "th-exclusive-before-vat",
+  "description": "Thai F&B tax-exclusive: Sub-total → Service → Before VAT → VAT 7% → Rounding → Total.",
+  "raw": {
+    "currency": "THB",
+    "items": [
+      { "name": "Item A", "price": 500, "quantity": 1 },
+      { "name": "Item B", "price": 527, "quantity": 1 }
+    ],
+    "tax": 79.08,
+    "serviceCharge": 102.7,
+    "rounding": 0.22,
+    "discount": 0,
+    "subtotal": 1027,
+    "total": 1209,
+    "taxInclusive": false,
+    "printedItemUnits": 2
+  },
+  "expect": {
+    "taxInclusive": false,
+    "taxForUi": 79.08,
+    "total": 1209,
+    "itemCount": 2,
+    "noNegativeItems": true,
+    "reconciled": true,
+    "vatConsistency": "ok"
+  }
+}

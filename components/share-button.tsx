@@ -37,6 +37,7 @@ export function ShareButton() {
   const tax = useBillStore((s) => s.tax);
   const serviceCharge = useBillStore((s) => s.serviceCharge);
   const rounding = useBillStore((s) => s.rounding);
+  const additionalCharges = useBillStore((s) => s.additionalCharges);
   const receiptDataUrl = useBillStore((s) => s.receiptDataUrl);
   const bankingQrDataUrl = useBillStore((s) => s.bankingQrDataUrl);
 
@@ -76,6 +77,10 @@ export function ShareButton() {
     setOwnerToken(null);
     try {
       const subtotal = itemsTotal(items);
+      const extras = additionalCharges.reduce(
+        (s, c) => s + Math.max(0, c.amount || 0),
+        0
+      );
       const bill = {
         currency,
         items: items.map((it) => ({
@@ -87,9 +92,10 @@ export function ShareButton() {
         tax,
         serviceCharge,
         rounding,
+        additionalCharges,
         discount: 0,
         subtotal,
-        total: subtotal + tax + serviceCharge + rounding,
+        total: subtotal + tax + serviceCharge + extras + rounding,
       };
 
       // Compress like /api/extract so share uploads stay under the serverless
@@ -161,6 +167,7 @@ export function ShareButton() {
     tax,
     serviceCharge,
     rounding,
+    additionalCharges,
     receiptDataUrl,
     bankingQrDataUrl,
     user,

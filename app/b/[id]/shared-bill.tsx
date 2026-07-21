@@ -287,6 +287,10 @@ export function SharedBill({ data }: { data: StoredBill }) {
             data.items.reduce((sum, it) => sum + (Number(it.price) || 0), 0) +
             (Number(data.tax) || 0) +
             (Number(data.serviceCharge) || 0) +
+            (data.additionalCharges ?? []).reduce(
+              (sum, c) => sum + Math.max(0, Number(c.amount) || 0),
+              0
+            ) +
             (Number(data.rounding) || 0) -
             (Number(data.discount) || 0),
           itemCount: data.items.length,
@@ -340,6 +344,7 @@ export function SharedBill({ data }: { data: StoredBill }) {
                 tax={data.tax}
                 serviceCharge={data.serviceCharge}
                 rounding={data.rounding}
+                additionalCharges={data.additionalCharges}
                 editable={false}
               />
               {data.bankingQrUrl ? (
@@ -363,6 +368,7 @@ export function SharedBill({ data }: { data: StoredBill }) {
                   serviceCharge: data.serviceCharge,
                   rounding: data.rounding,
                   discount: data.discount,
+                  additionalCharges: data.additionalCharges,
                 }}
                 receipts={data.paymentReceipts ?? []}
               />

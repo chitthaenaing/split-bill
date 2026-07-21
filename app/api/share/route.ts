@@ -42,6 +42,15 @@ function sanitizeBill(bill: ExtractedBill): ExtractedBill | null {
     tax: Math.max(0, Number(bill.tax) || 0),
     serviceCharge: Math.max(0, Number(bill.serviceCharge) || 0),
     rounding: Number(bill.rounding) || 0,
+    additionalCharges: Array.isArray(bill.additionalCharges)
+      ? bill.additionalCharges
+          .map((c) => ({
+            name: String(c?.name ?? "").trim().slice(0, 80) || "Other charge",
+            amount: Math.max(0, Number(c?.amount) || 0),
+          }))
+          .filter((c) => c.amount > 0)
+          .slice(0, 40)
+      : [],
     discount: Math.max(0, Number(bill.discount) || 0),
     subtotal: Number(bill.subtotal) || 0,
     total: Number(bill.total) || 0,

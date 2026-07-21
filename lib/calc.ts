@@ -1,4 +1,8 @@
-import type { BillItem, SplitBreakdown } from "@/types/bill";
+import type {
+  AdditionalCharge,
+  BillItem,
+  SplitBreakdown,
+} from "@/types/bill";
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -42,17 +46,18 @@ export function positiveItemsTotal(items: BillItem[]): number {
 
 /**
  * Compute what the user owes for the selected items, including their
- * proportional share of tax, service charge and any receipt rounding.
+ * proportional share of tax, service charge, additional fees, and rounding.
  *
- * Tax/service are split from the share of *positive* product lines selected.
- * Minus promotion lines reduce the items subtotal when selected, and are
- * not applied again on the total.
+ * Tax/service/extra fees are split from the share of *positive* product lines
+ * selected. Minus promotion lines reduce the items subtotal when selected,
+ * and are not applied again on the total.
  */
 export function computeSplit(
   items: BillItem[],
   tax: number,
   serviceCharge: number,
-  rounding: number
+  rounding: number,
+  additionalCharges: AdditionalCharge[] = []
 ): SplitBreakdown {
   const positiveTotal = positiveItemsTotal(items);
   const selectedSubtotal = items.reduce((s, it) => s + itemShare(it), 0);
@@ -73,10 +78,24 @@ export function computeSplit(
   const taxShare = round2(safeTax * ratio);
   const serviceShare = round2(safeSvc * ratio);
   const roundingShare = round2(safeRnd * ratio);
+  const additionalShares = (additionalCharges ?? [])
+    .map((c) => {
+      const billAmount = Math.max(0, c.amount || 0);
+      if (billAmount <= 0) return null;
+      const name = (c.name || "Other charge").trim().slice(0, 80) || "Other charge";
+      return {
+        name,
+        billAmount: round2(billAmount),
+        share: round2(billAmount * ratio),
+      };
+    })
+    .filter((c): c is NonNullable<typeof c> => c != null);
+
+  const additionalShareTotal = additionalShares.reduce((s, c) => s + c.share, 0);
 
   const subtotalRounded = round2(selectedSubtotal);
   const total = round2(
-    subtotalRounded + taxShare + serviceShare + roundingShare
+    subtotalRounded + taxShare + serviceShare + additionalShareTotal + roundingShare
   );
 
   return {
@@ -85,6 +104,7 @@ export function computeSplit(
     taxShare,
     serviceShare,
     roundingShare,
+    additionalShares,
     total,
     itemsTotal: round2(itemsTotal(items)),
     ratio,

@@ -5,6 +5,7 @@ import {
   cleanItemName,
   cleanTranslatedName,
   formatCheckForRepair,
+  impliedSubtotalHints,
   isJunkItemName,
   liftLeadingQuantity,
   likelyNeedsTranslation,
@@ -22,6 +23,10 @@ describe("isJunkItemName", () => {
     assert.equal(isJunkItemName("Tax"), true);
     assert.equal(isJunkItemName("ADD GST"), true);
     assert.equal(isJunkItemName("Service Charge"), true);
+    assert.equal(isJunkItemName("Service Charge (10%)"), true);
+    assert.equal(isJunkItemName("VAT (7%)"), true);
+    assert.equal(isJunkItemName("Before VAT"), true);
+    assert.equal(isJunkItemName("Before Tax"), true);
     assert.equal(isJunkItemName("Visa"), true);
     assert.equal(isJunkItemName("Rounding"), true);
     assert.equal(isJunkItemName("Round Amount"), true);
@@ -43,6 +48,144 @@ describe("isJunkItemName", () => {
     assert.equal(isJunkItemName("မုန့်ဟင်းခါး"), false);
     assert.equal(isJunkItemName("ข้าวซอย"), false);
     assert.equal(isJunkItemName("မုန့်ဟင်းခါး / ขนมจีนน้ำยา"), false);
+  });
+});
+
+describe("additionalCharges", () => {
+  it("extracts labeled delivery and packaging fees and keeps them out of items", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "Pad Thai", price: 120, quantity: 1 },
+        { name: "Green Curry", price: 140, quantity: 1 },
+      ],
+      tax: 0,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      additionalCharges: [
+        { name: "Delivery Fee", amount: 40 },
+        { name: "Packaging", amount: 10 },
+      ],
+      subtotal: 260,
+      total: 310,
+      taxInclusive: true,
+    });
+    assert.equal(bill.items.length, 2);
+    assert.deepEqual(bill.additionalCharges, [
+      { name: "Delivery Fee", amount: 40 },
+      { name: "Packaging", amount: 10 },
+    ]);
+    assert.equal(checkBillMath(bill).ok, true);
+    const extracted = toExtractedBill(bill);
+    assert.deepEqual(extracted.additionalCharges, bill.additionalCharges);
+  });
+
+  it("salvages delivery/packaging rows misplaced into items", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "Pad Thai", price: 120, quantity: 1 },
+        { name: "Delivery Fee", price: 40, quantity: 1 },
+        { name: "Packaging", price: 10, quantity: 1 },
+      ],
+      tax: 0,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      additionalCharges: [],
+      subtotal: 120,
+      total: 170,
+      taxInclusive: true,
+    });
+    assert.equal(bill.items.length, 1);
+    assert.equal(bill.items[0].name, "Pad Thai");
+    assert.deepEqual(bill.additionalCharges, [
+      { name: "Delivery Fee", amount: 40 },
+      { name: "Packaging", amount: 10 },
+    ]);
+    assert.equal(checkBillMath(bill).ok, true);
+  });
+
+  it("splits additional charges proportionally with the selected items", () => {
+    const items = [
+      {
+        id: "a",
+        name: "Pad Thai",
+        price: 120,
+        quantity: 1,
+        selectedQuantity: 1,
+        splitCount: 1,
+      },
+      {
+        id: "b",
+        name: "Green Curry",
+        price: 120,
+        quantity: 1,
+        selectedQuantity: 0,
+        splitCount: 1,
+      },
+    ];
+    const split = computeSplit(items, 0, 0, 0, [
+      { name: "Delivery Fee", amount: 40 },
+      { name: "Packaging", amount: 10 },
+    ]);
+    assert.equal(split.ratio, 0.5);
+    assert.equal(split.additionalShares.length, 2);
+    assert.equal(split.additionalShares[0].share, 20);
+    assert.equal(split.additionalShares[1].share, 5);
+    assert.equal(split.total, 145);
+  });
+});
+
+describe("Thai Before VAT exclusive receipts", () => {
+  it("drops Before VAT / Service Charge (10%) / VAT (7%) rows leaked into items", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "Item A", price: 500, quantity: 1 },
+        { name: "Item B", price: 527, quantity: 1 },
+        { name: "Before VAT", price: 1129.7, quantity: 1 },
+        { name: "Service Charge (10%)", price: 102.7, quantity: 1 },
+        { name: "VAT (7%)", price: 79.08, quantity: 1 },
+      ],
+      tax: 79.08,
+      serviceCharge: 102.7,
+      rounding: 0.22,
+      discount: 0,
+      subtotal: 1027,
+      total: 1209,
+      taxInclusive: false,
+    });
+    assert.equal(bill.items.length, 2);
+    assert.equal(bill.taxInclusive, false);
+    assert.equal(bill.tax, 79.08);
+    assert.equal(bill.serviceCharge, 102.7);
+    assert.equal(bill.rounding, 0.22);
+    assert.equal(checkBillMath(bill).ok, true);
+  });
+
+  it("flips a mis-labelled inclusive extract on Thai Before-VAT receipts", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "Item A", price: 500, quantity: 1 },
+        { name: "Item B", price: 527, quantity: 1 },
+      ],
+      tax: 79.08,
+      serviceCharge: 102.7,
+      rounding: 0.22,
+      discount: 0,
+      subtotal: 1027,
+      total: 1209,
+      // Model sometimes marks cuisine brands as inclusive even when VAT is added.
+      taxInclusive: true,
+    });
+    assert.equal(bill.taxInclusive, false);
+    const extracted = toExtractedBill(bill);
+    assert.equal(extracted.tax, 79.08);
+    assert.equal(extracted.serviceCharge, 102.7);
+    assert.equal(extracted.total, 1209);
   });
 });
 
@@ -360,6 +503,41 @@ describe("formatCheckForRepair", () => {
     assert.match(prompt, /Burmese Hot Tea|drinks\/tea|distinct price/i);
     assert.match(prompt, /Unreadable item/);
   });
+
+  it("hints when service % implies a larger items subtotal (missed Daily Special)", () => {
+    // Salad qty stolen; Daily Special 396 dropped → items 739 vs subtotal 1225.
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "Pone Hman", price: 100, quantity: 2 },
+        { name: "STHN NHAT Coffee", price: 70, quantity: 1 },
+        { name: "SI Lone Tea", price: 80, quantity: 1 },
+        { name: "Kya Saint", price: 50, quantity: 1 },
+        { name: "Tea Leaf Rice Salad with Fried Egg", price: 90, quantity: 4 },
+        { name: "Beef Curry with Rice", price: 149, quantity: 1 },
+        { name: "Mote Hin Gar", price: 90, quantity: 1 },
+        { name: "Rakhine Rice Noodle with Soup", price: 90, quantity: 1 },
+        { name: "Rice", price: 20, quantity: 1 },
+      ],
+      tax: 90.04,
+      serviceCharge: 61.25,
+      rounding: -0.29,
+      discount: 0,
+      subtotal: 1225,
+      total: 1376,
+      taxInclusive: false,
+      printedItemUnits: 15,
+    });
+    const check = checkBillMath(bill);
+    assert.equal(check.ok, false);
+    assert.ok(check.itemsDelta > 400);
+    const hints = impliedSubtotalHints(bill);
+    assert.match(hints.join("\n"), /5% of ~1225/);
+    assert.match(hints.join("\n"), /Daily Special/);
+    const prompt = formatCheckForRepair(bill, check);
+    assert.match(prompt, /Daily Special/);
+    assert.match(prompt, /do not move a quantity digit/i);
+  });
 });
 
 describe("checkBillMath", () => {
@@ -421,9 +599,11 @@ describe("reconcileBill", () => {
       serviceCharge: 39.95,
       rounding: 0.32,
       discount: 0,
+      additionalCharges: [],
       subtotal: 849,
       total: 898,
       taxInclusive: false,
+      printedItemUnits: 0,
     });
 
     assert.equal(checkBillMath(fixed).ok, true);

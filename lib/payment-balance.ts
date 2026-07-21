@@ -6,20 +6,30 @@ function round2(n: number): number {
 
 /**
  * Grand total / amount due for a shared bill: items (incl. minus promos) +
- * tax + service + rounding − any bill-level discount.
+ * tax + service + additional fees + rounding − any bill-level discount.
  */
 export function billAmountDue(
   bill: Pick<
     StoredBill,
-    "items" | "tax" | "serviceCharge" | "rounding" | "discount"
+    | "items"
+    | "tax"
+    | "serviceCharge"
+    | "rounding"
+    | "discount"
+    | "additionalCharges"
   >
 ): number {
   const items = bill.items.reduce((s, it) => s + (it.price || 0), 0);
   const discount = Math.max(0, bill.discount || 0);
+  const extras = (bill.additionalCharges ?? []).reduce(
+    (s, c) => s + Math.max(0, c.amount || 0),
+    0
+  );
   return round2(
     items +
       Math.max(0, bill.tax || 0) +
       Math.max(0, bill.serviceCharge || 0) +
+      extras +
       (bill.rounding || 0) -
       discount
   );
@@ -83,7 +93,12 @@ export type PaymentBalance = {
 export function computePaymentBalance(
   bill: Pick<
     StoredBill,
-    "items" | "tax" | "serviceCharge" | "rounding" | "discount"
+    | "items"
+    | "tax"
+    | "serviceCharge"
+    | "rounding"
+    | "discount"
+    | "additionalCharges"
   >,
   receipts: readonly StoredPaymentReceipt[]
 ): PaymentBalance {

@@ -1,0 +1,37 @@
+{
+  "id": "th-shwe-daily-special-between-salads",
+  "description": "Shwe Tea House: Daily Special qty 4 between two Tea Leaf Salad rows; service 5% implies subtotal 1225.",
+  "raw": {
+    "currency": "THB",
+    "items": [
+      { "name": "Pone Hman", "price": 100, "quantity": 2 },
+      { "name": "STHN NHAT Coffee", "price": 70, "quantity": 1 },
+      { "name": "SI Lone Tea", "price": 80, "quantity": 1 },
+      { "name": "Kya Saint", "price": 50, "quantity": 1 },
+      { "name": "Tea Leaf Rice Salad with Fried Egg", "price": 90, "quantity": 1 },
+      { "name": "Daily Special", "price": 396, "quantity": 4 },
+      { "name": "Tea Leaf Rice Salad with Fried Egg", "price": 90, "quantity": 1 },
+      { "name": "Beef Curry with Rice", "price": 149, "quantity": 1 },
+      { "name": "Mote Hin Gar", "price": 90, "quantity": 1 },
+      { "name": "Rakhine Rice Noodle with Soup", "price": 90, "quantity": 1 },
+      { "name": "Rice", "price": 20, "quantity": 1 }
+    ],
+    "tax": 90.04,
+    "serviceCharge": 61.25,
+    "rounding": -0.29,
+    "discount": 0,
+    "subtotal": 1225,
+    "total": 1376,
+    "taxInclusive": false,
+    "printedItemUnits": 15
+  },
+  "expect": {
+    "taxInclusive": false,
+    "taxForUi": 90.04,
+    "total": 1376,
+    "itemCount": 11,
+    "noNegativeItems": true,
+    "reconciled": true,
+    "vatConsistency": "ok"
+  }
+}
