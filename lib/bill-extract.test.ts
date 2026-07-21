@@ -419,6 +419,31 @@ describe("reconcileBill", () => {
     assert.equal(fixed.serviceCharge, 39.95);
     assert.equal(fixed.discount, 0);
   });
+
+  it("fills a non-VAT total gap as serviceCharge, not tax (HTOO's Curry)", () => {
+    // Items match subtotal; grand total is 100 higher with no VAT line on the
+    // receipt. 100 is not ~7% of 306 (21.42), so do not invent tax.
+    const fixed = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "Rice Salad", price: 79, quantity: 1 },
+        { name: "Burmese Tomato Shrimp", price: 79, quantity: 1 },
+        { name: "Dried Mutton Salad", price: 59, quantity: 1 },
+        { name: "Garlic Oil Vermicelli", price: 89, quantity: 1 },
+      ],
+      tax: 0,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 306,
+      total: 406,
+      taxInclusive: false,
+    });
+
+    assert.equal(checkBillMath(fixed).ok, true);
+    assert.equal(fixed.tax, 0);
+    assert.equal(fixed.serviceCharge, 100);
+  });
 });
 
 describe("computeSplit with minus items", () => {
