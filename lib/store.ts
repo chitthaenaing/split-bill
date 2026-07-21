@@ -75,7 +75,7 @@ type Actions = {
 const initial: State = {
   receiptDataUrl: null,
   bankingQrDataUrl: null,
-  currency: "USD",
+  currency: "THB",
   items: [],
   tax: 0,
   serviceCharge: 0,
@@ -106,7 +106,7 @@ export const useBillStore = create<State & Actions>()(
           receiptDataUrl,
           // Keep the organiser's payment QR across new receipts — it belongs
           // to the account/device, not to a single bill.
-          currency: b.currency || "USD",
+          currency: b.currency || "THB",
           tax: b.tax || 0,
           serviceCharge: b.serviceCharge || 0,
           rounding: b.rounding || 0,

@@ -109,7 +109,7 @@ export function normalizeStoredBill(data: unknown): StoredBill | null {
     ...(typeof o.lastWriteId === "string"
       ? { lastWriteId: o.lastWriteId }
       : {}),
-    currency: String(o.currency || "USD").slice(0, 8),
+    currency: String(o.currency || "THB").slice(0, 8),
     items,
     tax: Math.max(0, Number(o.tax) || 0),
     serviceCharge: Math.max(0, Number(o.serviceCharge) || 0),
