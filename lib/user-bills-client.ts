@@ -29,7 +29,7 @@ function linksCollection(uid: string) {
 }
 
 function sanitizeSummary(summary: UserBillSummary): UserBillSummary {
-  const currency = String(summary.currency || "USD").slice(0, 8);
+  const currency = String(summary.currency || "THB").slice(0, 8);
   const total = Number.isFinite(summary.total) ? Number(summary.total) : 0;
   const itemCount = Math.max(
     0,
@@ -64,7 +64,7 @@ function parseLink(
     createdAt,
     updatedAt,
     ...sanitizeSummary({
-      currency: String(data.currency ?? "USD"),
+      currency: String(data.currency ?? "THB"),
       total: Number(data.total) || 0,
       itemCount: Number(data.itemCount) || 0,
       receiptUrl:

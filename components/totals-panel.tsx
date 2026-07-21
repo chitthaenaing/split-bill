@@ -48,7 +48,7 @@ export function TotalsPanel({
     [items, tax, serviceCharge, rounding]
   );
 
-  const billCurrency = normalizeCurrency(currency) || "USD";
+  const billCurrency = normalizeCurrency(currency) || "THB";
   const currencyOptions = useMemo(
     () => displayCurrencyOptions(billCurrency),
     [billCurrency]

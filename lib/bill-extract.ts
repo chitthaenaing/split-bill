@@ -175,10 +175,10 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
     printedItemUnits?: unknown;
   };
 
-  const currency = String(parsed.currency || "USD")
+  const currency = String(parsed.currency || "THB")
     .trim()
     .toUpperCase()
-    .slice(0, 3) || "USD";
+    .slice(0, 3) || "THB";
 
   const items: Array<{
     name: string;

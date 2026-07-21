@@ -37,7 +37,7 @@ function sanitizeBill(bill: ExtractedBill): ExtractedBill | null {
     .filter((it) => it.name.length > 0 || it.price > 0);
 
   return {
-    currency: String(bill.currency || "USD").slice(0, 8),
+    currency: String(bill.currency || "THB").slice(0, 8),
     items,
     tax: Math.max(0, Number(bill.tax) || 0),
     serviceCharge: Math.max(0, Number(bill.serviceCharge) || 0),

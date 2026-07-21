@@ -105,6 +105,33 @@ describe("cleanTranslatedName / likelyNeedsTranslation", () => {
 });
 
 describe("normalizeExtractedBill", () => {
+  it("defaults missing or empty currency to THB", () => {
+    const missing = normalizeExtractedBill({
+      items: [{ name: "Rice Salad", price: 70, quantity: 1 }],
+      tax: 0,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 70,
+      total: 70,
+      taxInclusive: false,
+    });
+    assert.equal(missing.currency, "THB");
+
+    const empty = normalizeExtractedBill({
+      currency: "  ",
+      items: [{ name: "Rice Salad", price: 70, quantity: 1 }],
+      tax: 0,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 70,
+      total: 70,
+      taxInclusive: false,
+    });
+    assert.equal(empty.currency, "THB");
+  });
+
   it("filters junk rows, rounds money, uppercases currency", () => {
     const bill = normalizeExtractedBill({
       currency: "eur",
