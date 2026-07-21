@@ -8,7 +8,7 @@ A tiny single-page web app for figuring out exactly how much **you** owe from a 
 - **Tailwind CSS v4** for styling
 - **Zustand** for state, persisted to `localStorage`
 - **Framer Motion** for subtle motion
-- **OpenAI `gpt-4o`** (vision + JSON-schema structured outputs) for receipt parsing
+- **OpenAI `gpt-4.1-mini`** (vision + JSON-schema structured outputs) for receipt parsing
 - **Vercel Blob** for shareable links (receipt image + bill JSON)
 - **Firebase Auth** (Google sign-in) + **Firestore** for optional account bill history
 - **Firebase Cloud Messaging** for payment push alerts
@@ -32,7 +32,7 @@ Open <http://localhost:3000>.
 
 ### Swap the model
 
-Set `OPENAI_MODEL` in `.env.local` to any OpenAI vision-capable model. Defaults to `gpt-4o`. Try `gpt-4.1` or `gpt-4.1-mini` for newer alternatives, or `gpt-4o-mini` to trade accuracy for cost.
+Set `OPENAI_MODEL` in `.env.local` to any OpenAI vision-capable model. Defaults to `gpt-4.1-mini` (strong instruction-following at ~⅙ the cost of `gpt-4o`). Try `gpt-4.1` if you want max accuracy, or `gpt-4o-mini` to go cheaper at some receipt quality cost.
 
 ## How it works
 
