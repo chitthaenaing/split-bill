@@ -45,7 +45,7 @@ export type ExtractionModelClient = {
 export const EXTRACTION_SYSTEM_PROMPT = `You read photographs of restaurant, cafe, bar and retail receipts and return a clean structured breakdown.
 
 What goes in each field:
-- "items": every product / food / drink / merchandise line AND every promotion / discount / free-item line that has a price. Promotions that print as a minus amount (e.g. "Promotion Free Tea -50.00") MUST be included as their own item with a NEGATIVE price. Only combine sub-modifiers / toppings / notes into the parent line when they have NO amount in the price column. Skip headers, dividers, server names, table numbers, payment method lines, change lines, and anything labelled subtotal / total / amount due / tax / VAT / service / tip / rounding.
+- "items": every product / food / drink / merchandise line AND every promotion / discount / free-item line that has a price. Promotions that print as a minus amount (e.g. "Promotion Free Tea -50.00") MUST be included as their own item with a NEGATIVE price. Only combine sub-modifiers / toppings / notes into the parent line when they have NO amount in the price column. Skip headers, dividers, server names, table numbers, payment method lines, change lines, and anything labelled subtotal / total / amount due / tax / VAT / service / tip / rounding / delivery / packaging / cover / bag / corkage (those fees go in tax, serviceCharge, rounding, or additionalCharges — never in items).
 - "price": the LINE TOTAL printed in the price column for this row — exactly the amount shown next to the item. Do NOT divide by quantity. Do NOT put the unit price here. Use a negative number for promotion / discount lines. When a table has Gross / Dis / Net columns (common on Singapore retail receipts), use the Net amount as "price".
     Examples:
       "3  Latte   12.00"                         -> price=12.00, quantity=3
@@ -61,7 +61,8 @@ What goes in each field:
 - "nameTranslated": a short English gloss of "name" when the printed name is non-Latin, mixed-script, or hard for an English reader (Myanmar, Thai, Chinese, Japanese, Korean, Arabic, etc.). Keep it concise (menu-style). If the printed row already includes English, put that English text here (without repeating the non-Latin script). Use "" when "name" is already plain English / Latin and needs no gloss. Never invent a different dish — translate or romanize the same item only.
 - "discount": always 0. Promotions belong in items with a negative price — do not also put them here.
 - "tax": TAX / VAT / GST / Sales Tax / ADD GST AMOUNT (not the percentage). If multiple tax lines are shown, sum them. Do NOT invent a tax line from the GST registration number.
-- "serviceCharge": SERVICE CHARGE / SERVICE / GRATUITY / TIP / AUTO-GRAT amount printed on the receipt (not a handwritten tip unless clearly written as part of the total).
+- "serviceCharge": SERVICE CHARGE / SERVICE / GRATUITY / TIP / AUTO-GRAT amount printed on the receipt (not a handwritten tip unless clearly written as part of the total). Do NOT dump delivery / packaging / cover / bag fees here — those belong in additionalCharges with their printed labels.
+- "additionalCharges": every OTHER bill-level fee printed on the receipt that is not tax, service/gratuity, or rounding. Keep the printed label in "name" and the amount in "amount". Common examples: Delivery Fee, Delivery Charge, Packaging, Packing Fee, Takeaway Fee, Bag Fee / Plastic Bag, Cover Charge, Corkage, Convenience Fee, Booking Fee, Platform Fee, Handling Fee, Container Fee, Surcharge, Room Charge. Use [] when none. Do NOT put food/drink products here. Do NOT duplicate amounts already in tax / serviceCharge / rounding.
 - "rounding": cash-rounding adjustments ("Rounding", "Round Amount", "Round Down", "Round Up", "Cash Round"). May be negative. When the printed Round Amount reduces the payable total (e.g. Total Amount 44.46 with Round Amount 0.01 and cash due 44.45), store rounding as -0.01. 0 if absent.
 - "subtotal": the printed items subtotal BEFORE discount (sum of the positive product lines). On Gross/Dis/Net tables, prefer the sum of Net line amounts when no separate subtotal is printed.
 - "total": the printed grand total / amount due (after rounding). Not cash tendered / change.
@@ -83,8 +84,8 @@ Accuracy guidance:
     count(amounts in the price column for products/promos) should equal items.length
     sum(items[i].quantity) should equal printedItemUnits when printedItemUnits > 0 (e.g. "Items: 7")
     sum(items[i].price where price \u2265 0) \u2248 subtotal
-    sum(all items[i].price) + tax + serviceCharge + rounding \u2248 total   (when not taxInclusive)
-    sum(all items[i].price) + serviceCharge + rounding \u2248 total   (when taxInclusive — do NOT add tax again)
+    sum(all items[i].price) + tax + serviceCharge + sum(additionalCharges.amount) + rounding \u2248 total   (when not taxInclusive)
+    sum(all items[i].price) + serviceCharge + sum(additionalCharges.amount) + rounding \u2248 total   (when taxInclusive — do NOT add tax again)
   If sum(quantity) is short of "Items: N", re-read the leftmost digit on every item row — do not leave quantity at 1 when 2+ is printed.
   If product lines sum short of the printed subtotal, you likely missed a priced row (often a small drink/tea/side, or a bilingual English line between dishes) — re-read every amount in the price column.
   If tax+service make the total too high by a promotion amount, you missed a minus line — add it to items.
@@ -135,6 +136,26 @@ export const EXTRACTION_BILL_SCHEMA = {
       type: "number",
       description: "Receipt rounding adjustment, 0 if absent.",
     },
+    additionalCharges: {
+      type: "array",
+      description:
+        "Bill-level fees beyond tax/service/rounding (delivery, packaging, cover, bag, corkage, …). Empty when none.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          name: {
+            type: "string",
+            description: "Printed fee label (e.g. Delivery Fee).",
+          },
+          amount: {
+            type: "number",
+            description: "Fee amount as printed (positive).",
+          },
+        },
+        required: ["name", "amount"],
+      },
+    },
     discount: {
       type: "number",
       description: "Always 0. Promotions go in items as negative prices.",
@@ -158,6 +179,7 @@ export const EXTRACTION_BILL_SCHEMA = {
     "tax",
     "serviceCharge",
     "rounding",
+    "additionalCharges",
     "discount",
     "subtotal",
     "total",

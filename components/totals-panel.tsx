@@ -17,7 +17,7 @@ import {
 } from "@/lib/display-currency";
 import { useFxRate } from "@/lib/use-fx-rate";
 import { cn, formatMoney, formatMoneyPlain } from "@/lib/utils";
-import type { BillItem } from "@/types/bill";
+import type { AdditionalCharge, BillItem } from "@/types/bill";
 
 export type TotalsPanelProps = {
   items: BillItem[];
@@ -25,11 +25,14 @@ export type TotalsPanelProps = {
   tax: number;
   serviceCharge: number;
   rounding: number;
-  /** When true, exposes an Edit toggle to adjust tax/service/rounding. */
+  /** Extra fees beyond tax / service / rounding. */
+  additionalCharges?: AdditionalCharge[];
+  /** When true, exposes an Edit toggle to adjust tax/service/fees/rounding. */
   editable?: boolean;
   onTaxChange?: (n: number) => void;
   onServiceChange?: (n: number) => void;
   onRoundingChange?: (n: number) => void;
+  onAdditionalChargeChange?: (index: number, amount: number) => void;
 };
 
 export function TotalsPanel({
@@ -38,14 +41,17 @@ export function TotalsPanel({
   tax,
   serviceCharge,
   rounding,
+  additionalCharges = [],
   editable = false,
   onTaxChange,
   onServiceChange,
   onRoundingChange,
+  onAdditionalChargeChange,
 }: TotalsPanelProps) {
+  const charges = additionalCharges ?? [];
   const split = useMemo(
-    () => computeSplit(items, tax, serviceCharge, rounding),
-    [items, tax, serviceCharge, rounding]
+    () => computeSplit(items, tax, serviceCharge, rounding, charges),
+    [items, tax, serviceCharge, rounding, charges]
   );
 
   const billCurrency = normalizeCurrency(currency) || "THB";
@@ -248,6 +254,25 @@ export function TotalsPanel({
           )
         )}
 
+        {showEditingControls
+          ? charges.map((c, i) => (
+              <EditableRow
+                key={`edit-charge-${i}-${c.name}`}
+                label={c.name}
+                value={c.amount}
+                onChange={(n) => onAdditionalChargeChange?.(i, n)}
+                currency={billCurrency}
+              />
+            ))
+          : split.additionalShares.map((c, i) => (
+              <Row
+                key={`charge-${i}-${c.name}`}
+                label={`${c.name} share`}
+                value={formatMoney(c.share, billCurrency)}
+                hint={`of ${formatMoney(c.billAmount, billCurrency)}`}
+              />
+            ))}
+
         {showEditingControls ? (
           <EditableRow
             label="Rounding"
@@ -285,7 +310,7 @@ export function TotalsPanel({
             )}
           >
             <Pencil className="h-3.5 w-3.5" />
-            {editing ? "Done" : "Edit tax / service / rounding"}
+            {editing ? "Done" : "Edit charges"}
           </button>
         )}
       </CardContent>

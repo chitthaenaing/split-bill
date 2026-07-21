@@ -117,5 +117,20 @@ export function normalizeStoredBill(data: unknown): StoredBill | null {
     ...(typeof o.discount === "number"
       ? { discount: Math.max(0, o.discount) }
       : {}),
+    ...(Array.isArray(o.additionalCharges)
+      ? {
+          additionalCharges: o.additionalCharges
+            .map((raw) => {
+              if (!raw || typeof raw !== "object") return null;
+              const c = raw as Record<string, unknown>;
+              const name = String(c.name ?? "").trim().slice(0, 80);
+              const amount = Math.max(0, Number(c.amount) || 0);
+              if (!name || amount <= 0) return null;
+              return { name, amount };
+            })
+            .filter((c): c is { name: string; amount: number } => c != null)
+            .slice(0, 40),
+        }
+      : {}),
   };
 }

@@ -60,7 +60,7 @@ export function ExtractionWarning({
                 {formatMoney(printedTotal, currency)}
               </>
             )}
-            . Edit tax/service, or retake the photo.
+            . Edit charges, or retake the photo.
           </p>
         </div>
         <button

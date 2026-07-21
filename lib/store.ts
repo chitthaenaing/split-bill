@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { BillItem, ExtractedBill } from "@/types/bill";
+import type { AdditionalCharge, BillItem, ExtractedBill } from "@/types/bill";
 import { uid } from "@/lib/utils";
 
 type State = {
@@ -12,6 +12,8 @@ type State = {
   tax: number;
   serviceCharge: number;
   rounding: number;
+  /** Extra fees beyond tax / service / rounding (delivery, packaging, …). */
+  additionalCharges: AdditionalCharge[];
   /** Bill-level discount / promotion (positive amount off). */
   discount: number;
   /** Printed subtotal from the receipt (for reconciliation UI). */
@@ -49,6 +51,7 @@ type Actions = {
   setServiceCharge: (n: number) => void;
   setRounding: (n: number) => void;
   setDiscount: (n: number) => void;
+  setAdditionalChargeAmount: (index: number, amount: number) => void;
 
   /** Correct a mis-read line (name, translation, and/or printed line total). */
   updateItem: (
@@ -80,6 +83,7 @@ const initial: State = {
   tax: 0,
   serviceCharge: 0,
   rounding: 0,
+  additionalCharges: [],
   discount: 0,
   printedSubtotal: null,
   printedTotal: null,
@@ -96,6 +100,18 @@ function clampSplit(n: number): number {
   return Math.max(1, Math.floor(Number.isFinite(n) ? n : 1));
 }
 
+function normalizeCharges(
+  charges: AdditionalCharge[] | undefined
+): AdditionalCharge[] {
+  if (!Array.isArray(charges)) return [];
+  return charges
+    .map((c) => ({
+      name: String(c?.name ?? "").trim().slice(0, 80) || "Other charge",
+      amount: Math.max(0, Number(c?.amount) || 0),
+    }))
+    .filter((c) => c.amount > 0);
+}
+
 export const useBillStore = create<State & Actions>()(
   persist(
     (set) => ({
@@ -110,6 +126,7 @@ export const useBillStore = create<State & Actions>()(
           tax: b.tax || 0,
           serviceCharge: b.serviceCharge || 0,
           rounding: b.rounding || 0,
+          additionalCharges: normalizeCharges(b.additionalCharges),
           discount: Math.max(0, b.discount || 0),
           printedSubtotal:
             typeof b.subtotal === "number" && Number.isFinite(b.subtotal)
@@ -239,6 +256,17 @@ export const useBillStore = create<State & Actions>()(
         set({ rounding: Number.isFinite(n) ? n : 0 }),
       setDiscount: (n) =>
         set({ discount: Number.isFinite(n) ? Math.max(0, n) : 0 }),
+      setAdditionalChargeAmount: (index, amount) =>
+        set((s) => ({
+          additionalCharges: s.additionalCharges.map((c, i) =>
+            i === index
+              ? {
+                  ...c,
+                  amount: Number.isFinite(amount) ? Math.max(0, amount) : 0,
+                }
+              : c
+          ),
+        })),
 
       updateItem: (id, patch) =>
         set((s) => ({
@@ -313,7 +341,7 @@ export const useBillStore = create<State & Actions>()(
     }),
     {
       name: "bill-split",
-      version: 9,
+      version: 10,
       partialize: (s) => ({
         receiptDataUrl: s.receiptDataUrl,
         bankingQrDataUrl: s.bankingQrDataUrl,
@@ -322,6 +350,7 @@ export const useBillStore = create<State & Actions>()(
         tax: s.tax,
         serviceCharge: s.serviceCharge,
         rounding: s.rounding,
+        additionalCharges: s.additionalCharges,
         discount: s.discount,
         printedSubtotal: s.printedSubtotal,
         printedTotal: s.printedTotal,
@@ -338,9 +367,10 @@ export const useBillStore = create<State & Actions>()(
           selectedQuantity?: number;
           splitCount?: number;
         };
-        type LegacyState = Omit<Partial<State>, "items"> & {
+        type LegacyState = Omit<Partial<State>, "items" | "additionalCharges"> & {
           items?: LegacyItem[];
           discount?: number;
+          additionalCharges?: AdditionalCharge[];
           printedSubtotal?: number | null;
           printedTotal?: number | null;
           extractionWarnings?: string[];
@@ -374,6 +404,7 @@ export const useBillStore = create<State & Actions>()(
           ...s,
           items: (s.items ?? []).map(mapItem),
           bankingQrDataUrl: s.bankingQrDataUrl ?? null,
+          additionalCharges: normalizeCharges(s.additionalCharges),
           discount: Math.max(0, s.discount ?? 0),
           printedSubtotal: s.printedSubtotal ?? null,
           printedTotal: s.printedTotal ?? null,

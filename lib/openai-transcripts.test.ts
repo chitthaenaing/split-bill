@@ -117,6 +117,7 @@ function assertPromptContract(calls: CapturedCall[]): string[] {
     "leading qty",
     "defaults empty currency to THB",
     "do NOT guess USD",
+    "additionalCharges",
   ]) {
     if (!EXTRACTION_SYSTEM_PROMPT.includes(needle)) {
       failures.push(`system prompt missing "${needle}"`);
@@ -142,7 +143,14 @@ function assertPromptContract(calls: CapturedCall[]): string[] {
       };
     };
     const required = schema.required ?? [];
-    for (const key of ["taxInclusive", "items", "discount", "total", "printedItemUnits"]) {
+    for (const key of [
+      "taxInclusive",
+      "items",
+      "discount",
+      "total",
+      "printedItemUnits",
+      "additionalCharges",
+    ]) {
       if (!required.includes(key)) {
         failures.push(`bill schema required[] missing "${key}"`);
       }

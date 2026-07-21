@@ -46,6 +46,93 @@ describe("isJunkItemName", () => {
   });
 });
 
+describe("additionalCharges", () => {
+  it("extracts labeled delivery and packaging fees and keeps them out of items", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "Pad Thai", price: 120, quantity: 1 },
+        { name: "Green Curry", price: 140, quantity: 1 },
+      ],
+      tax: 0,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      additionalCharges: [
+        { name: "Delivery Fee", amount: 40 },
+        { name: "Packaging", amount: 10 },
+      ],
+      subtotal: 260,
+      total: 310,
+      taxInclusive: true,
+    });
+    assert.equal(bill.items.length, 2);
+    assert.deepEqual(bill.additionalCharges, [
+      { name: "Delivery Fee", amount: 40 },
+      { name: "Packaging", amount: 10 },
+    ]);
+    assert.equal(checkBillMath(bill).ok, true);
+    const extracted = toExtractedBill(bill);
+    assert.deepEqual(extracted.additionalCharges, bill.additionalCharges);
+  });
+
+  it("salvages delivery/packaging rows misplaced into items", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "Pad Thai", price: 120, quantity: 1 },
+        { name: "Delivery Fee", price: 40, quantity: 1 },
+        { name: "Packaging", price: 10, quantity: 1 },
+      ],
+      tax: 0,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      additionalCharges: [],
+      subtotal: 120,
+      total: 170,
+      taxInclusive: true,
+    });
+    assert.equal(bill.items.length, 1);
+    assert.equal(bill.items[0].name, "Pad Thai");
+    assert.deepEqual(bill.additionalCharges, [
+      { name: "Delivery Fee", amount: 40 },
+      { name: "Packaging", amount: 10 },
+    ]);
+    assert.equal(checkBillMath(bill).ok, true);
+  });
+
+  it("splits additional charges proportionally with the selected items", () => {
+    const items = [
+      {
+        id: "a",
+        name: "Pad Thai",
+        price: 120,
+        quantity: 1,
+        selectedQuantity: 1,
+        splitCount: 1,
+      },
+      {
+        id: "b",
+        name: "Green Curry",
+        price: 120,
+        quantity: 1,
+        selectedQuantity: 0,
+        splitCount: 1,
+      },
+    ];
+    const split = computeSplit(items, 0, 0, 0, [
+      { name: "Delivery Fee", amount: 40 },
+      { name: "Packaging", amount: 10 },
+    ]);
+    assert.equal(split.ratio, 0.5);
+    assert.equal(split.additionalShares.length, 2);
+    assert.equal(split.additionalShares[0].share, 20);
+    assert.equal(split.additionalShares[1].share, 5);
+    assert.equal(split.total, 145);
+  });
+});
+
 describe("cleanItemName", () => {
   it("strips trailing OCR garbage like '1..'", () => {
     assert.equal(cleanItemName("STHN NHAT Coffee 1.."), "STHN NHAT Coffee");
@@ -421,9 +508,11 @@ describe("reconcileBill", () => {
       serviceCharge: 39.95,
       rounding: 0.32,
       discount: 0,
+      additionalCharges: [],
       subtotal: 849,
       total: 898,
       taxInclusive: false,
+      printedItemUnits: 0,
     });
 
     assert.equal(checkBillMath(fixed).ok, true);

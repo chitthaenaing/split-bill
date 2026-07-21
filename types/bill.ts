@@ -24,6 +24,17 @@ export type BillItem = {
   splitCount: number;
 };
 
+/**
+ * A non-item fee printed on the receipt (delivery, packaging, cover, bag,
+ * corkage, etc.). Kept separate from tax / service so the totals UI can show
+ * the same labels as the receipt.
+ */
+export type AdditionalCharge = {
+  /** Label as printed (e.g. "Delivery Fee", "Packaging"). */
+  name: string;
+  amount: number;
+};
+
 export type ExtractedBill = {
   currency: string;
   items: Array<{
@@ -42,6 +53,11 @@ export type ExtractedBill = {
    * own line. Zero when absent.
    */
   rounding: number;
+  /**
+   * Extra bill-level fees beyond tax / service / rounding (delivery,
+   * packaging, cover charge, bag fee, corkage, …). Empty when none.
+   */
+  additionalCharges: AdditionalCharge[];
   /**
    * Bill-level discount / promotion amount as a positive number (฿50 off → 50).
    * Applied after the items subtotal, before tax/service on typical receipts.
@@ -140,6 +156,10 @@ export type StoredBill = {
   rounding: number;
   /** Bill-level discount amount (positive). Omitted on older shares → treat as 0. */
   discount?: number;
+  /**
+   * Extra fees beyond tax / service / rounding. Omitted on older shares → [].
+   */
+  additionalCharges?: AdditionalCharge[];
 };
 
 /**
@@ -152,6 +172,12 @@ export type SplitBreakdown = {
   taxShare: number;
   serviceShare: number;
   roundingShare: number;
+  /** Proportional shares of each additional charge (same order as the bill). */
+  additionalShares: Array<{
+    name: string;
+    billAmount: number;
+    share: number;
+  }>;
   total: number;
   /** Sum of all items on the receipt (price * qty). */
   itemsTotal: number;

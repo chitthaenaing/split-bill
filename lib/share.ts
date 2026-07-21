@@ -229,6 +229,10 @@ export async function createShare(opts: {
     tax: opts.bill.tax,
     serviceCharge: opts.bill.serviceCharge,
     rounding: opts.bill.rounding,
+    ...(Array.isArray(opts.bill.additionalCharges) &&
+    opts.bill.additionalCharges.length > 0
+      ? { additionalCharges: opts.bill.additionalCharges }
+      : {}),
     discount: Math.max(0, opts.bill.discount || 0),
   };
 
