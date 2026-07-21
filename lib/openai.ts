@@ -10,7 +10,7 @@ import {
 } from "@/lib/bill-extract";
 import { checkVatConsistency } from "@/lib/vat-check";
 
-export const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+export const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4.1";
 
 /** How many repair attempts after the first extraction. */
 const MAX_REPAIR_ATTEMPTS = 1;
