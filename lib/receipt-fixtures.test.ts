@@ -113,6 +113,7 @@ describe("receipt fixture scoreboard", () => {
       "th-delivery-packaging-fees",
       "th-shwe-daily-special-between-salads",
       "th-exclusive-before-vat",
+      "th-handwritten-motorcycle-service",
       "us-tax-exclusive",
       "eu-tax-inclusive",
       "sg-gst-inclusive-bak-kwa",
