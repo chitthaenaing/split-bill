@@ -120,6 +120,9 @@ function assertPromptContract(calls: CapturedCall[]): string[] {
     "additionalCharges",
     "Daily Special",
     "Before VAT",
+    "handwritten",
+    "ค่าแรง",
+    "garage",
   ]) {
     if (!EXTRACTION_SYSTEM_PROMPT.includes(needle)) {
       failures.push(`system prompt missing "${needle}"`);
@@ -288,6 +291,7 @@ describe("model transcript harness", () => {
       "th-exclusive-clean",
       "th-leading-qty-undercount-repair",
       "th-shwe-missed-daily-special-repair",
+      "th-handwritten-motorcycle-service",
     ];
     const ids = new Set(fixtures.map((f) => f.id));
     for (const id of required) {

@@ -8,6 +8,13 @@ const JUNK_ITEM_NAME =
   /^(sub[\s-]*total|total(\s*amount)?|grand\s*total|amount\s*due|balance\s*due|before\s*(vat|tax|gst)|after\s*(vat|tax|gst)|change|cash|card|visa|mastercard|amex|payment(\s*amount)?|paid|thank\s*you|server|table|guest|check\s*#?|chk\s*#?|order\s*#?|tax|vat(\s*\(?\s*\d+\s*%\s*\)?)?|gst(\s*\(?\s*\d+\s*%\s*\)?)?|add\s*gst|service(\s*charge)?(\s*\(?\s*\d+\s*%\s*\)?)?|gratuity|tip|rounding|round\s*(up|down|amount)|cash\s*round|total\s*savings|items?:?\s*\d+)$/i;
 
 /**
+ * Repair / workshop lines that must stay as pickable items — never junked as
+ * F&B "Service" and never salvaged into additionalCharges.
+ */
+const LABOR_OR_PARTS_ITEM_NAME =
+  /ค่าแรง|ค่าบริการซ่อม|ค่าตรวจ|ค่ามัดจำ|labor|labour|technician|mechanic|workshop|deposit|round[\s-]*trip|gasket|piston|spark\s*plug|drive\s*belt|air\s*filter|oil\s*filter|roller|o-?ring|final\s*gear|engine\s*oil|ปะเก็น|หัวเทียน|สายพาน|กรอง|เม็ด|น้ำมันเครื่อง|ไป-กลับ/i;
+
+/**
  * Fee lines that belong in `additionalCharges`, not as pickable items.
  * Used both to salvage mis-placed model rows and to reject them from items.
  */
@@ -56,6 +63,16 @@ function asFinite(n: unknown, fallback = 0): number {
 }
 
 /**
+ * True for garage/repair labor and parts labels that must remain pickable
+ * items (not F&B serviceCharge junk, not delivery-style additionalCharges).
+ */
+export function isLaborOrPartsItemName(name: string): boolean {
+  const cleaned = name.trim().replace(/[:.]+$/, "");
+  if (!cleaned) return false;
+  return LABOR_OR_PARTS_ITEM_NAME.test(cleaned);
+}
+
+/**
  * Drop non-product lines the model sometimes leaks into `items`
  * (headers, payment rows, tax/total lines with a price).
  * Promotion / discount lines with a negative price are kept.
@@ -65,6 +82,8 @@ export function isJunkItemName(name: string, price = 0): boolean {
   if (!cleaned) return true;
   // Allow "Discount" / "Promotion …" when they carry a negative amount.
   if (price < 0) return false;
+  // Garage labor / parts must never be dropped as F&B "Service".
+  if (isLaborOrPartsItemName(cleaned)) return false;
   return JUNK_ITEM_NAME.test(cleaned);
 }
 
@@ -72,6 +91,8 @@ export function isJunkItemName(name: string, price = 0): boolean {
 export function isAdditionalChargeName(name: string): boolean {
   const cleaned = name.trim().replace(/[:.]+$/, "");
   if (!cleaned) return false;
+  // Never demote repair labor/parts into additionalCharges.
+  if (isLaborOrPartsItemName(cleaned)) return false;
   return ADDITIONAL_CHARGE_ITEM_NAME.test(cleaned);
 }
 
@@ -695,6 +716,7 @@ export function formatCheckForRepair(
     "Promotion / Discount / Free-item lines belong in items with a NEGATIVE price (e.g. -50). Do not omit them.",
     "Trust the printed TOTAL / AMOUNT DUE on the receipt — do not invent extra tax or service.",
     "Put delivery / packaging / cover / bag / corkage / similar fees in additionalCharges with their printed labels — not in items or serviceCharge.",
+    "Repair / garage labor (ค่าแรง, technician fees) and parts stay in items — never fold them into serviceCharge.",
     bill.taxInclusive
       ? "Tax is inclusive: sum(all item prices) + serviceCharge + sum(additionalCharges) + rounding must equal total."
       : "Tax is exclusive: sum(all item prices) + tax + serviceCharge + sum(additionalCharges) + rounding must equal total.",

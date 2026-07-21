@@ -1,0 +1,94 @@
+{
+  "id": "th-handwritten-motorcycle-service",
+  "description": "Handwritten Thai motorcycle service invoice: parts + ค่าแรง labor stay in items; serviceCharge must be 0 (not F&B %). Regression for post-PR-28 F&B prompt bias.",
+  "imageDataUrl": "data:image/jpeg;base64,AAAA",
+  "responses": [
+    {
+      "content": {
+        "currency": "",
+        "items": [
+          {
+            "name": "น้ำมันเครื่อง + เฟืองท้าย + กรอง + O-ring",
+            "nameTranslated": "Engine oil + final gear oil + filter + O-ring",
+            "price": 1110,
+            "quantity": 1
+          },
+          {
+            "name": "สายพาน",
+            "nameTranslated": "Drive belt",
+            "price": 1550,
+            "quantity": 1
+          },
+          {
+            "name": "เม็ด",
+            "nameTranslated": "CVT roller weights",
+            "price": 600,
+            "quantity": 1
+          },
+          {
+            "name": "กรองอากาศ",
+            "nameTranslated": "Air filter",
+            "price": 150,
+            "quantity": 1
+          },
+          {
+            "name": "กรองน้ำมันเครื่อง",
+            "nameTranslated": "Oil filter",
+            "price": 220,
+            "quantity": 1
+          },
+          {
+            "name": "หัวเทียน",
+            "nameTranslated": "Spark plug",
+            "price": 390,
+            "quantity": 1
+          },
+          {
+            "name": "ค่าแรงเช็คระยะ",
+            "nameTranslated": "Service labor fee",
+            "price": 500,
+            "quantity": 1
+          },
+          {
+            "name": "ชุดปะเก็นฝาบน/แหวน",
+            "nameTranslated": "Top gasket set / piston rings",
+            "price": 3550,
+            "quantity": 1
+          },
+          {
+            "name": "ค่าแรงทำฝาบน",
+            "nameTranslated": "Labor for top-end work",
+            "price": 200,
+            "quantity": 1
+          },
+          {
+            "name": "ค่ามัดจำ ไป-กลับ",
+            "nameTranslated": "Deposit / round-trip pickup",
+            "price": 400,
+            "quantity": 1
+          }
+        ],
+        "tax": 0,
+        "serviceCharge": 0,
+        "rounding": 0,
+        "discount": 0,
+        "additionalCharges": [],
+        "subtotal": 8670,
+        "total": 8670,
+        "printedItemUnits": 0,
+        "taxInclusive": true
+      }
+    }
+  ],
+  "expect": {
+    "calls": 1,
+    "reconciled": true,
+    "taxForUi": 0,
+    "total": 8670,
+    "itemCount": 10,
+    "hasNegativeItem": false,
+    "hasRepairPrompt": false,
+    "itemNameIncludes": ["ค่าแรงเช็คระยะ", "สายพาน", "ค่ามัดจำ"],
+    "nameTranslatedIncludes": ["Drive belt", "Service labor fee"]
+  }
+}
