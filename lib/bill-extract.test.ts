@@ -132,6 +132,57 @@ describe("normalizeExtractedBill", () => {
     assert.equal(empty.currency, "THB");
   });
 
+  it("overrides model USD to THB on Thai/Burmese locale receipts", () => {
+    // Model still emits USD on bare-amount SEA receipts; correct it.
+    const myanmar = normalizeExtractedBill({
+      currency: "USD",
+      items: [
+        { name: "ထမင်းသုပ်", nameTranslated: "Rice Salad", price: 70, quantity: 1 },
+      ],
+      tax: 0,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 70,
+      total: 70,
+      taxInclusive: false,
+    });
+    assert.equal(myanmar.currency, "THB");
+
+    const englishCue = normalizeExtractedBill({
+      currency: "USD",
+      items: [
+        {
+          name: "Burmese Tomato Shrimp Paste Rice",
+          price: 79,
+          quantity: 1,
+        },
+      ],
+      tax: 0,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 79,
+      total: 79,
+      taxInclusive: false,
+    });
+    assert.equal(englishCue.currency, "THB");
+
+    // Real US receipt: keep USD.
+    const us = normalizeExtractedBill({
+      currency: "USD",
+      items: [{ name: "Latte", price: 4.5, quantity: 1 }],
+      tax: 0.4,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 4.5,
+      total: 4.9,
+      taxInclusive: false,
+    });
+    assert.equal(us.currency, "USD");
+  });
+
   it("filters junk rows, rounds money, uppercases currency", () => {
     const bill = normalizeExtractedBill({
       currency: "eur",

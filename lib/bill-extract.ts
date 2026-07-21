@@ -126,6 +126,45 @@ export function likelyNeedsTranslation(name: string): boolean {
   }
 }
 
+/**
+ * True when receipt text points at Thailand / Burmese-in-Thailand locale.
+ * Used to override a model that still emits USD on bare-amount SEA receipts.
+ */
+export function suggestsThailandLocale(text: string): boolean {
+  if (!text) return false;
+  try {
+    if (/\p{Script=Mymr}|\p{Script=Thai}/u.test(text)) return true;
+  } catch {
+    // fall through to Latin cues
+  }
+  return /\b(burmese|myanmar|baht|thb|pad\s*thai|tom\s*yum|som\s*tum|mango\s*sticky|tax\s*invoice|abb)\b/i.test(
+    text
+  );
+}
+
+/**
+ * Resolve ISO currency from the model, defaulting to THB and correcting a
+ * common miss: USD on Thai/SEA receipts that print bare amounts (no $).
+ */
+export function resolveBillCurrency(
+  rawCurrency: unknown,
+  localeText: string
+): string {
+  const currency =
+    String(rawCurrency || "THB")
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z]/g, "")
+      .slice(0, 3) || "THB";
+
+  // Models often emit USD when no symbol is printed. If the receipt clearly
+  // looks Thai/Burmese, prefer THB over that weak USD guess.
+  if (currency === "USD" && suggestsThailandLocale(localeText)) {
+    return "THB";
+  }
+  return currency;
+}
+
 /** Net of every line (products + negative promotions). */
 export function netItemsSum(
   items: Array<{ price: number }>,
@@ -176,10 +215,11 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
     printedItemUnits?: unknown;
   };
 
-  const currency = String(parsed.currency || "THB")
-    .trim()
-    .toUpperCase()
-    .slice(0, 3) || "THB";
+  const rawItems = Array.isArray(parsed.items) ? parsed.items : [];
+  const localeText = rawItems
+    .map((it) => `${it?.name ?? ""} ${it?.nameTranslated ?? ""}`)
+    .join("\n");
+  const currency = resolveBillCurrency(parsed.currency, localeText);
 
   const items: Array<{
     name: string;
@@ -187,7 +227,7 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
     price: number;
     quantity: number;
   }> = [];
-  for (const it of Array.isArray(parsed.items) ? parsed.items : []) {
+  for (const it of rawItems) {
     const price = roundMoney(asFinite(it?.price), currency);
     let quantity = Math.max(1, Math.floor(asFinite(it?.quantity, 1)) || 1);
     // Keep priced rows even when the model couldn't read a non-Latin name.
