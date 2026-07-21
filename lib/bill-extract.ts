@@ -581,8 +581,9 @@ export function formatCheckForRepair(
     check.itemsDelta > MONEY_TOLERANCE
       ? [
           "Product lines do not match the printed subtotal — a priced product row is likely missing or mis-read.",
-          "Re-scan every amount in the Items / price column top-to-bottom. Common misses: small drinks/tea/sides, and bilingual English lines between Myanmar/Thai dish names that have their own price (e.g. \"Burmese Hot Tea 30.00\").",
+          "Re-scan every amount in the Items / price column top-to-bottom. Common misses: small drinks/tea/sides, bilingual English lines between Myanmar/Thai dish names, and multi-qty lines like \"4  Daily Special  396.00\" sitting between two similar salads.",
           "Do not merge a priced English label into the previous dish as a translation or modifier — a distinct price means a distinct item.",
+          "Two rows with the same dish name and two prices are TWO items (different modifiers). Keep both.",
           "If a name is illegible but the price is clear, keep the row as name \"Unreadable item\" with that price. Never drop a priced line to force the math.",
         ]
       : [];
@@ -593,10 +594,13 @@ export function formatCheckForRepair(
           `Quantity units (${check.quantitySum}) do not match the printed Items count (${bill.printedItemUnits}).`,
           "Re-read the leftmost quantity digit on EVERY item row (Thai/SEA POS often prints \"2  ItemName  100.00\").",
           "Do not confuse Table / Guests counts above the items with line quantities.",
+          "Do not move a quantity digit from one product onto a different product name to fake the Items count.",
           "Keep each item's `price` as the LINE TOTAL; only correct `quantity` (and strip a leading qty digit from `name` if you glued it there).",
           "Update printedItemUnits only if you mis-read the Items footer — usually the footer is correct and a line quantity is wrong.",
         ]
       : [];
+
+  const serviceRateHint = impliedSubtotalHints(bill);
 
   return [
     "Previous extraction failed the arithmetic self-check:",
@@ -610,12 +614,39 @@ export function formatCheckForRepair(
     "sum(items with price ≥ 0) must equal subtotal.",
     ...missingProductsHint,
     ...quantityHint,
+    ...serviceRateHint,
     "Promotion / Discount / Free-item lines belong in items with a NEGATIVE price (e.g. -50). Do not omit them.",
     "Trust the printed TOTAL / AMOUNT DUE on the receipt — do not invent extra tax or service.",
     bill.taxInclusive
       ? "Tax is inclusive: sum(all item prices) + serviceCharge + rounding must equal total."
       : "Tax is exclusive: sum(all item prices) + tax + serviceCharge + rounding must equal total.",
   ].join("\n");
+}
+
+/**
+ * When Service Charge looks like exactly 5%/10% of a larger base than the
+ * extracted items, call out the missing product value for repair.
+ */
+export function impliedSubtotalHints(bill: NormalizedBill): string[] {
+  if (bill.serviceCharge <= MONEY_TOLERANCE) return [];
+  const itemsSum = productItemsSum(bill.items, bill.currency);
+  if (itemsSum <= MONEY_TOLERANCE) return [];
+
+  const hints: string[] = [];
+  for (const rate of [0.05, 0.1]) {
+    const implied = bill.serviceCharge / rate;
+    const impliedRounded =
+      Math.round(implied * 100) / 100;
+    if (Math.abs(implied - impliedRounded) > MONEY_TOLERANCE) continue;
+    if (impliedRounded <= itemsSum + MONEY_TOLERANCE) continue;
+    const missing = Math.round((impliedRounded - itemsSum) * 100) / 100;
+    const pct = Math.round(rate * 100);
+    hints.push(
+      `Service Charge ${bill.serviceCharge.toFixed(2)} looks like ${pct}% of ~${impliedRounded.toFixed(2)}, but extracted items only sum to ${itemsSum.toFixed(2)} (short by ~${missing.toFixed(2)}). Find the missing priced row(s) — often a multi-qty "Daily Special" / set menu between similar dishes.`
+    );
+    break;
+  }
+  return hints;
 }
 
 /**

@@ -117,6 +117,7 @@ function assertPromptContract(calls: CapturedCall[]): string[] {
     "leading qty",
     "defaults empty currency to THB",
     "do NOT guess USD",
+    "Daily Special",
   ]) {
     if (!EXTRACTION_SYSTEM_PROMPT.includes(needle)) {
       failures.push(`system prompt missing "${needle}"`);
@@ -277,6 +278,7 @@ describe("model transcript harness", () => {
       "multilingual-missed-tea-repair",
       "th-exclusive-clean",
       "th-leading-qty-undercount-repair",
+      "th-shwe-missed-daily-special-repair",
     ];
     const ids = new Set(fixtures.map((f) => f.id));
     for (const id of required) {

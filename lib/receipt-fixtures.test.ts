@@ -110,6 +110,7 @@ describe("receipt fixture scoreboard", () => {
       "th-abb-inclusive-air-plus",
       "th-exclusive-with-service",
       "th-promo-minus-line",
+      "th-shwe-daily-special-between-salads",
       "us-tax-exclusive",
       "eu-tax-inclusive",
       "sg-gst-inclusive-bak-kwa",

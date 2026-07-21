@@ -5,6 +5,7 @@ import {
   cleanItemName,
   cleanTranslatedName,
   formatCheckForRepair,
+  impliedSubtotalHints,
   isJunkItemName,
   liftLeadingQuantity,
   likelyNeedsTranslation,
@@ -359,6 +360,41 @@ describe("formatCheckForRepair", () => {
     assert.match(prompt, /priced product row is likely missing/i);
     assert.match(prompt, /Burmese Hot Tea|drinks\/tea|distinct price/i);
     assert.match(prompt, /Unreadable item/);
+  });
+
+  it("hints when service % implies a larger items subtotal (missed Daily Special)", () => {
+    // Salad qty stolen; Daily Special 396 dropped → items 739 vs subtotal 1225.
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "Pone Hman", price: 100, quantity: 2 },
+        { name: "STHN NHAT Coffee", price: 70, quantity: 1 },
+        { name: "SI Lone Tea", price: 80, quantity: 1 },
+        { name: "Kya Saint", price: 50, quantity: 1 },
+        { name: "Tea Leaf Rice Salad with Fried Egg", price: 90, quantity: 4 },
+        { name: "Beef Curry with Rice", price: 149, quantity: 1 },
+        { name: "Mote Hin Gar", price: 90, quantity: 1 },
+        { name: "Rakhine Rice Noodle with Soup", price: 90, quantity: 1 },
+        { name: "Rice", price: 20, quantity: 1 },
+      ],
+      tax: 90.04,
+      serviceCharge: 61.25,
+      rounding: -0.29,
+      discount: 0,
+      subtotal: 1225,
+      total: 1376,
+      taxInclusive: false,
+      printedItemUnits: 15,
+    });
+    const check = checkBillMath(bill);
+    assert.equal(check.ok, false);
+    assert.ok(check.itemsDelta > 400);
+    const hints = impliedSubtotalHints(bill);
+    assert.match(hints.join("\n"), /5% of ~1225/);
+    assert.match(hints.join("\n"), /Daily Special/);
+    const prompt = formatCheckForRepair(bill, check);
+    assert.match(prompt, /Daily Special/);
+    assert.match(prompt, /do not move a quantity digit/i);
   });
 });
 
