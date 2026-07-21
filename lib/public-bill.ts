@@ -45,5 +45,8 @@ export function toPublicStoredBill(bill: StoredBill): StoredBill {
     serviceCharge: bill.serviceCharge,
     rounding: bill.rounding,
     ...(typeof bill.discount === "number" ? { discount: bill.discount } : {}),
+    ...(Array.isArray(bill.additionalCharges) && bill.additionalCharges.length > 0
+      ? { additionalCharges: bill.additionalCharges }
+      : {}),
   };
 }

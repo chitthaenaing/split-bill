@@ -45,7 +45,7 @@ export type ExtractionModelClient = {
 export const EXTRACTION_SYSTEM_PROMPT = `You read photographs of restaurant, cafe, bar and retail receipts and return a clean structured breakdown.
 
 What goes in each field:
-- "items": every product / food / drink / merchandise line AND every promotion / discount / free-item line that has a price. Promotions that print as a minus amount (e.g. "Promotion Free Tea -50.00") MUST be included as their own item with a NEGATIVE price. Only combine sub-modifiers / toppings / notes into the parent line when they have NO amount in the price column. Skip headers, dividers, server names, table numbers, payment method lines, change lines, and anything labelled subtotal / total / amount due / tax / VAT / service / tip / rounding.
+- "items": every product / food / drink / merchandise line AND every promotion / discount / free-item line that has a price. Promotions that print as a minus amount (e.g. "Promotion Free Tea -50.00") MUST be included as their own item with a NEGATIVE price. Only combine sub-modifiers / toppings / notes into the parent line when they have NO amount in the price column. Skip headers, dividers, server names, table numbers, payment method lines, change lines, and anything labelled subtotal / total / amount due / tax / VAT / service / tip / rounding / delivery / packaging / cover / bag / corkage (those fees go in tax, serviceCharge, rounding, or additionalCharges — never in items).
 - "price": the LINE TOTAL printed in the price column for this row — exactly the amount shown next to the item. Do NOT divide by quantity. Do NOT put the unit price here. Use a negative number for promotion / discount lines. When a table has Gross / Dis / Net columns (common on Singapore retail receipts), use the Net amount as "price".
     Examples:
       "3  Latte   12.00"                         -> price=12.00, quantity=3
@@ -56,12 +56,13 @@ What goes in each field:
       "မုန့်ဟင်းခါး / ม็อคฮินกา          60.00"  -> name keeps the original script(s), price=60.00, quantity=1
       "လက်ဖက်ရည်ကြမ်း Burmese Hot Tea   30.00"  -> its OWN item, price=30.00 (never merge into the previous dish)
     If the receipt prints a unit price but no line total, multiply unit \u00d7 quantity yourself and put that LINE TOTAL in "price".
-- "quantity": units of this item on this line, as printed in the qty / count column (often the leftmost number on the row). Do NOT default to 1 when a leading digit is printed. Do NOT confuse Table / Guests / Staff IDs above the items with line quantities. Put the digit in "quantity", not in "name" (name should be "Kya Saint", not "2 Kya Saint"). Only use 1 when the receipt truly shows one unit or omits qty.
+- "quantity": units of this item on this line, as printed in the qty / count column (often the leftmost number on the row). Do NOT default to 1 when a leading digit is printed. Do NOT confuse Table / Guests / Staff IDs above the items with line quantities. Put the digit in "quantity", not in "name" (name should be "Kya Saint", not "2 Kya Saint"). Only use 1 when the receipt truly shows one unit or omits qty. NEVER move a quantity digit from one product row onto a different product name (e.g. do not put Daily Special's "4" onto a Tea Leaf Salad row).
 - "printedItemUnits": when the receipt prints a footer like "Items: 7" / "Item(s): 7" / "Qty: 7" counting sold units, put that number here. It must equal sum(items[i].quantity). Use 0 when no such count is printed.
 - "nameTranslated": a short English gloss of "name" when the printed name is non-Latin, mixed-script, or hard for an English reader (Myanmar, Thai, Chinese, Japanese, Korean, Arabic, etc.). Keep it concise (menu-style). If the printed row already includes English, put that English text here (without repeating the non-Latin script). Use "" when "name" is already plain English / Latin and needs no gloss. Never invent a different dish — translate or romanize the same item only.
 - "discount": always 0. Promotions belong in items with a negative price — do not also put them here.
 - "tax": TAX / VAT / GST / Sales Tax / ADD GST AMOUNT (not the percentage). If multiple tax lines are shown, sum them. Do NOT invent a tax line from the GST registration number.
-- "serviceCharge": SERVICE CHARGE / SERVICE / GRATUITY / TIP / AUTO-GRAT amount printed on the receipt (not a handwritten tip unless clearly written as part of the total).
+- "serviceCharge": SERVICE CHARGE / SERVICE / GRATUITY / TIP / AUTO-GRAT amount printed on the receipt (not a handwritten tip unless clearly written as part of the total). Do NOT dump delivery / packaging / cover / bag fees here — those belong in additionalCharges with their printed labels.
+- "additionalCharges": every OTHER bill-level fee printed on the receipt that is not tax, service/gratuity, or rounding. Keep the printed label in "name" and the amount in "amount". Common examples: Delivery Fee, Delivery Charge, Packaging, Packing Fee, Takeaway Fee, Bag Fee / Plastic Bag, Cover Charge, Corkage, Convenience Fee, Booking Fee, Platform Fee, Handling Fee, Container Fee, Surcharge, Room Charge. Use [] when none. Do NOT put food/drink products here. Do NOT duplicate amounts already in tax / serviceCharge / rounding.
 - "rounding": cash-rounding adjustments ("Rounding", "Round Amount", "Round Down", "Round Up", "Cash Round"). May be negative. When the printed Round Amount reduces the payable total (e.g. Total Amount 44.46 with Round Amount 0.01 and cash due 44.45), store rounding as -0.01. 0 if absent.
 - "subtotal": the printed items subtotal BEFORE discount (sum of the positive product lines). On Gross/Dis/Net tables, prefer the sum of Net line amounts when no separate subtotal is printed.
 - "total": the printed grand total / amount due (after rounding). Not cash tendered / change.
@@ -74,6 +75,12 @@ Accuracy guidance:
 - Singapore (SGD) retail / F&B receipts almost always price GST-inclusive. A line like "ADD GST" (or GST amount under Total Amount) is usually an informational breakdown of GST already inside the Net/Total figures — set taxInclusive=true and do not add that GST on top. GST rates have been 8% (2023) or 9% (from 2024); extract the printed amount, do not recompute.
 - Multilingual / non-Latin names: extract EVERY priced product row even when the name is only Myanmar, Thai, Chinese, Japanese, Korean, Arabic, or another non-Latin script — or mixes several scripts with no English. Keep the original script in "name". Put any English gloss in "nameTranslated" (preferred) rather than appending English in parentheses onto "name". Never skip a row because you cannot romanize or translate the name. If the name is illegible but a price is clear, still include the row with name "Unreadable item" and nameTranslated "".
 - One price column amount = one item. Walk every amount in the price column top-to-bottom before answering. Small drinks, tea, sides, and bilingual rows between larger dishes are still separate items when they have their own amount — do NOT fold "Burmese Hot Tea" / similar English labels into the previous dish as a translation or modifier if that row has its own price.
+- Same dish name twice with two prices = two items. FoodStory receipts often print the same salad/noodle twice with different modifiers (Omelette / Half fried) — keep BOTH priced rows. A multi-qty line between them (e.g. "4  Daily Special  396.00") is its OWN item; do NOT drop it or steal its quantity onto a neighbouring salad/coffee row.
+    Example (Shwe Tea House style):
+      "1  Tea Leaf Rice Salad with Fried Egg   90.00"
+      "4  Daily Special                       396.00"
+      "1  Tea Leaf Rice Salad with Fried Egg   90.00"
+      → three items: Salad 90 qty=1, Daily Special 396 qty=4, Salad 90 qty=1
 - Completeness over omission: emit one item per priced product/promo row. Do NOT drop a priced line to make the math work, and do NOT invent products that are not on the receipt. Prefer a best-effort name (or "Unreadable item") over omitting a real priced line.
 - Photos may be rotated or sideways — read the receipt text regardless of orientation.
 - Watch for OCR confusables: 0/O, 1/I/l, 5/S, 8/B. Prefer the reading that makes the arithmetic check out.
@@ -83,12 +90,13 @@ Accuracy guidance:
     count(amounts in the price column for products/promos) should equal items.length
     sum(items[i].quantity) should equal printedItemUnits when printedItemUnits > 0 (e.g. "Items: 7")
     sum(items[i].price where price \u2265 0) \u2248 subtotal
-    sum(all items[i].price) + tax + serviceCharge + rounding \u2248 total   (when not taxInclusive)
-    sum(all items[i].price) + serviceCharge + rounding \u2248 total   (when taxInclusive — do NOT add tax again)
-  If sum(quantity) is short of "Items: N", re-read the leftmost digit on every item row — do not leave quantity at 1 when 2+ is printed.
-  If product lines sum short of the printed subtotal, you likely missed a priced row (often a small drink/tea/side, or a bilingual English line between dishes) — re-read every amount in the price column.
+    sum(all items[i].price) + tax + serviceCharge + sum(additionalCharges.amount) + rounding \u2248 total   (when not taxInclusive)
+    sum(all items[i].price) + serviceCharge + sum(additionalCharges.amount) + rounding \u2248 total   (when taxInclusive — do NOT add tax again)
+  If sum(quantity) is short of "Items: N", re-read the leftmost digit on every item row — do not leave quantity at 1 when 2+ is printed. Also look for a dropped multi-qty product line (Daily Special / set menus) whose units explain the shortfall — do not inflate a different row's quantity to fake the Items count.
+  If product lines sum short of the printed subtotal, you likely missed a priced row (often a small drink/tea/side, a "Daily Special", or a second copy of a dish with its own price) — re-read every amount in the price column.
   If tax+service make the total too high by a promotion amount, you missed a minus line — add it to items.
   If adding GST/VAT makes the total too high by exactly the printed tax (especially SGD "ADD GST" or Thai "Included Vat"), the receipt is taxInclusive — flip the flag instead of inventing a discount.
+  When Service Charge is printed as 5% or 10%, check that serviceCharge ≈ rate × subtotal and VAT ≈ 7% × (subtotal + service). If those rates only fit a larger subtotal than your items sum, you are missing product rows — find them.
   Tolerance is a few cents. If numbers are off, re-examine items and prices.
 - If a numeric field really isn't on the receipt, return 0 (don't invent).
 - Use the exact item names from the receipt, lightly cleaned of OCR noise (fix obvious mis-reads; preserve capitalisation for Latin text).`;
@@ -135,6 +143,26 @@ export const EXTRACTION_BILL_SCHEMA = {
       type: "number",
       description: "Receipt rounding adjustment, 0 if absent.",
     },
+    additionalCharges: {
+      type: "array",
+      description:
+        "Bill-level fees beyond tax/service/rounding (delivery, packaging, cover, bag, corkage, …). Empty when none.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          name: {
+            type: "string",
+            description: "Printed fee label (e.g. Delivery Fee).",
+          },
+          amount: {
+            type: "number",
+            description: "Fee amount as printed (positive).",
+          },
+        },
+        required: ["name", "amount"],
+      },
+    },
     discount: {
       type: "number",
       description: "Always 0. Promotions go in items as negative prices.",
@@ -158,6 +186,7 @@ export const EXTRACTION_BILL_SCHEMA = {
     "tax",
     "serviceCharge",
     "rounding",
+    "additionalCharges",
     "discount",
     "subtotal",
     "total",
@@ -238,7 +267,7 @@ export async function extractBillFromImageWithClient(
       content: [
         {
           type: "text",
-          text: "Extract the bill from this receipt photo. Include every priced product/promo row top-to-bottom — including small drinks/tea/sides and bilingual Myanmar/Thai/English lines that have their own price. Read the leftmost quantity digit on each item row (do not default every line to 1). Do not merge a priced English name into the previous dish. Double-check that the numbers — and quantity units vs any Items: N footer — add up before answering.",
+          text: "Extract the bill from this receipt photo. Include every priced product/promo row top-to-bottom — including small drinks/tea/sides, bilingual Myanmar/Thai/English lines, duplicate dish names with their own prices, and multi-qty lines like \"4  Daily Special  396.00\" between similar salads. Read the leftmost quantity digit on each item row (do not default every line to 1, and do not move one row's qty onto another product). Do not merge a priced English name into the previous dish. Double-check that the numbers — and quantity units vs any Items: N footer — add up before answering.",
         },
         {
           type: "image_url",

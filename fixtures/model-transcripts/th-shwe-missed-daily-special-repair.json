@@ -1,0 +1,71 @@
+{
+  "id": "th-shwe-missed-daily-special-repair",
+  "description": "First response drops Daily Special 396 and puts qty 4 on a salad; repair must restore Daily Special between two salad rows.",
+  "imageDataUrl": "data:image/jpeg;base64,AAAA",
+  "responses": [
+    {
+      "content": {
+        "currency": "THB",
+        "items": [
+          { "name": "Pone Hman", "nameTranslated": "", "price": 100, "quantity": 2 },
+          { "name": "STHN NHAT Coffee", "nameTranslated": "", "price": 70, "quantity": 1 },
+          { "name": "SI Lone Tea", "nameTranslated": "", "price": 80, "quantity": 1 },
+          { "name": "Kya Saint", "nameTranslated": "", "price": 50, "quantity": 1 },
+          { "name": "Tea Leaf Rice Salad with Fried Egg", "nameTranslated": "", "price": 90, "quantity": 4 },
+          { "name": "Beef Curry with Rice", "nameTranslated": "", "price": 149, "quantity": 1 },
+          { "name": "Mote Hin Gar", "nameTranslated": "", "price": 90, "quantity": 1 },
+          { "name": "Rakhine Rice Noodle with Soup", "nameTranslated": "", "price": 90, "quantity": 1 },
+          { "name": "Rice", "nameTranslated": "", "price": 20, "quantity": 1 }
+        ],
+        "tax": 90.04,
+        "serviceCharge": 61.25,
+        "rounding": -0.29,
+        "discount": 0,
+        "subtotal": 1225,
+        "total": 1376,
+        "printedItemUnits": 15,
+        "taxInclusive": false
+      }
+    },
+    {
+      "content": {
+        "currency": "THB",
+        "items": [
+          { "name": "Pone Hman", "nameTranslated": "", "price": 100, "quantity": 2 },
+          { "name": "STHN NHAT Coffee", "nameTranslated": "", "price": 70, "quantity": 1 },
+          { "name": "SI Lone Tea", "nameTranslated": "", "price": 80, "quantity": 1 },
+          { "name": "Kya Saint", "nameTranslated": "", "price": 50, "quantity": 1 },
+          { "name": "Tea Leaf Rice Salad with Fried Egg", "nameTranslated": "", "price": 90, "quantity": 1 },
+          { "name": "Daily Special", "nameTranslated": "", "price": 396, "quantity": 4 },
+          { "name": "Tea Leaf Rice Salad with Fried Egg", "nameTranslated": "", "price": 90, "quantity": 1 },
+          { "name": "Beef Curry with Rice", "nameTranslated": "", "price": 149, "quantity": 1 },
+          { "name": "Mote Hin Gar", "nameTranslated": "", "price": 90, "quantity": 1 },
+          { "name": "Rakhine Rice Noodle with Soup", "nameTranslated": "", "price": 90, "quantity": 1 },
+          { "name": "Rice", "nameTranslated": "", "price": 20, "quantity": 1 }
+        ],
+        "tax": 90.04,
+        "serviceCharge": 61.25,
+        "rounding": -0.29,
+        "discount": 0,
+        "subtotal": 1225,
+        "total": 1376,
+        "printedItemUnits": 15,
+        "taxInclusive": false
+      }
+    }
+  ],
+  "expect": {
+    "calls": 2,
+    "reconciled": true,
+    "taxForUi": 90.04,
+    "total": 1376,
+    "itemCount": 11,
+    "hasNegativeItem": false,
+    "hasRepairPrompt": true,
+    "itemNameIncludes": ["Daily Special", "Tea Leaf Rice Salad"],
+    "itemQuantityIncludes": [
+      { "nameIncludes": "Daily Special", "quantity": 4 },
+      { "nameIncludes": "Tea Leaf Rice Salad", "quantity": 1 }
+    ]
+  }
+}

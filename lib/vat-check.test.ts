@@ -93,6 +93,7 @@ describe("checkVatConsistency", () => {
       serviceCharge: 0,
       rounding: 0,
       discount: 0,
+      additionalCharges: [],
       subtotal: 306,
       total: 406,
       taxInclusive: false,

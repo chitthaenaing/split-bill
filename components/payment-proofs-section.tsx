@@ -122,7 +122,12 @@ export function PaymentProofsSection({
   currency: string;
   bill: Pick<
     StoredBill,
-    "items" | "tax" | "serviceCharge" | "rounding" | "discount"
+    | "items"
+    | "tax"
+    | "serviceCharge"
+    | "rounding"
+    | "discount"
+    | "additionalCharges"
   >;
   receipts: StoredPaymentReceipt[];
 }) {

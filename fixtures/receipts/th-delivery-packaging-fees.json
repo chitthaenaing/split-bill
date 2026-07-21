@@ -1,0 +1,32 @@
+{
+  "id": "th-delivery-packaging-fees",
+  "description": "Thai takeaway with delivery + packaging fees beyond tax/service",
+  "raw": {
+    "currency": "THB",
+    "items": [
+      { "name": "Pad Thai", "price": 120, "quantity": 1 },
+      { "name": "Green Curry", "price": 140, "quantity": 1 }
+    ],
+    "tax": 0,
+    "serviceCharge": 0,
+    "rounding": 0,
+    "discount": 0,
+    "additionalCharges": [
+      { "name": "Delivery Fee", "amount": 40 },
+      { "name": "Packaging", "amount": 10 }
+    ],
+    "subtotal": 260,
+    "total": 310,
+    "taxInclusive": true,
+    "printedItemUnits": 0
+  },
+  "expect": {
+    "taxInclusive": true,
+    "taxForUi": 0,
+    "total": 310,
+    "itemCount": 2,
+    "noNegativeItems": true,
+    "reconciled": true,
+    "vatConsistency": "skip"
+  }
+}
