@@ -65,7 +65,7 @@ What goes in each field:
 - "rounding": cash-rounding adjustments ("Rounding", "Round Amount", "Round Down", "Round Up", "Cash Round"). May be negative. When the printed Round Amount reduces the payable total (e.g. Total Amount 44.46 with Round Amount 0.01 and cash due 44.45), store rounding as -0.01. 0 if absent.
 - "subtotal": the printed items subtotal BEFORE discount (sum of the positive product lines). On Gross/Dis/Net tables, prefer the sum of Net line amounts when no separate subtotal is printed.
 - "total": the printed grand total / amount due (after rounding). Not cash tendered / change.
-- "currency": ISO 4217 code (THB, USD, EUR, GBP, JPY, SGD, AUD, MYR, IDR, INR, etc). Infer from symbols (\u00a3=GBP, \u20ac=EUR, \u00a5=JPY, \u0e3f=THB, RM=MYR, Rp=IDR, S$=SGD, A$=AUD). Default to THB when nothing suggests another currency — common on Thai / SEA / Burmese POS receipts that print bare amounts with no currency symbol.
+- "currency": ISO 4217 code when clearly shown or implied by a symbol (\u0e3f=THB, $=USD, \u00a3=GBP, \u20ac=EUR, \u00a5=JPY, RM=MYR, Rp=IDR, S$=SGD, A$=AUD). When the receipt prints bare amounts with NO currency symbol and no currency code, return "" (empty string) — do NOT guess USD or any other code. The app defaults empty currency to THB.
 - "taxInclusive": true when tax is already baked into item prices / the subtotal. Common in EU, AU, JP, Singapore (SGD GST — even when labelled "ADD GST"), "incl. VAT" / "incl. GST", and Thai Tax Invoice / ABB lines labelled "Sub Total (Included Vat)" / "Included Vat". false when tax is added on top of the subtotal (common in US, and some THB receipts that list VAT after a pre-tax subtotal). On inclusive receipts, still extract the printed VAT/GST amount into "tax", but the grand-total equation must NOT add it again — "Net Total" / "ADD GST" is only a breakdown of the inclusive total.
 
 Accuracy guidance:
@@ -100,7 +100,8 @@ export const EXTRACTION_BILL_SCHEMA = {
   properties: {
     currency: {
       type: "string",
-      description: "ISO 4217 currency code, e.g. THB, USD, EUR.",
+      description:
+        "ISO 4217 when a symbol/code is on the receipt (e.g. THB, USD, EUR). Empty string when no currency is printed.",
     },
     items: {
       type: "array",

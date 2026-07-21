@@ -119,7 +119,7 @@ describe("normalizeExtractedBill", () => {
     assert.equal(missing.currency, "THB");
 
     const empty = normalizeExtractedBill({
-      currency: "  ",
+      currency: "",
       items: [{ name: "Rice Salad", price: 70, quantity: 1 }],
       tax: 0,
       serviceCharge: 0,
@@ -130,6 +130,21 @@ describe("normalizeExtractedBill", () => {
       taxInclusive: false,
     });
     assert.equal(empty.currency, "THB");
+  });
+
+  it("keeps an explicit USD when the model extracted one", () => {
+    const us = normalizeExtractedBill({
+      currency: "USD",
+      items: [{ name: "Latte", price: 4.5, quantity: 1 }],
+      tax: 0.4,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 4.5,
+      total: 4.9,
+      taxInclusive: false,
+    });
+    assert.equal(us.currency, "USD");
   });
 
   it("filters junk rows, rounds money, uppercases currency", () => {

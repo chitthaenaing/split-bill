@@ -126,6 +126,19 @@ export function likelyNeedsTranslation(name: string): boolean {
   }
 }
 
+/**
+ * Resolve ISO currency from the model. Empty / missing / junk → THB.
+ * Keeps an explicit USD (or any other code) when the model extracted one.
+ */
+export function resolveBillCurrency(rawCurrency: unknown): string {
+  const currency = String(rawCurrency ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z]/g, "")
+    .slice(0, 3);
+  return currency || "THB";
+}
+
 /** Net of every line (products + negative promotions). */
 export function netItemsSum(
   items: Array<{ price: number }>,
@@ -176,10 +189,8 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
     printedItemUnits?: unknown;
   };
 
-  const currency = String(parsed.currency || "THB")
-    .trim()
-    .toUpperCase()
-    .slice(0, 3) || "THB";
+  const rawItems = Array.isArray(parsed.items) ? parsed.items : [];
+  const currency = resolveBillCurrency(parsed.currency);
 
   const items: Array<{
     name: string;
@@ -187,7 +198,7 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
     price: number;
     quantity: number;
   }> = [];
-  for (const it of Array.isArray(parsed.items) ? parsed.items : []) {
+  for (const it of rawItems) {
     const price = roundMoney(asFinite(it?.price), currency);
     let quantity = Math.max(1, Math.floor(asFinite(it?.quantity, 1)) || 1);
     // Keep priced rows even when the model couldn't read a non-Latin name.
