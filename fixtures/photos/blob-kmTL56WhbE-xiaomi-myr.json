@@ -1,0 +1,40 @@
+{
+  "id": "blob-kmTL56WhbE-xiaomi-myr",
+  "description": "Simple MYR retail receipt — Xiaomi power bank 189. Blob extract is correct.",
+  "shareId": "kmTL56WhbE",
+  "receiptUrl": "https://tw40ymrijg2fraib.public.blob.vercel-storage.com/bills/kmTL56WhbE/receipt.jpg",
+  "receiptContentType": "image/jpeg",
+  "locked": true,
+  "goldCorrected": false,
+  "gold": {
+    "currency": "MYR",
+    "items": [
+      {
+        "name": "Xiaomi 165W PowerBank 10000mAh (Integrated Cable) TH (59603)",
+        "price": 189,
+        "quantity": 1
+      }
+    ],
+    "tax": 0,
+    "serviceCharge": 0,
+    "rounding": 0,
+    "discount": 0,
+    "subtotal": 189,
+    "total": 189,
+    "taxInclusive": true
+  },
+  "expect": {
+    "taxInclusive": true,
+    "taxForUi": 0,
+    "total": 189,
+    "itemCount": 1,
+    "reconciled": true,
+    "vatConsistency": "skip",
+    "noNegativeItems": true,
+    "itemNameIncludes": [
+      "Xiaomi"
+    ],
+    "minItemRecall": 1,
+    "maxPriceMae": 0.05
+  }
+}

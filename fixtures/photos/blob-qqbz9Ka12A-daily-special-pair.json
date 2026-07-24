@@ -1,0 +1,53 @@
+{
+  "id": "blob-qqbz9Ka12A-daily-special-pair",
+  "description": "Thai F&B — Kyay Oh + Daily Special ×2. Blob extract reconciles.",
+  "shareId": "qqbz9Ka12A",
+  "receiptUrl": "https://tw40ymrijg2fraib.public.blob.vercel-storage.com/bills/qqbz9Ka12A/receipt.jpg",
+  "receiptContentType": "image/jpeg",
+  "locked": true,
+  "goldCorrected": false,
+  "gold": {
+    "currency": "THB",
+    "items": [
+      {
+        "name": "Kyay Oh Si Chat (Chicken)",
+        "price": 170,
+        "quantity": 1
+      },
+      {
+        "name": "Daily Special",
+        "price": 198,
+        "quantity": 2
+      }
+    ],
+    "tax": 27.05,
+    "serviceCharge": 18.4,
+    "rounding": -0.45,
+    "discount": 0,
+    "subtotal": 368,
+    "total": 413,
+    "taxInclusive": false,
+    "printedItemUnits": 3
+  },
+  "expect": {
+    "taxInclusive": false,
+    "taxForUi": 27.05,
+    "total": 413,
+    "itemCount": 2,
+    "reconciled": true,
+    "vatConsistency": "ok",
+    "noNegativeItems": true,
+    "itemNameIncludes": [
+      "Daily Special",
+      "Kyay Oh"
+    ],
+    "itemQuantityIncludes": [
+      {
+        "nameIncludes": "Daily Special",
+        "quantity": 2
+      }
+    ],
+    "minItemRecall": 1,
+    "maxPriceMae": 0.05
+  }
+}

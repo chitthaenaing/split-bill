@@ -125,6 +125,11 @@ lib/
 fixtures/
   receipts/               arithmetic / VAT scoreboard JSON
   model-transcripts/      mocked model responses for extract+repair
+  photos/                 real Blob receipt URLs + corrected gold labels
+docs/
+  EXTRACTION_FIX_POLICY.md  how to fix accuracy without prompt regressions
+scripts/
+  import-photo-fixtures-from-blob.ts  refresh/import photo scoreboard cases
 types/bill.ts             shared types
 types/user-bills.ts       account bill-index types
 types/user-profile.ts     saved payment QR profile fields
@@ -143,3 +148,5 @@ The totals panel can show your share in another currency via [Frankfurter](https
 - Run extraction unit tests with `npm test`.
 - Receipt arithmetic fixtures live in `fixtures/receipts/` (`npm run test:fixtures`).
 - Scripted vision-model transcripts live in `fixtures/model-transcripts/` (`npm run test:transcripts`) — they exercise prompt, JSON schema, repair, and finalize without calling OpenAI.
+- Real receipt **photo** gold labels (from Vercel Blob shares) live in `fixtures/photos/` (`npm run test:photos`). Live re-extract scoreboard: `RUN_PHOTO_SCOREBOARD=1 npm run test:photos:live` (needs `OPENAI_API_KEY`). Import/refresh: `npm run photos:import`.
+- **Fix policy:** do not patch one broken receipt by editing the global OpenAI system prompt — that regresses others. Prefer `lib/bill-extract.ts` + repair modes + fixtures. See [`docs/EXTRACTION_FIX_POLICY.md`](docs/EXTRACTION_FIX_POLICY.md).

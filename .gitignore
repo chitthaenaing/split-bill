@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+fixtures/photos/.cache/
 
 # next.js
 /.next/
