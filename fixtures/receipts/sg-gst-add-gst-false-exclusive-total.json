@@ -1,0 +1,39 @@
+{
+  "id": "sg-gst-add-gst-false-exclusive-total",
+  "description": "Same SG bak kwa as mislabelled exclusive, but model also set total=items+ADD GST (47.76) with Round Amount +0.01 so exclusive math falsely reconciles. Must flip inclusive, cash-round −0.01, total 44.45, no soft VAT warn.",
+  "raw": {
+    "currency": "SGD",
+    "items": [
+      { "name": "Gold Coin Bak Kwa (200g)", "price": 11.22, "quantity": 1 },
+      { "name": "Chicken Bak Kwa (200g)", "price": 11.22, "quantity": 1 },
+      { "name": "Mini Square Bak Kwa (200g)", "price": 11.22, "quantity": 1 },
+      { "name": "Salted Egg Fish Skin (70g)", "price": 3.2, "quantity": 1 },
+      {
+        "name": "Salted Egg Chilli Crab Fish Skin (70g)",
+        "price": 0,
+        "quantity": 1
+      },
+      {
+        "name": "Salted Egg Chilli Crab Fish Skin (70g)",
+        "price": 7.6,
+        "quantity": 1
+      }
+    ],
+    "tax": 3.29,
+    "serviceCharge": 0,
+    "rounding": 0.01,
+    "discount": 0,
+    "subtotal": 44.46,
+    "total": 47.76,
+    "taxInclusive": false
+  },
+  "expect": {
+    "taxInclusive": true,
+    "taxForUi": 0,
+    "total": 44.45,
+    "itemCount": 6,
+    "noNegativeItems": true,
+    "reconciled": true,
+    "vatConsistency": "ok"
+  }
+}

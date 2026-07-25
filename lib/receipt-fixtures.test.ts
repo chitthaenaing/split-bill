@@ -117,6 +117,7 @@ describe("receipt fixture scoreboard", () => {
       "eu-tax-inclusive",
       "sg-gst-inclusive-bak-kwa",
       "sg-gst-mislabelled-exclusive",
+      "sg-gst-add-gst-false-exclusive-total",
       "th-handwritten-motorcycle-service",
     ];
     const ids = new Set(fixtures.map((f) => f.id));

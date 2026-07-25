@@ -302,6 +302,7 @@ describe("model transcript harness", () => {
       "th-shwe-missed-daily-special-repair",
       "th-handwritten-motorcycle-service",
       "th-handwritten-motorcycle-service-false-svc",
+      "sg-gst-add-gst-false-exclusive-total",
     ];
     const ids = new Set(fixtures.map((f) => f.id));
     for (const id of required) {
