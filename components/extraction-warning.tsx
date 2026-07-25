@@ -1,8 +1,10 @@
 "use client";
 
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, Loader2, RefreshCw, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/utils";
 import { itemsTotal } from "@/lib/calc";
+import { MAX_EXTRACTION_RESCANS } from "@/lib/extraction-rescan";
 import type { BillItem } from "@/types/bill";
 
 export type ExtractionWarningProps = {
@@ -12,6 +14,11 @@ export type ExtractionWarningProps = {
   printedSubtotal: number | null;
   printedTotal: number | null;
   onDismiss: () => void;
+  /** Remaining user-triggered rescans (0 = limit reached). */
+  rescansRemaining: number;
+  rescanning?: boolean;
+  onRescan?: () => void;
+  rescanError?: string | null;
 };
 
 function isVatSoftWarning(w: string): boolean {
@@ -25,12 +32,17 @@ export function ExtractionWarning({
   printedSubtotal,
   printedTotal,
   onDismiss,
+  rescansRemaining: remaining,
+  rescanning = false,
+  onRescan,
+  rescanError = null,
 }: ExtractionWarningProps) {
   if (!warnings.length) return null;
 
   const computedItems = itemsTotal(items);
   const onlyVatSoft = warnings.every(isVatSoftWarning);
   const title = onlyVatSoft ? "VAT looks off" : "Totals don't match";
+  const canRescan = Boolean(onRescan) && remaining > 0;
 
   return (
     <div
@@ -60,8 +72,48 @@ export function ExtractionWarning({
                 {formatMoney(printedTotal, currency)}
               </>
             )}
-            . Edit charges, or retake the photo.
+            . Edit charges
+            {canRescan ? ", rescan, or retake the photo." : ", or retake the photo."}
           </p>
+
+          {onRescan && (
+            <div className="pt-2 flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!canRescan || rescanning}
+                onClick={onRescan}
+                className="border-amber-600/30 bg-background/60 hover:bg-amber-500/15"
+              >
+                {rescanning ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Rescanning…
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Rescan
+                    {remaining > 0
+                      ? ` (${remaining} left)`
+                      : ""}
+                  </>
+                )}
+              </Button>
+              <span className="text-[11px] text-amber-900/65 dark:text-amber-100/65">
+                {remaining > 0
+                  ? `Up to ${MAX_EXTRACTION_RESCANS} rescans per receipt.`
+                  : "Rescan limit reached — edit items or retake the photo."}
+              </span>
+            </div>
+          )}
+
+          {rescanError && (
+            <p className="text-xs text-rose-700 dark:text-rose-300 pt-1">
+              {rescanError}
+            </p>
+          )}
         </div>
         <button
           type="button"

@@ -41,7 +41,7 @@ Set `OPENAI_MODEL` in `.env.local` to any OpenAI vision-capable model. Defaults 
 3. **Pick** — tap each item you had. The totals panel updates live. Translated names show first with the original underneath. Use **Translate** for names that still need a gloss, or the pencil on a row to fix a mis-read name, translation, or price.
 4. **Your share** — the panel shows your items subtotal plus a proportional share of tax, service and rounding. One tap to copy the total.
 
-Tax, service and rounding are editable too — flip the panel into edit mode if the AI got something off or you want to adjust the tip. If the extracted totals still don't reconcile, a warning banner shows the printed vs computed amounts.
+Tax, service and rounding are editable too — flip the panel into edit mode if the AI got something off or you want to adjust the tip. If the extracted totals still don't reconcile, a warning banner shows the printed vs computed amounts — you can **Rescan** the same photo up to twice, then edit items or retake the photo.
 
 ## Sharing
 
