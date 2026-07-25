@@ -14,11 +14,14 @@ export const TH_VAT_RATE = 0.07;
 export const SG_GST_RATES = [0.09, 0.08] as const;
 
 /**
- * Tighter than MONEY_TOLERANCE: Thai ABB printers often print VAT a few
- * satang off the statutory round (51.91 vs 51.88). That should soft-warn
- * even though grand-total reconciliation still passes at ±0.05.
+ * Match tolerance for printed VAT vs statutory round (same magnitude as
+ * MONEY_TOLERANCE = 0.05). Thai ABB printers often print VAT a few satang
+ * off (51.91 vs 51.88 on a 793 inclusive total) — treat that as OK so
+ * correctly extracted tax-inclusive bills do not show "VAT looks off".
+ * Literal (not imported MONEY_TOLERANCE) to avoid a circular init with
+ * bill-extract ↔ vat-check.
  */
-export const VAT_MATCH_TOLERANCE = 0.01;
+export const VAT_MATCH_TOLERANCE = 0.05;
 
 /**
  * Soft VAT warnings are only for near-miss printer/rounding noise. A charge

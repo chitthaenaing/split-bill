@@ -5,7 +5,8 @@ import { finalizeExtraction } from "./openai";
 import { checkVatConsistency } from "./vat-check";
 
 describe("checkVatConsistency", () => {
-  it("warns when inclusive THB printed VAT is a few satang off 7% (Air Plus)", () => {
+  it("accepts inclusive THB printed VAT a few satang off 7% (Air Plus ABB)", () => {
+    // POS prints 51.91; statutory 793×0.07/1.07 rounds to 51.88 — within ±0.05.
     const bill = normalizeExtractedBill({
       currency: "THB",
       items: [
@@ -29,11 +30,30 @@ describe("checkVatConsistency", () => {
 
     const vat = checkVatConsistency(bill);
     assert.equal(vat.skipped, false);
-    assert.equal(vat.ok, false);
+    assert.equal(vat.ok, true);
     assert.equal(vat.expectedVat, 51.88);
     assert.equal(vat.printedVat, 51.91);
-    assert.match(vat.messages[0] ?? "", /51\.91/);
-    assert.match(vat.messages[0] ?? "", /51\.88/);
+    assert.equal(vat.messages.length, 0);
+  });
+
+  it("soft-warns when inclusive VAT is more than MONEY_TOLERANCE off", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [{ name: "Set lunch", price: 793, quantity: 1 }],
+      tax: 52.1,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 793,
+      total: 793,
+      taxInclusive: true,
+    });
+
+    const vat = checkVatConsistency(bill);
+    assert.equal(vat.skipped, false);
+    assert.equal(vat.ok, false);
+    assert.equal(vat.expectedVat, 51.88);
+    assert.match(vat.messages[0] ?? "", /52\.10/);
     assert.match(vat.messages[0] ?? "", /left unchanged/i);
   });
 
@@ -161,7 +181,7 @@ describe("checkVatConsistency", () => {
 });
 
 describe("finalizeExtraction", () => {
-  it("keeps reconciled true but surfaces soft VAT warnings for Air Plus", () => {
+  it("keeps reconciled true and no soft VAT warning for Air Plus ABB satang noise", () => {
     const bill = normalizeExtractedBill({
       currency: "THB",
       items: [
@@ -187,11 +207,7 @@ describe("finalizeExtraction", () => {
     assert.equal(result.reconciled, true);
     assert.equal(result.bill.tax, 0);
     assert.equal(result.bill.total, 793);
-    assert.equal(result.warnings.length, 1);
-    assert.match(
-      result.warnings[0] ?? "",
-      /Printed VAT 51\.91 differs from expected 7% inclusive VAT 51\.88/
-    );
+    assert.equal(result.warnings.length, 0);
   });
 
   it("does not warn about 7% VAT when a non-VAT gap was filled (HTOO's Curry)", () => {
