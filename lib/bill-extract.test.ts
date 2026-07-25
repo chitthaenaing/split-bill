@@ -15,6 +15,7 @@ import {
   toExtractedBill,
 } from "./bill-extract";
 import { computeSplit } from "./calc";
+import { checkVatConsistency } from "./vat-check";
 
 describe("isJunkItemName", () => {
   it("flags totals, tax and payment labels", () => {
@@ -967,5 +968,34 @@ describe("Singapore GST-inclusive retail (ADD GST)", () => {
       ).total,
       44.45
     );
+  });
+
+  it("flips when exclusive math reconciles only because total wrongly includes ADD GST", () => {
+    // Live failure: model sets taxInclusive=false, total=44.46+3.29+0.01=47.76,
+    // Round Amount as +0.01. Exclusive math passes so reconcileBill early-returns,
+    // then soft VAT warns "expected 8% exclusive 3.56". Must still flip inclusive
+    // and recover cash-round −0.01 → amount due 44.45 with taxForUi 0.
+    const normalized = normalizeExtractedBill({
+      currency: "SGD",
+      items: sgItems,
+      tax: 3.29,
+      serviceCharge: 0,
+      rounding: 0.01,
+      discount: 0,
+      subtotal: 44.46,
+      total: 47.76,
+      taxInclusive: false,
+    });
+    assert.equal(normalized.taxInclusive, true);
+    assert.equal(normalized.rounding, -0.01);
+    assert.equal(normalized.total, 44.45);
+    assert.equal(checkBillMath(normalized).ok, true);
+
+    const extracted = toExtractedBill(normalized);
+    assert.equal(extracted.tax, 0);
+    assert.equal(extracted.total, 44.45);
+    const vat = checkVatConsistency(normalized);
+    assert.equal(vat.ok, true);
+    assert.equal(vat.messages.length, 0);
   });
 });

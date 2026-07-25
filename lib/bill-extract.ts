@@ -1,5 +1,9 @@
 import type { AdditionalCharge, ExtractedBill } from "@/types/bill";
-import { looksLikeStatutoryVat } from "@/lib/vat-check";
+import {
+  looksLikeStatutoryVat,
+  ratesForCurrency,
+  VAT_MATCH_TOLERANCE,
+} from "@/lib/vat-check";
 import {
   classifyRepairModes,
   repairModeHints,
@@ -393,7 +397,90 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
     draft.total = expectedGrandTotal(draft);
   }
 
-  return reconcileBill(draft);
+  return preferInclusiveWhenTaxIsBreakdown(reconcileBill(draft));
+}
+
+/**
+ * When the model labels a GST/VAT *breakdown* as exclusive (common for SGD
+ * "ADD GST" and Thai "Included Vat") and invents total = items + tax, exclusive
+ * math can still "reconcile" — so reconcileBill early-returns and never flips.
+ *
+ * If printed tax matches the inclusive statutory breakdown of the items/
+ * subtotal much better than the exclusive rate, force taxInclusive and set
+ * the payable total to items (+ fees + rounding) without adding tax again.
+ * Also try flipping the rounding sign when the model stored Round Amount as
+ * positive but cash-round should reduce the due amount.
+ */
+export function preferInclusiveWhenTaxIsBreakdown(
+  bill: NormalizedBill
+): NormalizedBill {
+  if (bill.taxInclusive || bill.tax <= MONEY_TOLERANCE) return bill;
+
+  const rates = ratesForCurrency(bill.currency);
+  if (rates == null || rates.length === 0) return bill;
+
+  const net = netItemsSum(bill.items, bill.currency);
+  const extras = additionalChargesSum(bill.additionalCharges, bill.currency);
+  const base =
+    bill.subtotal > MONEY_TOLERANCE ? bill.subtotal : net;
+
+  let bestIncl = Number.POSITIVE_INFINITY;
+  let bestExcl = Number.POSITIVE_INFINITY;
+  for (const rate of rates) {
+    const incl = Math.round(((base * rate) / (1 + rate)) * 100) / 100;
+    const excl =
+      Math.round((net + bill.serviceCharge) * rate * 100) / 100;
+    bestIncl = Math.min(bestIncl, Math.abs(incl - bill.tax));
+    bestExcl = Math.min(bestExcl, Math.abs(excl - bill.tax));
+  }
+
+  // Tax is an inclusive breakdown, not an add-on.
+  if (
+    !(
+      bestIncl <= VAT_MATCH_TOLERANCE &&
+      bestExcl > VAT_MATCH_TOLERANCE
+    )
+  ) {
+    return bill;
+  }
+
+  const exclusiveTotal = roundMoney(
+    net + bill.tax + bill.serviceCharge + extras + bill.rounding,
+    bill.currency
+  );
+  const modelUsedExclusiveTotal =
+    Math.abs(bill.total - exclusiveTotal) <= MONEY_TOLERANCE;
+
+  const withRound = (rounding: number): NormalizedBill => ({
+    ...bill,
+    taxInclusive: true,
+    rounding,
+    total: roundMoney(
+      net + bill.serviceCharge + extras + rounding,
+      bill.currency
+    ),
+  });
+
+  const asPrintedRound = withRound(bill.rounding);
+  const flippedRound = withRound(-bill.rounding);
+
+  // Prefer the cash-round sign that reconciles; when the model clearly used
+  // exclusive total = items+tax+round, prefer flipping a small positive round
+  // to negative (SG "Round Amount" reducing amount due).
+  const printedOk = checkBillMath(asPrintedRound).ok;
+  const flippedOk = checkBillMath(flippedRound).ok;
+
+  if (
+    flippedOk &&
+    modelUsedExclusiveTotal &&
+    bill.rounding > 0 &&
+    Math.abs(bill.rounding) <= 0.1 + MONEY_TOLERANCE
+  ) {
+    return flippedRound;
+  }
+  if (printedOk) return asPrintedRound;
+  if (flippedOk) return flippedRound;
+  return bill;
 }
 
 /**
