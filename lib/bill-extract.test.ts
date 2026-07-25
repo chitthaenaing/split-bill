@@ -7,6 +7,7 @@ import {
   formatCheckForRepair,
   impliedSubtotalHints,
   isJunkItemName,
+  isLaborOrPartsItemName,
   liftLeadingQuantity,
   likelyNeedsTranslation,
   normalizeExtractedBill,
@@ -48,6 +49,90 @@ describe("isJunkItemName", () => {
     assert.equal(isJunkItemName("မုန့်ဟင်းခါး"), false);
     assert.equal(isJunkItemName("ข้าวซอย"), false);
     assert.equal(isJunkItemName("မုန့်ဟင်းခါး / ขนมจีนน้ำยา"), false);
+  });
+
+  it("keeps handwritten garage labor and parts as real items", () => {
+    assert.equal(isLaborOrPartsItemName("ค่าแรงเช็คระยะ"), true);
+    assert.equal(isLaborOrPartsItemName("ค่าแรงท่อไอเสีย"), true);
+    assert.equal(isJunkItemName("ค่าแรงเช็คระยะ"), false);
+    assert.equal(isJunkItemName("ค่าแรงท่อไอเสีย"), false);
+    assert.equal(isJunkItemName("Service labor fee"), false);
+    assert.equal(isJunkItemName("สายพาน"), false);
+    assert.equal(isJunkItemName("หัวเทียน"), false);
+    assert.equal(isJunkItemName("ค่าบริการ ไป-กลับ"), false);
+    // Bare F&B "Service" / "Service Charge" still junk.
+    assert.equal(isJunkItemName("Service"), true);
+    assert.equal(isJunkItemName("Service Charge"), true);
+  });
+});
+
+describe("handwritten garage / motorcycle service invoices", () => {
+  it("keeps parts, ค่าแรง labor, and pickup fee as items (not serviceCharge)", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "สายพาน", price: 1550, quantity: 1 },
+        { name: "ค่าแรงเช็คระยะ", price: 500, quantity: 1 },
+        { name: "ค่าแรงท่อไอเสีย", price: 200, quantity: 1 },
+        { name: "ค่าบริการ ไป-กลับ", price: 400, quantity: 1 },
+        { name: "หัวเทียน", price: 390, quantity: 1 },
+      ],
+      tax: 0,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      additionalCharges: [],
+      subtotal: 3040,
+      total: 3040,
+      taxInclusive: true,
+    });
+    assert.equal(bill.items.length, 5);
+    assert.equal(bill.serviceCharge, 0);
+    assert.deepEqual(bill.additionalCharges, []);
+    assert.equal(checkBillMath(bill).ok, true);
+  });
+
+  it("clears spurious serviceCharge when garage items already sum to total", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "สายพาน", price: 1550, quantity: 1 },
+        { name: "ค่าแรงเช็คระยะ", price: 500, quantity: 1 },
+        { name: "ค่าบริการ ไป-กลับ", price: 400, quantity: 1 },
+      ],
+      tax: 0,
+      serviceCharge: 700,
+      rounding: 0,
+      discount: 0,
+      additionalCharges: [],
+      subtotal: 2450,
+      total: 2450,
+      taxInclusive: true,
+    });
+    assert.equal(bill.serviceCharge, 0);
+    assert.equal(bill.items.length, 3);
+    assert.equal(checkBillMath(bill).ok, true);
+  });
+
+  it("does not salvage garage labor or pickup into additionalCharges", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "สายพาน", price: 1550, quantity: 1 },
+        { name: "Service labor fee", price: 500, quantity: 1 },
+        { name: "ค่าบริการ ไป-กลับ", price: 400, quantity: 1 },
+      ],
+      tax: 0,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      additionalCharges: [],
+      subtotal: 2450,
+      total: 2450,
+      taxInclusive: true,
+    });
+    assert.equal(bill.items.length, 3);
+    assert.deepEqual(bill.additionalCharges, []);
   });
 });
 
