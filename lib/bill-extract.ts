@@ -1,5 +1,9 @@
 import type { AdditionalCharge, ExtractedBill } from "@/types/bill";
 import { looksLikeStatutoryVat } from "@/lib/vat-check";
+import {
+  classifyRepairModes,
+  repairModeHints,
+} from "@/lib/repair-modes";
 
 /** Absolute tolerance for money reconciliation (covers float + 1-cent OCR noise). */
 export const MONEY_TOLERANCE = 0.05;
@@ -649,13 +653,18 @@ export function reconcileBill(bill: NormalizedBill): NormalizedBill {
 
 /**
  * Human-readable brief of a failed check, used as the repair prompt payload.
+ * Leads with classified repair modes so the model gets a narrow focus instead of
+ * stuffing more permanent rules into EXTRACTION_SYSTEM_PROMPT.
  */
 export function formatCheckForRepair(
   bill: NormalizedBill,
   check: BillCheck
 ): string {
+  const modes = classifyRepairModes(bill, check);
+  const modeHints = repairModeHints(modes);
+
   const missingProductsHint =
-    check.itemsDelta > MONEY_TOLERANCE
+    modes.includes("missing_products")
       ? [
           "Product lines do not match the printed subtotal — a priced product row is likely missing or mis-read.",
           "Re-scan every amount in the Items / price column top-to-bottom. Common misses: small drinks/tea/sides, bilingual English lines between Myanmar/Thai dish names, and multi-qty lines like \"4  Daily Special  396.00\" sitting between two similar salads.",
@@ -666,7 +675,7 @@ export function formatCheckForRepair(
       : [];
 
   const quantityHint =
-    bill.printedItemUnits > 0 && check.quantityDelta > 0
+    modes.includes("quantity_mismatch")
       ? [
           `Quantity units (${check.quantitySum}) do not match the printed Items count (${bill.printedItemUnits}).`,
           "Re-read the leftmost quantity digit on EVERY item row (Thai/SEA POS often prints \"2  ItemName  100.00\").",
@@ -682,6 +691,9 @@ export function formatCheckForRepair(
   return [
     "Previous extraction failed the arithmetic self-check:",
     ...check.messages.map((m) => `- ${m}`),
+    "",
+    `Repair focus: ${modes.join(", ") || "generic_math"}`,
+    ...modeHints,
     "",
     "Previous JSON:",
     JSON.stringify(bill, null, 2),

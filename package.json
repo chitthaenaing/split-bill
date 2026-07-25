@@ -8,7 +8,10 @@
     "start": "next start",
     "test": "tsx --test lib/**/*.test.ts",
     "test:fixtures": "tsx --test lib/receipt-fixtures.test.ts",
-    "test:transcripts": "tsx --test lib/openai-transcripts.test.ts"
+    "test:transcripts": "tsx --test lib/openai-transcripts.test.ts",
+    "test:photos": "tsx --test lib/photo-scoreboard.test.ts lib/repair-modes.test.ts",
+    "test:photos:live": "tsx --test lib/photo-scoreboard.live.test.ts",
+    "photos:import": "tsx scripts/import-photo-fixtures-from-blob.ts"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
