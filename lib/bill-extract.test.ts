@@ -4,11 +4,13 @@ import {
   checkBillMath,
   cleanItemName,
   cleanTranslatedName,
+  deflateQuantityOvercount,
   formatCheckForRepair,
   impliedSubtotalHints,
   isBareProductCodeName,
   isJunkItemName,
   isLaborOrPartsItemName,
+  isStapleSideItemName,
   liftLeadingQuantity,
   likelyNeedsTranslation,
   normalizeExtractedBill,
@@ -472,6 +474,85 @@ describe("normalizeExtractedBill", () => {
     assert.equal(isBareProductCodeName("Pone Mhan"), false);
     assert.equal(isJunkItemName("1133371101", 0), true);
     assert.equal(isJunkItemName("1133371101", 55), false);
+  });
+
+  it("deflates Pone Mhan 2→1 when Items footer is short and keeps Rice ×2", () => {
+    assert.equal(isStapleSideItemName("Rice"), true);
+    assert.equal(isStapleSideItemName("Pone Mhan"), false);
+
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "ICE AMERIKANO Coffee", price: 75, quantity: 1 },
+        { name: "Pone Mhan", price: 110, quantity: 2 },
+        { name: "Roti Special", price: 55, quantity: 1 },
+        { name: "Steamed Rice Root-Beer with Fried Egg", price: 95, quantity: 1 },
+        { name: "Thai Chae-o", price: 15, quantity: 1 },
+        { name: "Fried Chicken Gyoza", price: 95, quantity: 1 },
+        { name: "Fried Egg (omelette)", price: 25, quantity: 1 },
+        { name: "Rice", price: 30, quantity: 2 },
+      ],
+      tax: 35,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 500,
+      total: 535,
+      printedItemUnits: 9,
+      taxInclusive: false,
+    });
+
+    assert.equal(
+      bill.items.find((it) => it.name === "Pone Mhan")?.quantity,
+      1
+    );
+    assert.equal(bill.items.find((it) => it.name === "Rice")?.quantity, 2);
+    assert.equal(checkBillMath(bill).ok, true);
+  });
+
+  it("still deflates the unique non-staple 2→1 when subtotal is still short", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "ICE AMERIKANO Coffee", price: 75, quantity: 1 },
+        { name: "Pone Mhan", price: 110, quantity: 2 },
+        { name: "Roti Special", price: 55, quantity: 1 },
+        { name: "Steamed Rice Root-Beer with Fried Egg", price: 95, quantity: 1 },
+        { name: "Thai Chae-o", price: 15, quantity: 1 },
+        { name: "Fried Chicken Gyoza", price: 95, quantity: 1 },
+        { name: "Fried Egg (omelette)", price: 25, quantity: 1 },
+        { name: "Rice", price: 30, quantity: 2 },
+      ],
+      tax: 40.82,
+      serviceCharge: 38.15,
+      rounding: 0.03,
+      discount: 0,
+      subtotal: 545,
+      total: 624,
+      printedItemUnits: 9,
+      taxInclusive: false,
+    });
+
+    assert.equal(
+      bill.items.find((it) => it.name === "Pone Mhan")?.quantity,
+      1
+    );
+    assert.equal(bill.items.find((it) => it.name === "Rice")?.quantity, 2);
+    // Money still short — missing priced row — but qty footer matches.
+    const check = checkBillMath(bill);
+    assert.equal(check.quantitySum, 9);
+    assert.equal(check.quantityDelta, 0);
+    assert.equal(check.ok, false);
+  });
+
+  it("does not deflate when Items footer already matches (Shwe Pone Hman ×2)", () => {
+    const items = [
+      { name: "Pone Hman", quantity: 2 },
+      { name: "Rice", quantity: 1 },
+    ];
+    const out = deflateQuantityOvercount(items, 3);
+    assert.equal(out[0].quantity, 2);
+    assert.equal(out, items);
   });
 
   it("flags quantity undercount when Items footer disagrees even if money reconciles", () => {

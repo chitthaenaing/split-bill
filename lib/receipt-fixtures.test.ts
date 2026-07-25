@@ -17,6 +17,8 @@ type FixtureExpect = {
   noNegativeItems: boolean;
   reconciled: boolean;
   vatConsistency: "ok" | "warn" | "skip";
+  /** Optional: assert a specific item's quantity by name fragment. */
+  itemQuantityIncludes?: Array<{ nameIncludes: string; quantity: number }>;
 };
 
 type ReceiptFixture = {
@@ -95,6 +97,20 @@ function evaluateFixture(fixture: ReceiptFixture): string[] {
     }
   }
 
+  for (const want of exp.itemQuantityIncludes ?? []) {
+    const needle = want.nameIncludes.toLowerCase();
+    const hit =
+      extracted.items.find((it) => it.name.toLowerCase() === needle) ??
+      extracted.items.find((it) => it.name.toLowerCase().includes(needle));
+    if (!hit) {
+      failures.push(`itemQuantityIncludes: missing name ~ ${want.nameIncludes}`);
+    } else if (hit.quantity !== want.quantity) {
+      failures.push(
+        `itemQuantityIncludes: ${want.nameIncludes} qty got ${hit.quantity}, want ${want.quantity}`
+      );
+    }
+  }
+
   return failures;
 }
 
@@ -120,6 +136,7 @@ describe("receipt fixture scoreboard", () => {
       "sg-gst-add-gst-false-exclusive-total",
       "th-handwritten-motorcycle-service",
       "th-sp-bare-plu-items-footer",
+      "th-brew-pone-mhan-qty-overcount",
     ];
     const ids = new Set(fixtures.map((f) => f.id));
     for (const id of required) {

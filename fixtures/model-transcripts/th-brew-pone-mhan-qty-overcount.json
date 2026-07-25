@@ -1,0 +1,45 @@
+{
+  "id": "th-brew-pone-mhan-qty-overcount",
+  "description": "Brew Tea House: model sets Pone Mhan qty 2 (over-read) with Rice qty 2 and Items: 9. Post-process must deflate Pone Mhan to 1 without a repair call that might touch Rice.",
+  "imageDataUrl": "data:image/jpeg;base64,AAAA",
+  "responses": [
+    {
+      "content": {
+        "currency": "THB",
+        "items": [
+          { "name": "ICE AMERIKANO Coffee", "nameTranslated": "", "price": 75, "quantity": 1 },
+          { "name": "Pone Mhan", "nameTranslated": "", "price": 110, "quantity": 2 },
+          { "name": "Roti Special", "nameTranslated": "", "price": 55, "quantity": 1 },
+          { "name": "Steamed Rice Root-Beer with Fried Egg", "nameTranslated": "", "price": 95, "quantity": 1 },
+          { "name": "Thai Chae-o", "nameTranslated": "", "price": 15, "quantity": 1 },
+          { "name": "Fried Chicken Gyoza", "nameTranslated": "", "price": 95, "quantity": 1 },
+          { "name": "Fried Egg (omelette)", "nameTranslated": "", "price": 25, "quantity": 1 },
+          { "name": "Rice", "nameTranslated": "", "price": 30, "quantity": 2 }
+        ],
+        "tax": 35,
+        "serviceCharge": 0,
+        "rounding": 0,
+        "discount": 0,
+        "subtotal": 500,
+        "total": 535,
+        "printedItemUnits": 9,
+        "taxInclusive": false,
+        "additionalCharges": []
+      }
+    }
+  ],
+  "expect": {
+    "calls": 1,
+    "reconciled": true,
+    "taxForUi": 35,
+    "total": 535,
+    "itemCount": 8,
+    "hasNegativeItem": false,
+    "hasRepairPrompt": false,
+    "itemNameIncludes": ["Pone Mhan", "Rice"],
+    "itemQuantityIncludes": [
+      { "nameIncludes": "Pone Mhan", "quantity": 1 },
+      { "nameIncludes": "Rice", "quantity": 2 }
+    ]
+  }
+}

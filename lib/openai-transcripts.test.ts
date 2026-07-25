@@ -125,6 +125,7 @@ function assertPromptContract(calls: CapturedCall[]): string[] {
     "ค่าแรง",
     "garage",
     "PLU/SKU",
+    "Pone Mhan",
   ]) {
     if (!EXTRACTION_SYSTEM_PROMPT.includes(needle)) {
       failures.push(`system prompt missing "${needle}"`);
@@ -271,9 +272,9 @@ async function evaluateFixture(fixture: TranscriptFixture): Promise<string[]> {
     }
   }
   for (const spec of exp.itemQuantityIncludes ?? []) {
-    const hit = result.bill.items.find((it) =>
-      it.name.includes(spec.nameIncludes)
-    );
+    const hit =
+      result.bill.items.find((it) => it.name === spec.nameIncludes) ??
+      result.bill.items.find((it) => it.name.includes(spec.nameIncludes));
     if (!hit) {
       failures.push(`missing item for quantity assert "${spec.nameIncludes}"`);
     } else if (hit.quantity !== spec.quantity) {

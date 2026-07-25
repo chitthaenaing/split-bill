@@ -1,0 +1,38 @@
+{
+  "id": "th-brew-pone-mhan-qty-overcount",
+  "description": "Brew Tea House / FoodStory: Items: 9 but model over-reads Pone Mhan as qty 2 (should be 1). Rice correctly qty 2. Deflate the non-staple 2→1 so units match the footer.",
+  "raw": {
+    "currency": "THB",
+    "items": [
+      { "name": "ICE AMERIKANO Coffee", "price": 75, "quantity": 1 },
+      { "name": "Pone Mhan", "price": 110, "quantity": 2 },
+      { "name": "Roti Special", "price": 55, "quantity": 1 },
+      { "name": "Steamed Rice Root-Beer with Fried Egg", "price": 95, "quantity": 1 },
+      { "name": "Thai Chae-o", "price": 15, "quantity": 1 },
+      { "name": "Fried Chicken Gyoza", "price": 95, "quantity": 1 },
+      { "name": "Fried Egg (omelette)", "price": 25, "quantity": 1 },
+      { "name": "Rice", "price": 30, "quantity": 2 }
+    ],
+    "tax": 35,
+    "serviceCharge": 0,
+    "rounding": 0,
+    "discount": 0,
+    "subtotal": 500,
+    "total": 535,
+    "printedItemUnits": 9,
+    "taxInclusive": false
+  },
+  "expect": {
+    "taxInclusive": false,
+    "taxForUi": 35,
+    "total": 535,
+    "itemCount": 8,
+    "noNegativeItems": true,
+    "reconciled": true,
+    "vatConsistency": "ok",
+    "itemQuantityIncludes": [
+      { "nameIncludes": "Pone Mhan", "quantity": 1 },
+      { "nameIncludes": "Rice", "quantity": 2 }
+    ]
+  }
+}
