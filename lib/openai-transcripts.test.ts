@@ -18,6 +18,8 @@ type TranscriptExpect = {
   itemCount: number;
   hasNegativeItem: boolean;
   hasRepairPrompt: boolean;
+  /** Optional: assert bill-level serviceCharge after finalize. */
+  serviceCharge?: number;
   nameTranslatedIncludes?: string[];
   itemNameIncludes?: string[];
   /** Optional: assert a specific item's quantity by name fragment. */
@@ -120,6 +122,8 @@ function assertPromptContract(calls: CapturedCall[]): string[] {
     "additionalCharges",
     "Daily Special",
     "Before VAT",
+    "ค่าแรง",
+    "garage",
   ]) {
     if (!EXTRACTION_SYSTEM_PROMPT.includes(needle)) {
       failures.push(`system prompt missing "${needle}"`);
@@ -209,6 +213,14 @@ async function evaluateFixture(fixture: TranscriptFixture): Promise<string[]> {
   if (result.bill.tax !== exp.taxForUi) {
     failures.push(`taxForUi: got ${result.bill.tax}, want ${exp.taxForUi}`);
   }
+  if (
+    typeof exp.serviceCharge === "number" &&
+    result.bill.serviceCharge !== exp.serviceCharge
+  ) {
+    failures.push(
+      `serviceCharge: got ${result.bill.serviceCharge}, want ${exp.serviceCharge}`
+    );
+  }
   if (result.bill.total !== exp.total) {
     failures.push(`total: got ${result.bill.total}, want ${exp.total}`);
   }
@@ -288,6 +300,8 @@ describe("model transcript harness", () => {
       "th-exclusive-clean",
       "th-leading-qty-undercount-repair",
       "th-shwe-missed-daily-special-repair",
+      "th-handwritten-motorcycle-service",
+      "th-handwritten-motorcycle-service-false-svc",
     ];
     const ids = new Set(fixtures.map((f) => f.id));
     for (const id of required) {

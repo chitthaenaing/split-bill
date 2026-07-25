@@ -1,0 +1,94 @@
+{
+  "id": "th-handwritten-motorcycle-service-false-svc",
+  "description": "Model dumps garage labor into serviceCharge while parts/labor rows already sum to total — post-process must clear serviceCharge.",
+  "imageDataUrl": "data:image/jpeg;base64,AAAA",
+  "responses": [
+    {
+      "content": {
+        "currency": "THB",
+        "items": [
+          {
+            "name": "น้ำมันเครื่อง + ไส้กรอง + โอริง",
+            "nameTranslated": "Engine oil + filter + O-ring",
+            "price": 1110,
+            "quantity": 1
+          },
+          {
+            "name": "สายพาน",
+            "nameTranslated": "Drive belt",
+            "price": 1550,
+            "quantity": 1
+          },
+          {
+            "name": "เม็ด",
+            "nameTranslated": "CVT roller weights",
+            "price": 600,
+            "quantity": 1
+          },
+          {
+            "name": "ประเก็นฝาข้าง",
+            "nameTranslated": "Side cover gasket",
+            "price": 150,
+            "quantity": 1
+          },
+          {
+            "name": "กรองอากาศ",
+            "nameTranslated": "Air filter",
+            "price": 220,
+            "quantity": 1
+          },
+          {
+            "name": "หัวเทียน",
+            "nameTranslated": "Spark plug",
+            "price": 390,
+            "quantity": 1
+          },
+          {
+            "name": "ค่าแรงเช็คระยะ",
+            "nameTranslated": "Service interval labor",
+            "price": 500,
+            "quantity": 1
+          },
+          {
+            "name": "ชุดปะกับเร่ง + แฮนด์",
+            "nameTranslated": "Throttle grip set + handlebar",
+            "price": 3550,
+            "quantity": 1
+          },
+          {
+            "name": "ค่าแรงท่อไอเสีย",
+            "nameTranslated": "Exhaust pipe labor",
+            "price": 200,
+            "quantity": 1
+          },
+          {
+            "name": "ค่าบริการ ไป-กลับ",
+            "nameTranslated": "Round-trip pickup/delivery fee",
+            "price": 400,
+            "quantity": 1
+          }
+        ],
+        "tax": 0,
+        "serviceCharge": 700,
+        "rounding": 0,
+        "discount": 0,
+        "additionalCharges": [],
+        "subtotal": 8670,
+        "total": 8670,
+        "printedItemUnits": 0,
+        "taxInclusive": true
+      }
+    }
+  ],
+  "expect": {
+    "calls": 1,
+    "reconciled": true,
+    "taxForUi": 0,
+    "serviceCharge": 0,
+    "total": 8670,
+    "itemCount": 10,
+    "hasNegativeItem": false,
+    "hasRepairPrompt": false,
+    "itemNameIncludes": ["ค่าแรงเช็คระยะ", "ค่าแรงท่อไอเสีย"]
+  }
+}

@@ -25,3 +25,7 @@ For every extraction bugfix:
 - Import / refresh from Blob: `npm run photos:import` (optional `BLOB_READ_WRITE_TOKEN` to list all shares; otherwise known share IDs + public store host).
 
 Blob `bill.json` is **not** always gold — some shares still store a wrong extract. Corrected gold lives in `fixtures/photos/*.json`.
+
+## Handwritten garage / motorcycle invoices
+
+Thai workshop forms (parts + `ค่าแรง` labor + pickup fees, total often handwritten as รวม) are **not** F&B. Labor and pickup lines stay in `items`; `serviceCharge` is only restaurant % service. Post-process clears a spurious `serviceCharge` when garage items already sum to the printed total. See `fixtures/receipts/th-handwritten-motorcycle-service.json`.

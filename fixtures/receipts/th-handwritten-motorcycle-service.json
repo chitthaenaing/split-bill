@@ -1,0 +1,87 @@
+{
+  "id": "th-handwritten-motorcycle-service",
+  "description": "Handwritten Thai motorcycle garage invoice (GPX 150 S). Parts + ค่าแรง labor + pickup fee are all pickable items; no F&B VAT/service %.",
+  "raw": {
+    "currency": "THB",
+    "items": [
+      {
+        "name": "น้ำมันเครื่อง + ไส้กรอง + โอริง",
+        "nameTranslated": "Engine oil + filter + O-ring",
+        "price": 1110,
+        "quantity": 1
+      },
+      {
+        "name": "สายพาน",
+        "nameTranslated": "Drive belt",
+        "price": 1550,
+        "quantity": 1
+      },
+      {
+        "name": "เม็ด",
+        "nameTranslated": "CVT roller weights",
+        "price": 600,
+        "quantity": 1
+      },
+      {
+        "name": "ประเก็นฝาข้าง",
+        "nameTranslated": "Side cover gasket",
+        "price": 150,
+        "quantity": 1
+      },
+      {
+        "name": "กรองอากาศ",
+        "nameTranslated": "Air filter",
+        "price": 220,
+        "quantity": 1
+      },
+      {
+        "name": "หัวเทียน",
+        "nameTranslated": "Spark plug",
+        "price": 390,
+        "quantity": 1
+      },
+      {
+        "name": "ค่าแรงเช็คระยะ",
+        "nameTranslated": "Service interval labor",
+        "price": 500,
+        "quantity": 1
+      },
+      {
+        "name": "ชุดปะกับเร่ง + แฮนด์",
+        "nameTranslated": "Throttle grip set + handlebar",
+        "price": 3550,
+        "quantity": 1
+      },
+      {
+        "name": "ค่าแรงท่อไอเสีย",
+        "nameTranslated": "Exhaust pipe labor",
+        "price": 200,
+        "quantity": 1
+      },
+      {
+        "name": "ค่าบริการ ไป-กลับ",
+        "nameTranslated": "Round-trip pickup/delivery fee",
+        "price": 400,
+        "quantity": 1
+      }
+    ],
+    "tax": 0,
+    "serviceCharge": 0,
+    "rounding": 0,
+    "discount": 0,
+    "additionalCharges": [],
+    "subtotal": 8670,
+    "total": 8670,
+    "printedItemUnits": 0,
+    "taxInclusive": true
+  },
+  "expect": {
+    "taxInclusive": true,
+    "taxForUi": 0,
+    "total": 8670,
+    "itemCount": 10,
+    "noNegativeItems": true,
+    "reconciled": true,
+    "vatConsistency": "skip"
+  }
+}
