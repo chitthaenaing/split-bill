@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useState } from "react";
 import { motion } from "framer-motion";
 import { RotateCcw } from "lucide-react";
 import { AccountMenu } from "@/components/account-menu";
@@ -13,6 +14,11 @@ import { BankingQrPanel } from "@/components/banking-qr-panel";
 import { ReceiptThumbnail } from "@/components/receipt-thumbnail";
 import { ShareButton } from "@/components/share-button";
 import { ExtractionWarning } from "@/components/extraction-warning";
+import { extractBillFromReceiptDataUrl } from "@/lib/extract-client";
+import {
+  canRescanExtraction,
+  rescansRemaining,
+} from "@/lib/extraction-rescan";
 import { useBillStore } from "@/lib/store";
 import { useHydrated } from "@/lib/use-hydrated";
 
@@ -28,6 +34,8 @@ export default function Home() {
   const printedSubtotal = useBillStore((s) => s.printedSubtotal);
   const printedTotal = useBillStore((s) => s.printedTotal);
   const extractionWarnings = useBillStore((s) => s.extractionWarnings);
+  const rescansUsed = useBillStore((s) => s.rescansUsed);
+  const loadFromExtraction = useBillStore((s) => s.loadFromExtraction);
 
   const toggleItem = useBillStore((s) => s.toggleItem);
   const incSelected = useBillStore((s) => s.incSelected);
@@ -50,7 +58,36 @@ export default function Home() {
   );
   const reset = useBillStore((s) => s.reset);
 
+  const [rescanning, setRescanning] = useState(false);
+  const [rescanError, setRescanError] = useState<string | null>(null);
+
   const hasBill = items.length > 0;
+  const remainingRescans = rescansRemaining(rescansUsed);
+  const showRescan = canRescanExtraction(
+    extractionWarnings.length,
+    rescansUsed,
+    Boolean(receipt)
+  );
+
+  const onRescan = useCallback(async () => {
+    if (!receipt || !showRescan || rescanning) return;
+    setRescanning(true);
+    setRescanError(null);
+    try {
+      const data = await extractBillFromReceiptDataUrl(receipt);
+      loadFromExtraction(data.bill, receipt, {
+        warnings: data.warnings,
+        reconciled: data.reconciled,
+        isRescan: true,
+      });
+    } catch (e) {
+      setRescanError(
+        e instanceof Error ? e.message : "Rescan failed. Try again."
+      );
+    } finally {
+      setRescanning(false);
+    }
+  }, [receipt, showRescan, rescanning, loadFromExtraction]);
 
   const onReset = () => {
     if (
@@ -116,6 +153,14 @@ export default function Home() {
                 printedSubtotal={printedSubtotal}
                 printedTotal={printedTotal}
                 onDismiss={clearExtractionWarnings}
+                rescansRemaining={remainingRescans}
+                rescanning={rescanning}
+                onRescan={
+                  extractionWarnings.length > 0 && receipt
+                    ? () => void onRescan()
+                    : undefined
+                }
+                rescanError={rescanError}
               />
               <ItemsList
                 items={items}
