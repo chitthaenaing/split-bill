@@ -189,6 +189,81 @@ export function liftLeadingQuantity(
 }
 
 /**
+ * Staple / side lines that commonly print qty 2+ for real (Rice ×2).
+ * When Items:N is short vs sum(qty), prefer deflating a non-staple
+ * over-read (e.g. Pone Mhan 1→2) instead of touching Rice.
+ */
+export function isStapleSideItemName(name: string): boolean {
+  const cleaned = name.trim().replace(/[:.]+$/g, "");
+  if (!cleaned) return false;
+  return /^(steamed\s+)?rice$|^plain\s+rice$|^white\s+rice$|^ข้าว(สวย|เปล่า)?$|^ice$|^น้ำแข็ง$|^water$|^น้ำเปล่า$/i.test(
+    cleaned
+  );
+}
+
+/**
+ * When money already reconciles but sum(qty) exceeds Items:N, shrink an
+ * over-read quantity. FoodStory OCR often turns a leftmost "1" into "2"
+ * (Brew/Shwe "Pone Mhan" biased by other receipts that truly have qty 2).
+ *
+ * Only runs when line totals already match the printed subtotal — quantity
+ * does not affect price math here (prices are line totals) — so a pure
+ * Items-footer overcount is safe to correct locally.
+ */
+export function deflateQuantityOvercount<
+  T extends { name: string; quantity: number },
+>(
+  items: T[],
+  printedItemUnits: number,
+  /** When false, only the high-confidence excess===1 non-staple 2→1 flip runs. */
+  moneyMatches = true
+): T[] {
+  if (printedItemUnits <= 0 || items.length === 0) return items;
+
+  const quantitySum = items.reduce(
+    (s, it) => s + Math.max(0, Math.floor(it.quantity || 0)),
+    0
+  );
+  const excess = quantitySum - printedItemUnits;
+  if (excess <= 0) return items;
+
+  // Prefer a unique qty===2 non-staple when excess is 1 (classic 1→2 OCR).
+  // Safe even when a priced row is still missing — Items:N is trusted over a
+  // memorized "Pone Mhan ×2" from a different receipt.
+  if (excess === 1) {
+    const twos = items
+      .map((it, index) => ({ it, index }))
+      .filter(({ it }) => Math.floor(it.quantity || 0) === 2);
+    const nonStaple = twos.filter(({ it }) => !isStapleSideItemName(it.name));
+    const pick =
+      nonStaple.length === 1 ? nonStaple[0] : twos.length === 1 ? twos[0] : null;
+    if (pick) {
+      const next = items.slice();
+      next[pick.index] = { ...pick.it, quantity: 1 };
+      return next;
+    }
+  }
+
+  if (!moneyMatches) return items;
+
+  // Exactly one multi-qty line can absorb the entire excess.
+  const multis = items
+    .map((it, index) => ({ it, index }))
+    .filter(({ it }) => Math.floor(it.quantity || 0) >= 2);
+  if (multis.length === 1) {
+    const { it, index } = multis[0];
+    const q = Math.floor(it.quantity || 0);
+    if (q - excess >= 1) {
+      const next = items.slice();
+      next[index] = { ...it, quantity: q - excess };
+      return next;
+    }
+  }
+
+  return items;
+}
+
+/**
  * Normalize an optional English gloss. Returns undefined when empty or when it
  * duplicates the original name (case-insensitive).
  */
@@ -378,11 +453,30 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
     if (!dup) additionalCharges.push(c);
   }
 
-  const productSum = productItemsSum(items, currency);
+  let productSum = productItemsSum(items, currency);
 
   let subtotal = roundMoney(asFinite(parsed.subtotal), currency);
   if (subtotal === 0 && productSum !== 0) {
     subtotal = productSum;
+  }
+
+  // Items:N overcount — shrink an over-read qty (Brew Tea "Pone Mhan" 1→2
+  // while Rice stays ×2). When line totals already match subtotal, allow the
+  // broader deflate; when money is still short, only the high-confidence
+  // excess===1 non-staple 2→1 flip runs inside deflateQuantityOvercount.
+  if (printedItemUnits > 0) {
+    const moneyMatches =
+      Math.abs(productSum - subtotal) <= MONEY_TOLERANCE;
+    const deflated = deflateQuantityOvercount(
+      items,
+      printedItemUnits,
+      moneyMatches
+    );
+    if (deflated !== items) {
+      items.length = 0;
+      items.push(...deflated);
+      productSum = productItemsSum(items, currency);
+    }
   }
 
   let total = roundMoney(asFinite(parsed.total), currency);
@@ -847,6 +941,7 @@ export function formatCheckForRepair(
           "Do not move a quantity digit from one product onto a different product name to fake the Items count.",
           "Keep each item's `price` as the LINE TOTAL; only correct `quantity` (and strip a leading qty digit from `name` if you glued it there).",
           "Bare numeric PLU/SKU rows with no price (e.g. \"1133371101\") are not menu items — omit them. Items: N may still count those rows; do NOT raise other dishes' quantities to match. Prefer setting printedItemUnits to the sum of priced-line quantities when the only shortfall is an unpriced product code.",
+          "If sum(qty) EXCEEDS Items:N, decrease an over-read quantity (OCR often turns a leftmost 1 into 2). Do not keep Pone Mhan/Hman at qty 2 from memory of another receipt — read THIS receipt's digit. Prefer lowering a dish qty over changing a correct Rice ×2 staple line.",
           "Update printedItemUnits only if you mis-read the Items footer or it counted an unpriced PLU/SKU — otherwise the footer is correct and a line quantity is wrong.",
         ]
       : [];
