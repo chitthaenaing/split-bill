@@ -29,3 +29,7 @@ Blob `bill.json` is **not** always gold — some shares still store a wrong extr
 ## Handwritten garage / motorcycle invoices
 
 Thai workshop forms (parts + `ค่าแรง` labor + pickup fees, total often handwritten as รวม) are **not** F&B. Labor and pickup lines stay in `items`; `serviceCharge` is only restaurant % service. Post-process clears a spurious `serviceCharge` when garage items already sum to the printed total. See `fixtures/receipts/th-handwritten-motorcycle-service.json`.
+
+## Bare PLU / SKU rows (S&P / Green Tea style)
+
+Some Thai POS receipts print a zero-priced product-code line (e.g. `1133371101`) that is counted in `Items: N` but is not a pickable dish. Post-process drops those rows and shrinks `printedItemUnits` so quantity reconciliation does not inflate real dish quantities (e.g. Pone Mhan / Chicken Tempura). See `fixtures/receipts/th-sp-bare-plu-items-footer.json`.

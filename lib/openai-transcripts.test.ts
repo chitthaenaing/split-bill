@@ -124,6 +124,7 @@ function assertPromptContract(calls: CapturedCall[]): string[] {
     "Before VAT",
     "ค่าแรง",
     "garage",
+    "PLU/SKU",
   ]) {
     if (!EXTRACTION_SYSTEM_PROMPT.includes(needle)) {
       failures.push(`system prompt missing "${needle}"`);

@@ -1,0 +1,34 @@
+{
+  "id": "th-sp-bare-plu-items-footer",
+  "description": "S&P / Green Tea Toast: Items: 8 counts a bare PLU row 1133371101 (no price). Drop the PLU and keep all dish quantities at 1 — do not inflate Pone Mhan / Chicken Tempura.",
+  "raw": {
+    "currency": "THB",
+    "items": [
+      { "name": "Pone Mhan", "price": 148, "quantity": 1 },
+      { "name": "Play Mhan", "price": 55, "quantity": 1 },
+      { "name": "Herb Curry With Rice", "price": 135, "quantity": 1 },
+      { "name": "Thai Herb Spicy Salad with Fried Egg", "price": 25, "quantity": 1 },
+      { "name": "1133371101", "price": 0, "quantity": 1 },
+      { "name": "STAY WITH HOME COFFEE", "price": 145, "quantity": 1 },
+      { "name": "Melon No Ice", "price": 35, "quantity": 1 },
+      { "name": "Chicken Tempura", "price": 55, "quantity": 1 }
+    ],
+    "tax": 46.05,
+    "serviceCharge": 59.8,
+    "rounding": -0.85,
+    "discount": 0,
+    "subtotal": 598,
+    "total": 703,
+    "printedItemUnits": 8,
+    "taxInclusive": false
+  },
+  "expect": {
+    "taxInclusive": false,
+    "taxForUi": 46.05,
+    "total": 703,
+    "itemCount": 7,
+    "noNegativeItems": true,
+    "reconciled": true,
+    "vatConsistency": "ok"
+  }
+}

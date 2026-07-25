@@ -81,6 +81,19 @@ export function isLaborOrPartsItemName(name: string): boolean {
 }
 
 /**
+ * Bare POS product / PLU / SKU codes (e.g. S&P "1133371101") with no price.
+ * These often appear as their own qty-column row and are counted in an
+ * "Items: N" footer, but they are not pickable products — keeping them (or
+ * inflating other rows' quantities to make Items: N match) corrupts qty.
+ */
+export function isBareProductCodeName(name: string): boolean {
+  const cleaned = name.trim().replace(/[:.\s]+$/g, "");
+  if (!cleaned) return false;
+  // Pure digits, optionally with spaces/dashes between digit groups.
+  return /^[0-9][0-9\s-]{2,}$/.test(cleaned);
+}
+
+/**
  * Drop non-product lines the model sometimes leaks into `items`
  * (headers, payment rows, tax/total lines with a price).
  * Promotion / discount lines with a negative price are kept.
@@ -92,6 +105,10 @@ export function isJunkItemName(name: string, price = 0): boolean {
   if (price < 0) return false;
   // Garage labor / parts must never be dropped as F&B "Service".
   if (isLaborOrPartsItemName(cleaned)) return false;
+  // Zero-priced PLU/SKU code rows are not menu items.
+  if (Math.abs(price) <= MONEY_TOLERANCE && isBareProductCodeName(cleaned)) {
+    return true;
+  }
   return JUNK_ITEM_NAME.test(cleaned);
 }
 
@@ -277,6 +294,8 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
     quantity: number;
   }> = [];
   const salvagedCharges: AdditionalCharge[] = [];
+  /** Bare PLU/SKU rows dropped (also counted in some Items: N footers). */
+  let droppedBareProductCodes = 0;
   for (const it of rawItems) {
     const price = roundMoney(asFinite(it?.price), currency);
     let quantity = Math.max(1, Math.floor(asFinite(it?.quantity, 1)) || 1);
@@ -287,7 +306,12 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
     quantity = lifted.quantity;
     const name =
       cleaned || (price !== 0 ? "Unreadable item" : "");
-    if (!name || isJunkItemName(name, price)) continue;
+    if (!name || isJunkItemName(name, price)) {
+      if (name && isBareProductCodeName(name) && Math.abs(price) <= MONEY_TOLERANCE) {
+        droppedBareProductCodes += Math.max(1, quantity);
+      }
+      continue;
+    }
     // Delivery / packaging / cover / etc. belong in additionalCharges, not
     // as pickable items — salvage when the model mis-places them.
     if (price > MONEY_TOLERANCE && isAdditionalChargeName(name)) {
@@ -323,10 +347,16 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
   );
   const rounding = roundMoney(asFinite(parsed.rounding), currency);
   const taxInclusive = Boolean(parsed.taxInclusive);
-  const printedItemUnits = Math.max(
+  let printedItemUnits = Math.max(
     0,
     Math.floor(asFinite(parsed.printedItemUnits, 0)) || 0
   );
+  // Items: N often counts bare PLU/SKU rows. After dropping those, shrink the
+  // footer count so quantity reconciliation does not inflate real dish qtys
+  // (S&P "1133371101" between salad and coffee → Pone Mhan/Tempura qty bugs).
+  if (printedItemUnits > 0 && droppedBareProductCodes > 0) {
+    printedItemUnits = Math.max(0, printedItemUnits - droppedBareProductCodes);
+  }
 
   const fromModel = normalizeAdditionalCharges(
     (parsed as { additionalCharges?: unknown }).additionalCharges,
@@ -816,7 +846,8 @@ export function formatCheckForRepair(
           "Do not confuse Table / Guests counts above the items with line quantities.",
           "Do not move a quantity digit from one product onto a different product name to fake the Items count.",
           "Keep each item's `price` as the LINE TOTAL; only correct `quantity` (and strip a leading qty digit from `name` if you glued it there).",
-          "Update printedItemUnits only if you mis-read the Items footer — usually the footer is correct and a line quantity is wrong.",
+          "Bare numeric PLU/SKU rows with no price (e.g. \"1133371101\") are not menu items — omit them. Items: N may still count those rows; do NOT raise other dishes' quantities to match. Prefer setting printedItemUnits to the sum of priced-line quantities when the only shortfall is an unpriced product code.",
+          "Update printedItemUnits only if you mis-read the Items footer or it counted an unpriced PLU/SKU — otherwise the footer is correct and a line quantity is wrong.",
         ]
       : [];
 

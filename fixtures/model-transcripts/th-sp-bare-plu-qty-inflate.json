@@ -1,0 +1,45 @@
+{
+  "id": "th-sp-bare-plu-qty-inflate",
+  "description": "S&P Green Tea: model includes bare PLU 1133371101 and Items: 8. Post-process must drop the PLU, shrink printedItemUnits, keep Pone Mhan and Chicken Tempura at qty 1, and reconcile without a repair call that would inflate dish quantities.",
+  "imageDataUrl": "data:image/jpeg;base64,AAAA",
+  "responses": [
+    {
+      "content": {
+        "currency": "THB",
+        "items": [
+          { "name": "Pone Mhan", "nameTranslated": "", "price": 148, "quantity": 1 },
+          { "name": "Play Mhan", "nameTranslated": "", "price": 55, "quantity": 1 },
+          { "name": "Herb Curry With Rice", "nameTranslated": "", "price": 135, "quantity": 1 },
+          { "name": "Thai Herb Spicy Salad with Fried Egg", "nameTranslated": "", "price": 25, "quantity": 1 },
+          { "name": "1133371101", "nameTranslated": "", "price": 0, "quantity": 1 },
+          { "name": "STAY WITH HOME COFFEE", "nameTranslated": "", "price": 145, "quantity": 1 },
+          { "name": "Melon No Ice", "nameTranslated": "", "price": 35, "quantity": 1 },
+          { "name": "Chicken Tempura", "nameTranslated": "", "price": 55, "quantity": 1 }
+        ],
+        "tax": 46.05,
+        "serviceCharge": 59.8,
+        "rounding": -0.85,
+        "discount": 0,
+        "subtotal": 598,
+        "total": 703,
+        "printedItemUnits": 8,
+        "taxInclusive": false,
+        "additionalCharges": []
+      }
+    }
+  ],
+  "expect": {
+    "calls": 1,
+    "reconciled": true,
+    "taxForUi": 46.05,
+    "total": 703,
+    "itemCount": 7,
+    "hasNegativeItem": false,
+    "hasRepairPrompt": false,
+    "itemNameIncludes": ["Pone Mhan", "Chicken Tempura"],
+    "itemQuantityIncludes": [
+      { "nameIncludes": "Pone Mhan", "quantity": 1 },
+      { "nameIncludes": "Chicken Tempura", "quantity": 1 }
+    ]
+  }
+}
