@@ -6,6 +6,7 @@ import {
   cleanTranslatedName,
   formatCheckForRepair,
   impliedSubtotalHints,
+  isBareProductCodeName,
   isJunkItemName,
   isLaborOrPartsItemName,
   liftLeadingQuantity,
@@ -421,6 +422,56 @@ describe("normalizeExtractedBill", () => {
     assert.equal(bill.items[0].quantity, 2);
     assert.equal(bill.printedItemUnits, 3);
     assert.equal(checkBillMath(bill).ok, true);
+  });
+
+  it("drops bare PLU rows and shrinks Items footer so dish quantities stay 1", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "Pone Mhan", price: 148, quantity: 1 },
+        { name: "Play Mhan", price: 55, quantity: 1 },
+        { name: "Herb Curry With Rice", price: 135, quantity: 1 },
+        { name: "Thai Herb Spicy Salad with Fried Egg", price: 25, quantity: 1 },
+        { name: "1133371101", price: 0, quantity: 1 },
+        { name: "STAY WITH HOME COFFEE", price: 145, quantity: 1 },
+        { name: "Melon No Ice", price: 35, quantity: 1 },
+        { name: "Chicken Tempura", price: 55, quantity: 1 },
+      ],
+      tax: 46.05,
+      serviceCharge: 59.8,
+      rounding: -0.85,
+      discount: 0,
+      subtotal: 598,
+      total: 703,
+      printedItemUnits: 8,
+      taxInclusive: false,
+    });
+
+    assert.equal(bill.items.length, 7);
+    assert.equal(
+      bill.items.some((it) => it.name === "1133371101"),
+      false
+    );
+    assert.equal(bill.printedItemUnits, 7);
+    assert.equal(
+      bill.items.find((it) => it.name === "Pone Mhan")?.quantity,
+      1
+    );
+    assert.equal(
+      bill.items.find((it) => it.name === "Chicken Tempura")?.quantity,
+      1
+    );
+    const check = checkBillMath(bill);
+    assert.equal(check.ok, true);
+    assert.equal(check.quantitySum, 7);
+    assert.equal(check.quantityDelta, 0);
+  });
+
+  it("treats bare product codes as junk only when zero-priced", () => {
+    assert.equal(isBareProductCodeName("1133371101"), true);
+    assert.equal(isBareProductCodeName("Pone Mhan"), false);
+    assert.equal(isJunkItemName("1133371101", 0), true);
+    assert.equal(isJunkItemName("1133371101", 55), false);
   });
 
   it("flags quantity undercount when Items footer disagrees even if money reconciles", () => {
