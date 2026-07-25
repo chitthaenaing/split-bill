@@ -22,13 +22,23 @@ type State = {
   printedTotal: number | null;
   /** Arithmetic warnings left after extraction / repair. */
   extractionWarnings: string[];
+  /**
+   * How many times the user has re-run vision extract on this receipt photo.
+   * Capped by MAX_EXTRACTION_RESCANS; reset on a fresh upload extract.
+   */
+  rescansUsed: number;
 };
 
 type Actions = {
   loadFromExtraction: (
     b: ExtractedBill,
     receiptDataUrl: string | null,
-    meta?: { warnings?: string[]; reconciled?: boolean }
+    meta?: {
+      warnings?: string[];
+      reconciled?: boolean;
+      /** True when this load is a user-triggered rescan (increments rescansUsed). */
+      isRescan?: boolean;
+    }
   ) => void;
   setBankingQrDataUrl: (dataUrl: string | null) => void;
   clearExtractionWarnings: () => void;
@@ -88,6 +98,7 @@ const initial: State = {
   printedSubtotal: null,
   printedTotal: null,
   extractionWarnings: [],
+  rescansUsed: 0,
 };
 
 function clampSelected(it: BillItem, n: number): number {
@@ -118,7 +129,7 @@ export const useBillStore = create<State & Actions>()(
       ...initial,
 
       loadFromExtraction: (b, receiptDataUrl, meta) => {
-        set({
+        set((s) => ({
           receiptDataUrl,
           // Keep the organiser's payment QR across new receipts — it belongs
           // to the account/device, not to a single bill.
@@ -142,6 +153,9 @@ export const useBillStore = create<State & Actions>()(
               : meta?.warnings?.length
               ? meta.warnings
               : [],
+          rescansUsed: meta?.isRescan
+            ? Math.max(0, s.rescansUsed) + 1
+            : 0,
           items: (b.items || []).map((it) => {
             const nameTranslated = it.nameTranslated?.trim().slice(0, 200);
             return {
@@ -154,7 +168,7 @@ export const useBillStore = create<State & Actions>()(
               splitCount: 1,
             };
           }),
-        });
+        }));
       },
 
       clearExtractionWarnings: () => set({ extractionWarnings: [] }),
@@ -341,7 +355,7 @@ export const useBillStore = create<State & Actions>()(
     }),
     {
       name: "bill-split",
-      version: 10,
+      version: 11,
       partialize: (s) => ({
         receiptDataUrl: s.receiptDataUrl,
         bankingQrDataUrl: s.bankingQrDataUrl,
@@ -355,6 +369,7 @@ export const useBillStore = create<State & Actions>()(
         printedSubtotal: s.printedSubtotal,
         printedTotal: s.printedTotal,
         extractionWarnings: s.extractionWarnings,
+        rescansUsed: s.rescansUsed,
       }),
       migrate: (persistedState: unknown, version: number): State => {
         type LegacyItem = {
@@ -374,6 +389,7 @@ export const useBillStore = create<State & Actions>()(
           printedSubtotal?: number | null;
           printedTotal?: number | null;
           extractionWarnings?: string[];
+          rescansUsed?: number;
         };
         const s = (persistedState ?? {}) as LegacyState;
         const mapItem = (it: LegacyItem): BillItem => {
@@ -409,6 +425,7 @@ export const useBillStore = create<State & Actions>()(
           printedSubtotal: s.printedSubtotal ?? null,
           printedTotal: s.printedTotal ?? null,
           extractionWarnings: s.extractionWarnings ?? [],
+          rescansUsed: Math.max(0, Math.floor(s.rescansUsed ?? 0)),
         } as State;
       },
     }
