@@ -29,6 +29,14 @@ const LABOR_OR_PARTS_ITEM_NAME =
 const ADDITIONAL_CHARGE_ITEM_NAME =
   /^(delivery(\s*(fee|charge))?|packag(e|ing)(\s*fee)?|take[\s-]?away(\s*(fee|charge))?|bag(\s*fee)?|plastic(\s*bag)?(\s*fee)?|cover(\s*charge)?|corkage|convenience(\s*fee)?|booking(\s*fee)?|platform(\s*fee)?|app(\s*fee)?|handling(\s*fee)?|container(\s*fee)?|surcharge|room\s*charge|extra\s*charge|additional\s*charge|misc(\.|ellaneous)?(\s*(fee|charge))?)$/i;
 
+/**
+ * Bill-level discounts / tier promos that belong in `discount` (totals panel),
+ * not as pickable items. Free-item promos ("Promotion Free Tea") stay in items
+ * so the person who got the freebie can claim them.
+ */
+const BILL_LEVEL_DISCOUNT_NAME =
+  /^(discount(\s*\(?\s*\d+\s*%?\s*\)?)?|total\s*savings|member(ship)?(\s+\w+)*\s*disc\w*|loyalty(\s+\w+)*\s*disc\w*|voucher|coupon|promo(tion)?(\s+tier)?(\s*disc\w*)?|tier\s*disc\w*|promo(tion)?\s*\d+\s*%)$/i;
+
 export type BillCheck = {
   ok: boolean;
   /** Sum of non-negative line totals (should match printed subtotal). */
@@ -119,6 +127,20 @@ export function isAdditionalChargeName(name: string): boolean {
   // Never demote repair labor/parts into additionalCharges.
   if (isLaborOrPartsItemName(cleaned)) return false;
   return ADDITIONAL_CHARGE_ITEM_NAME.test(cleaned);
+}
+
+/**
+ * True for bill-level discount / tier / voucher lines that should live in the
+ * totals `discount` field (positive amount off), not as pickable items.
+ * Free-item promotions ("Promotion Free Tea") return false so they stay
+ * selectable minus lines.
+ */
+export function isBillLevelDiscountName(name: string): boolean {
+  const cleaned = name.trim().replace(/[:.]+$/, "");
+  if (!cleaned) return false;
+  // Named freebies stay pickable — only one diner claims them.
+  if (/\bfree\b/i.test(cleaned)) return false;
+  return BILL_LEVEL_DISCOUNT_NAME.test(cleaned);
 }
 
 /** Sum of additional fee amounts (delivery, packaging, …). */
@@ -350,14 +372,16 @@ export function productItemsSum(
 
 /** Grand-total equation used for validation and repair. */
 export function expectedGrandTotal(bill: NormalizedBill): number {
-  // Prefer the net of extracted lines (includes minus promotions). Fall back
-  // to printed subtotal - discount field for older payloads.
+  // Net of extracted lines (includes free-item minus promos) minus any
+  // bill-level discount field. Fall back to printed subtotal - discount when
+  // there are no items yet.
   const net = netItemsSum(bill.items, bill.currency);
+  const discount = Math.max(0, bill.discount || 0);
   const extras = additionalChargesSum(bill.additionalCharges, bill.currency);
   const base =
     bill.items.length > 0
-      ? net
-      : roundMoney(bill.subtotal - (bill.discount || 0), bill.currency);
+      ? roundMoney(net - discount, bill.currency)
+      : roundMoney(bill.subtotal - discount, bill.currency);
   return roundMoney(
     bill.taxInclusive
       ? base + bill.serviceCharge + extras + bill.rounding
@@ -368,8 +392,8 @@ export function expectedGrandTotal(bill: NormalizedBill): number {
 
 /**
  * Coerce raw model JSON into a clean ExtractedBill + taxInclusive flag.
- * Keeps promotion lines as negative-priced items (not a separate total
- * discount). If the model only filled `discount`, materialize it as an item.
+ * Bill-level Discount / Tier promo lines go into `discount` (totals panel).
+ * Free-item promos stay as negative-priced pickable items.
  */
 export function normalizeExtractedBill(raw: unknown): NormalizedBill {
   const parsed = (raw ?? {}) as Partial<ExtractedBill> & {
@@ -387,6 +411,8 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
     quantity: number;
   }> = [];
   const salvagedCharges: AdditionalCharge[] = [];
+  /** Absolute amounts salvaged from bill-level discount item rows. */
+  let salvagedDiscount = 0;
   /** Bare PLU/SKU rows dropped (also counted in some Items: N footers). */
   let droppedBareProductCodes = 0;
   for (const it of rawItems) {
@@ -411,6 +437,14 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
       salvagedCharges.push({ name: name.slice(0, 80), amount: price });
       continue;
     }
+    // Bill-level Discount / Tier promo → totals `discount`, not a pickable row.
+    if (price < -MONEY_TOLERANCE && isBillLevelDiscountName(name)) {
+      salvagedDiscount = roundMoney(
+        salvagedDiscount + Math.abs(price),
+        currency
+      );
+      continue;
+    }
     const rawItem = it as { nameTranslated?: unknown };
     const nameTranslated = cleanTranslatedName(rawItem?.nameTranslated, name);
     items.push(
@@ -418,20 +452,16 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
     );
   }
 
-  // Model sometimes puts the promotion only in `discount` — show it as a
-  // minus line on the bill instead of applying it again on the total.
+  // Prefer an explicit model `discount` when present; otherwise use amounts
+  // salvaged from bill-level minus rows. Do not also keep those as items.
   const discountField = roundMoney(
     Math.max(0, asFinite(parsed.discount)),
     currency
   );
-  const hasNegativeItem = items.some((it) => it.price < 0);
-  if (discountField > MONEY_TOLERANCE && !hasNegativeItem) {
-    items.push({
-      name: "Discount",
-      price: -discountField,
-      quantity: 1,
-    });
-  }
+  const discount = roundMoney(
+    Math.max(discountField, salvagedDiscount),
+    currency
+  );
 
   const tax = roundMoney(Math.max(0, asFinite(parsed.tax)), currency);
   const serviceCharge = roundMoney(
@@ -510,7 +540,10 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
   ) {
     const net = netItemsSum(items, currency);
     const extras = additionalChargesSum(additionalCharges, currency);
-    const withoutSvc = roundMoney(net + extras + rounding, currency);
+    const withoutSvc = roundMoney(
+      net - discount + extras + rounding,
+      currency
+    );
     if (
       total > MONEY_TOLERANCE &&
       Math.abs(withoutSvc - total) <= MONEY_TOLERANCE
@@ -526,9 +559,7 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
     serviceCharge: clearedService,
     rounding,
     additionalCharges,
-    // Discount is represented as a negative item; keep field at 0 so the
-    // totals panel never subtracts it a second time.
-    discount: 0,
+    discount,
     subtotal,
     total,
     taxInclusive,
@@ -562,6 +593,8 @@ export function preferInclusiveWhenTaxIsBreakdown(
   if (rates == null || rates.length === 0) return bill;
 
   const net = netItemsSum(bill.items, bill.currency);
+  const discount = Math.max(0, bill.discount || 0);
+  const payableNet = roundMoney(net - discount, bill.currency);
   const extras = additionalChargesSum(bill.additionalCharges, bill.currency);
   const base =
     bill.subtotal > MONEY_TOLERANCE ? bill.subtotal : net;
@@ -571,7 +604,7 @@ export function preferInclusiveWhenTaxIsBreakdown(
   for (const rate of rates) {
     const incl = Math.round(((base * rate) / (1 + rate)) * 100) / 100;
     const excl =
-      Math.round((net + bill.serviceCharge) * rate * 100) / 100;
+      Math.round((payableNet + bill.serviceCharge) * rate * 100) / 100;
     bestIncl = Math.min(bestIncl, Math.abs(incl - bill.tax));
     bestExcl = Math.min(bestExcl, Math.abs(excl - bill.tax));
   }
@@ -587,7 +620,7 @@ export function preferInclusiveWhenTaxIsBreakdown(
   }
 
   const exclusiveTotal = roundMoney(
-    net + bill.tax + bill.serviceCharge + extras + bill.rounding,
+    payableNet + bill.tax + bill.serviceCharge + extras + bill.rounding,
     bill.currency
   );
   const modelUsedExclusiveTotal =
@@ -598,7 +631,7 @@ export function preferInclusiveWhenTaxIsBreakdown(
     taxInclusive: true,
     rounding,
     total: roundMoney(
-      net + bill.serviceCharge + extras + rounding,
+      payableNet + bill.serviceCharge + extras + rounding,
       bill.currency
     ),
   });
@@ -682,6 +715,7 @@ function chargeDistance(a: NormalizedBill, b: NormalizedBill): number {
     Math.abs(a.tax - b.tax) +
     Math.abs(a.serviceCharge - b.serviceCharge) +
     Math.abs(a.rounding - b.rounding) +
+    Math.abs((a.discount || 0) - (b.discount || 0)) +
     Math.abs(
       additionalChargesSum(a.additionalCharges, a.currency) -
         additionalChargesSum(b.additionalCharges, b.currency)
@@ -694,8 +728,9 @@ function chargeDistance(a: NormalizedBill, b: NormalizedBill): number {
 
 /**
  * When product lines match the printed subtotal but the grand total is short,
- * prefer inserting a missing minus promotion line (keeping VAT/service) over
- * rewriting tax or service.
+ * prefer filling a missing bill-level discount (keeping VAT/service) over
+ * rewriting tax or service. Free-item promos the model already named stay in
+ * items; anonymous gaps become the totals `discount` field.
  */
 export function reconcileBill(bill: NormalizedBill): NormalizedBill {
   const check = checkBillMath(bill);
@@ -706,12 +741,14 @@ export function reconcileBill(bill: NormalizedBill): NormalizedBill {
   const { currency } = bill;
   const candidates: NormalizedBill[] = [];
   const extras = additionalChargesSum(bill.additionalCharges, currency);
+  const existingDiscount = Math.max(0, bill.discount || 0);
 
   candidates.push({ ...bill, taxInclusive: !bill.taxInclusive });
 
   const net = netItemsSum(bill.items, currency);
+  const payableNet = roundMoney(net - existingDiscount, currency);
   const exclusiveExpected = roundMoney(
-    net + bill.tax + bill.serviceCharge + extras + bill.rounding,
+    payableNet + bill.tax + bill.serviceCharge + extras + bill.rounding,
     currency
   );
   const overshoot = roundMoney(exclusiveExpected - bill.total, currency);
@@ -726,46 +763,36 @@ export function reconcileBill(bill: NormalizedBill): NormalizedBill {
     (bill.tax + bill.serviceCharge > MONEY_TOLERANCE &&
       Math.abs(overshoot - (bill.tax + bill.serviceCharge)) <= MONEY_TOLERANCE);
 
-  // Missing minus line (e.g. Promotion Free Tea -50).
+  // Missing bill-level discount (e.g. Promotion Tier / % off) — put it in the
+  // totals field, not as a fake pickable item.
+  const hasPromoRelief =
+    existingDiscount > MONEY_TOLERANCE ||
+    bill.items.some((it) => it.price < 0);
   if (
     overshoot > MONEY_TOLERANCE &&
     !overshootIsInclusiveVat &&
-    !bill.items.some((it) => it.price < 0)
+    !hasPromoRelief
   ) {
     candidates.push({
       ...bill,
       taxInclusive: false,
-      items: [
-        ...bill.items,
-        {
-          name: "Discount",
-          price: -overshoot,
-          quantity: 1,
-        },
-      ],
+      discount: overshoot,
     });
   }
 
   const inclusiveExpected = roundMoney(
-    net + bill.serviceCharge + extras + bill.rounding,
+    payableNet + bill.serviceCharge + extras + bill.rounding,
     currency
   );
   const inclusiveOvershoot = roundMoney(inclusiveExpected - bill.total, currency);
   if (
     inclusiveOvershoot > MONEY_TOLERANCE &&
-    !bill.items.some((it) => it.price < 0)
+    !hasPromoRelief
   ) {
     candidates.push({
       ...bill,
       taxInclusive: true,
-      items: [
-        ...bill.items,
-        {
-          name: "Discount",
-          price: -inclusiveOvershoot,
-          quantity: 1,
-        },
-      ],
+      discount: inclusiveOvershoot,
     });
   }
 
@@ -780,8 +807,11 @@ export function reconcileBill(bill: NormalizedBill): NormalizedBill {
     });
   }
 
-  // Remaining gap after net items + known extra fees (what tax+service should cover).
-  const gap = roundMoney(bill.total - net - extras - bill.rounding, currency);
+  // Remaining gap after payable items + known extra fees (what tax+service should cover).
+  const gap = roundMoney(
+    bill.total - payableNet - extras - bill.rounding,
+    currency
+  );
 
   if (gap >= -MONEY_TOLERANCE) {
     const exclusiveGap = Math.max(0, gap);
@@ -846,7 +876,7 @@ export function reconcileBill(bill: NormalizedBill): NormalizedBill {
     // Inventing tax=gap then trips the THB 7% soft check with a confusing warning.
     const gapIsVat = looksLikeStatutoryVat(
       exclusiveGap,
-      net,
+      payableNet,
       bill.serviceCharge,
       currency,
       bill.total
@@ -890,6 +920,13 @@ export function reconcileBill(bill: NormalizedBill): NormalizedBill {
       c,
       check: checkBillMath(c),
       dist: chargeDistance(c, bill),
+      // Prefer filling a missing bill-level discount over rewriting tax/service.
+      addedDiscount:
+        (c.discount || 0) > (bill.discount || 0) + MONEY_TOLERANCE &&
+        !((bill.discount || 0) > MONEY_TOLERANCE) &&
+        !bill.items.some((it) => it.price < 0)
+          ? 0
+          : 1,
       addedMinus: c.items.some((it) => it.price < 0) &&
         !bill.items.some((it) => it.price < 0)
         ? 0
@@ -901,7 +938,7 @@ export function reconcileBill(bill: NormalizedBill): NormalizedBill {
         c.tax <= MONEY_TOLERANCE ||
         looksLikeStatutoryVat(
           c.tax,
-          net,
+          payableNet,
           c.serviceCharge,
           currency,
           c.total
@@ -911,11 +948,14 @@ export function reconcileBill(bill: NormalizedBill): NormalizedBill {
     }))
     .filter((x) => x.check.ok)
     .sort((a, b) => {
+      if (a.addedDiscount !== b.addedDiscount) {
+        return a.addedDiscount - b.addedDiscount;
+      }
       if (a.addedMinus !== b.addedMinus) return a.addedMinus - b.addedMinus;
       if (a.taxPlausible !== b.taxPlausible) {
         return a.taxPlausible - b.taxPlausible;
       }
-      const gapPositive = bill.total > net + MONEY_TOLERANCE;
+      const gapPositive = bill.total > payableNet + MONEY_TOLERANCE;
       if (gapPositive && a.c.taxInclusive !== b.c.taxInclusive) {
         return Number(a.c.taxInclusive) - Number(b.c.taxInclusive);
       }
@@ -956,7 +996,8 @@ export function formatCheckForRepair(
           "Do not confuse Table / Guests counts above the items with line quantities.",
           "Do not move a quantity digit from one product onto a different product name to fake the Items count.",
           "Keep each item's `price` as the LINE TOTAL; only correct `quantity` (and strip a leading qty digit from `name` if you glued it there).",
-          "Minus promotion / discount lines (negative price) are NOT counted in Items: N — keep them in items, but compare the footer only to sum(quantity where price ≥ 0).",
+          "Minus free-item promotion lines (e.g. Promotion Free Tea, negative price) stay in items and are NOT counted in Items: N — compare the footer only to sum(quantity where price ≥ 0).",
+          "Bill-level Discount / Promotion Tier / % off lines belong in the `discount` field (positive amount), not in items.",
           "Bare numeric PLU/SKU rows with no price (e.g. \"1133371101\") are not menu items — omit them. Items: N may still count those rows; do NOT raise other dishes' quantities to match. Prefer setting printedItemUnits to the sum of priced product-line quantities when the only shortfall is an unpriced product code.",
           "If sum(product qty) EXCEEDS Items:N, decrease an over-read quantity (OCR often turns a leftmost 1 into 2). Do not keep Pone Mhan/Hman at qty 2 from memory of another receipt — read THIS receipt's digit. Prefer lowering a dish qty over changing a correct Rice ×2 staple line.",
           "Update printedItemUnits only if you mis-read the Items footer or it counted an unpriced PLU/SKU — otherwise the footer is correct and a line quantity is wrong.",
@@ -981,7 +1022,7 @@ export function formatCheckForRepair(
     ...missingProductsHint,
     ...quantityHint,
     ...serviceRateHint,
-    "Promotion / Discount / Free-item lines belong in items with a NEGATIVE price (e.g. -50). Do not omit them.",
+    "Bill-level Discount / Promotion Tier / % off belong in `discount` (positive amount). Free-item promos (e.g. Promotion Free Tea -50) stay in items with a NEGATIVE price. Do not omit either.",
     "Trust the printed TOTAL / AMOUNT DUE on the receipt — do not invent extra tax or service.",
     "Put delivery / packaging / cover / bag / corkage / similar fees in additionalCharges with their printed labels — not in items or serviceCharge.",
     "Repair / garage labor (ค่าแรง, technician fees) and parts stay in items — never fold them into serviceCharge.",
@@ -1034,7 +1075,7 @@ export function toExtractedBill(bill: NormalizedBill): ExtractedBill {
     serviceCharge: bill.serviceCharge,
     rounding: bill.rounding,
     additionalCharges: bill.additionalCharges ?? [],
-    discount: 0,
+    discount: Math.max(0, bill.discount || 0),
     subtotal: bill.subtotal,
     total: bill.total,
   };

@@ -29,6 +29,7 @@ export default function Home() {
   const tax = useBillStore((s) => s.tax);
   const serviceCharge = useBillStore((s) => s.serviceCharge);
   const rounding = useBillStore((s) => s.rounding);
+  const discount = useBillStore((s) => s.discount);
   const additionalCharges = useBillStore((s) => s.additionalCharges);
   const receipt = useBillStore((s) => s.receiptDataUrl);
   const printedSubtotal = useBillStore((s) => s.printedSubtotal);
@@ -47,6 +48,7 @@ export default function Home() {
   const setTax = useBillStore((s) => s.setTax);
   const setServiceCharge = useBillStore((s) => s.setServiceCharge);
   const setRounding = useBillStore((s) => s.setRounding);
+  const setDiscount = useBillStore((s) => s.setDiscount);
   const setAdditionalChargeAmount = useBillStore(
     (s) => s.setAdditionalChargeAmount
   );
@@ -184,11 +186,13 @@ export default function Home() {
                 tax={tax}
                 serviceCharge={serviceCharge}
                 rounding={rounding}
+                discount={discount}
                 additionalCharges={additionalCharges}
                 editable
                 onTaxChange={setTax}
                 onServiceChange={setServiceCharge}
                 onRoundingChange={setRounding}
+                onDiscountChange={setDiscount}
                 onAdditionalChargeChange={setAdditionalChargeAmount}
               />
               <BankingQrPanel />

@@ -36,7 +36,7 @@ Some Thai POS receipts print a zero-priced product-code line (e.g. `1133371101`)
 
 ## Promotion / discount minus lines vs Items:N
 
-Loyalty / tier / free-item promotions are kept as **negative-priced items** (not the bill `discount` field). POS `Items: N` footers count sold products only — post-process compares `sum(quantity where price ≥ 0)` to that footer, and the warning banner compares product-line totals to the printed pre-discount subtotal. See `fixtures/receipts/th-promo-tier-items-footer.json`.
+**Bill-level** discounts (`Discount 10%`, `Promotion Tier Discount`, vouchers) are salvaged into the totals `discount` field (positive amount off) — not pickable items. **Free-item** promos (`Promotion Free Tea -50`) stay as negative-priced items so the diner who got the freebie can claim them. POS `Items: N` counts sold products only. See `fixtures/receipts/th-promo-tier-items-footer.json` and `fixtures/receipts/th-promo-minus-line.json`.
 
 ## Quantity overcount vs Items:N (Brew / FoodStory)
 
