@@ -25,6 +25,8 @@ export type TotalsPanelProps = {
   tax: number;
   serviceCharge: number;
   rounding: number;
+  /** Bill-level discount / promotion (positive amount off). */
+  discount?: number;
   /** Extra fees beyond tax / service / rounding. */
   additionalCharges?: AdditionalCharge[];
   /** When true, exposes an Edit toggle to adjust tax/service/fees/rounding. */
@@ -32,6 +34,7 @@ export type TotalsPanelProps = {
   onTaxChange?: (n: number) => void;
   onServiceChange?: (n: number) => void;
   onRoundingChange?: (n: number) => void;
+  onDiscountChange?: (n: number) => void;
   onAdditionalChargeChange?: (index: number, amount: number) => void;
 };
 
@@ -41,17 +44,19 @@ export function TotalsPanel({
   tax,
   serviceCharge,
   rounding,
+  discount = 0,
   additionalCharges = [],
   editable = false,
   onTaxChange,
   onServiceChange,
   onRoundingChange,
+  onDiscountChange,
   onAdditionalChargeChange,
 }: TotalsPanelProps) {
   const charges = additionalCharges ?? [];
   const split = useMemo(
-    () => computeSplit(items, tax, serviceCharge, rounding, charges),
-    [items, tax, serviceCharge, rounding, charges]
+    () => computeSplit(items, tax, serviceCharge, rounding, charges, discount),
+    [items, tax, serviceCharge, rounding, charges, discount]
   );
 
   const billCurrency = normalizeCurrency(currency) || "THB";
@@ -219,6 +224,23 @@ export function TotalsPanel({
           label="Items"
           value={formatMoney(split.selectedSubtotal, billCurrency)}
         />
+
+        {showEditingControls ? (
+          <EditableRow
+            label="Discount"
+            value={discount}
+            onChange={onDiscountChange ?? (() => {})}
+            currency={billCurrency}
+          />
+        ) : (
+          discount > 0 && (
+            <Row
+              label="Discount share"
+              value={formatMoney(-split.discountShare, billCurrency)}
+              hint={`of ${formatMoney(discount, billCurrency)}`}
+            />
+          )
+        )}
 
         {showEditingControls ? (
           <EditableRow

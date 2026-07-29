@@ -67,7 +67,8 @@ function expectedVatForRate(
     return round2((inclusiveBase * rate) / (1 + rate));
   }
   const net = netItemsSum(bill.items, bill.currency);
-  return round2((net + bill.serviceCharge) * rate);
+  const discount = Math.max(0, bill.discount || 0);
+  return round2((net - discount + bill.serviceCharge) * rate);
 }
 
 /**
