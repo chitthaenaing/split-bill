@@ -14,6 +14,7 @@ import {
   liftLeadingQuantity,
   likelyNeedsTranslation,
   normalizeExtractedBill,
+  productQuantitySum,
   reconcileBill,
   toExtractedBill,
 } from "./bill-extract";
@@ -793,6 +794,54 @@ describe("checkBillMath", () => {
       taxInclusive: false,
     });
     assert.equal(checkBillMath(bill).ok, true);
+  });
+
+  it("does not count minus promo qty against Items:N (Promotion Tier)", () => {
+    // 4 products + Promotion Tier Discount −27.90; footer Items: 4.
+    // Counting the promo as a 5th unit used to false-fail quantity checks.
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "Milk (Hot)", price: 60, quantity: 1 },
+        { name: "Mote Hin Gar", price: 90, quantity: 1 },
+        { name: "Starchy Noodle With Duck Blood", price: 99, quantity: 1 },
+        { name: "Chinese DoughNut", price: 30, quantity: 1 },
+        { name: "Promotion Tier Discount", price: -27.9, quantity: 1 },
+      ],
+      tax: 0,
+      serviceCharge: 0,
+      rounding: 0,
+      discount: 0,
+      subtotal: 279,
+      total: 251.1,
+      taxInclusive: true,
+      printedItemUnits: 4,
+    });
+    const check = checkBillMath(bill);
+    assert.equal(check.quantitySum, 4);
+    assert.equal(check.itemsSum, 279);
+    assert.equal(check.ok, true);
+    assert.equal(bill.items.filter((it) => it.price < 0).length, 1);
+  });
+});
+
+describe("productQuantitySum / deflate with promos", () => {
+  it("ignores minus lines when deflating Items:N overcount", () => {
+    // Without ignoring the promo, excess would be 2 (5 product-ish rows vs 4)
+    // or could wrongly touch a real dish. Promo must not count.
+    const items = [
+      { name: "Milk (Hot)", price: 60, quantity: 1 },
+      { name: "Mote Hin Gar", price: 90, quantity: 1 },
+      { name: "Starchy Noodle", price: 99, quantity: 1 },
+      { name: "Chinese DoughNut", price: 30, quantity: 1 },
+      { name: "Promotion Tier Discount", price: -27.9, quantity: 1 },
+    ];
+    assert.equal(productQuantitySum(items), 4);
+    const deflated = deflateQuantityOvercount(items, 4, true);
+    assert.deepEqual(
+      deflated.map((it) => it.quantity),
+      [1, 1, 1, 1, 1]
+    );
   });
 });
 

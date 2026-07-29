@@ -34,6 +34,10 @@ Thai workshop forms (parts + `ค่าแรง` labor + pickup fees, total oft
 
 Some Thai POS receipts print a zero-priced product-code line (e.g. `1133371101`) that is counted in `Items: N` but is not a pickable dish. Post-process drops those rows and shrinks `printedItemUnits` so quantity reconciliation does not inflate real dish quantities (e.g. Pone Mhan / Chicken Tempura). See `fixtures/receipts/th-sp-bare-plu-items-footer.json`.
 
+## Promotion / discount minus lines vs Items:N
+
+Loyalty / tier / free-item promotions are kept as **negative-priced items** (not the bill `discount` field). POS `Items: N` footers count sold products only — post-process compares `sum(quantity where price ≥ 0)` to that footer, and the warning banner compares product-line totals to the printed pre-discount subtotal. See `fixtures/receipts/th-promo-tier-items-footer.json`.
+
 ## Quantity overcount vs Items:N (Brew / FoodStory)
 
-When `sum(quantity)` is one higher than `Items: N` and exactly one non-staple line shows qty 2 (often Pone Mhan/Hman mis-read from a leftmost 1, while Rice ×2 is real), post-process deflates that dish to qty 1. Staple sides named Rice / Ice / Water are left alone. See `fixtures/receipts/th-brew-pone-mhan-qty-overcount.json`.
+When `sum(quantity of price ≥ 0)` is one higher than `Items: N` and exactly one non-staple line shows qty 2 (often Pone Mhan/Hman mis-read from a leftmost 1, while Rice ×2 is real), post-process deflates that dish to qty 1. Staple sides named Rice / Ice / Water are left alone. See `fixtures/receipts/th-brew-pone-mhan-qty-overcount.json`.

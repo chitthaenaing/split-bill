@@ -1,0 +1,31 @@
+{
+  "id": "th-promo-tier-items-footer",
+  "description": "Promotion Tier Discount as a minus item must not inflate quantity vs Items:4, and product sum must still match the pre-discount subtotal.",
+  "raw": {
+    "currency": "THB",
+    "items": [
+      { "name": "Milk (Hot)", "price": 60, "quantity": 1 },
+      { "name": "Mote Hin Gar", "price": 90, "quantity": 1 },
+      { "name": "Starchy Noodle With Duck Blood", "price": 99, "quantity": 1 },
+      { "name": "Chinese DoughNut", "price": 30, "quantity": 1 },
+      { "name": "Promotion Tier Discount", "price": -27.9, "quantity": 1 }
+    ],
+    "tax": 0,
+    "serviceCharge": 0,
+    "rounding": 0,
+    "discount": 0,
+    "subtotal": 279,
+    "total": 251.1,
+    "taxInclusive": true,
+    "printedItemUnits": 4
+  },
+  "expect": {
+    "taxInclusive": true,
+    "taxForUi": 0,
+    "total": 251.1,
+    "itemCount": 5,
+    "noNegativeItems": false,
+    "reconciled": true,
+    "vatConsistency": "skip"
+  }
+}
