@@ -202,6 +202,20 @@ export function isStapleSideItemName(name: string): boolean {
 }
 
 /**
+ * Sold-unit count for Items:N reconciliation — product lines only.
+ * Promotion / discount rows (price < 0) are pickable minus lines but are not
+ * counted in POS "Items: N" footers.
+ */
+export function productQuantitySum(
+  items: Array<{ price?: number; quantity?: number }>
+): number {
+  return items.reduce((s, it) => {
+    if ((it.price || 0) < 0) return s;
+    return s + Math.max(0, Math.floor(it.quantity || 0));
+  }, 0);
+}
+
+/**
  * When money already reconciles but sum(qty) exceeds Items:N, shrink an
  * over-read quantity. FoodStory OCR often turns a leftmost "1" into "2"
  * (Brew/Shwe "Pone Mhan" biased by other receipts that truly have qty 2).
@@ -209,9 +223,11 @@ export function isStapleSideItemName(name: string): boolean {
  * Only runs when line totals already match the printed subtotal — quantity
  * does not affect price math here (prices are line totals) — so a pure
  * Items-footer overcount is safe to correct locally.
+ *
+ * Minus promotion lines are ignored in the quantity sum (and never deflated).
  */
 export function deflateQuantityOvercount<
-  T extends { name: string; quantity: number },
+  T extends { name: string; quantity: number; price?: number },
 >(
   items: T[],
   printedItemUnits: number,
@@ -220,10 +236,7 @@ export function deflateQuantityOvercount<
 ): T[] {
   if (printedItemUnits <= 0 || items.length === 0) return items;
 
-  const quantitySum = items.reduce(
-    (s, it) => s + Math.max(0, Math.floor(it.quantity || 0)),
-    0
-  );
+  const quantitySum = productQuantitySum(items);
   const excess = quantitySum - printedItemUnits;
   if (excess <= 0) return items;
 
@@ -233,7 +246,10 @@ export function deflateQuantityOvercount<
   if (excess === 1) {
     const twos = items
       .map((it, index) => ({ it, index }))
-      .filter(({ it }) => Math.floor(it.quantity || 0) === 2);
+      .filter(
+        ({ it }) =>
+          (it.price ?? 0) >= 0 && Math.floor(it.quantity || 0) === 2
+      );
     const nonStaple = twos.filter(({ it }) => !isStapleSideItemName(it.name));
     const pick =
       nonStaple.length === 1 ? nonStaple[0] : twos.length === 1 ? twos[0] : null;
@@ -249,7 +265,9 @@ export function deflateQuantityOvercount<
   // Exactly one multi-qty line can absorb the entire excess.
   const multis = items
     .map((it, index) => ({ it, index }))
-    .filter(({ it }) => Math.floor(it.quantity || 0) >= 2);
+    .filter(
+      ({ it }) => (it.price ?? 0) >= 0 && Math.floor(it.quantity || 0) >= 2
+    );
   if (multis.length === 1) {
     const { it, index } = multis[0];
     const q = Math.floor(it.quantity || 0);
@@ -618,10 +636,8 @@ export function preferInclusiveWhenTaxIsBreakdown(
 export function checkBillMath(bill: NormalizedBill): BillCheck {
   const itemsSum = productItemsSum(bill.items, bill.currency);
   const itemsDelta = Math.abs(itemsSum - bill.subtotal);
-  const quantitySum = bill.items.reduce(
-    (s, it) => s + Math.max(0, Math.floor(it.quantity || 0)),
-    0
-  );
+  // Items:N counts sold products only — not minus promo / discount rows.
+  const quantitySum = productQuantitySum(bill.items);
   const quantityDelta =
     bill.printedItemUnits > 0
       ? Math.abs(quantitySum - bill.printedItemUnits)
@@ -936,12 +952,13 @@ export function formatCheckForRepair(
     modes.includes("quantity_mismatch")
       ? [
           `Quantity units (${check.quantitySum}) do not match the printed Items count (${bill.printedItemUnits}).`,
-          "Re-read the leftmost quantity digit on EVERY item row (Thai/SEA POS often prints \"2  ItemName  100.00\").",
+          "Re-read the leftmost quantity digit on EVERY product row (Thai/SEA POS often prints \"2  ItemName  100.00\").",
           "Do not confuse Table / Guests counts above the items with line quantities.",
           "Do not move a quantity digit from one product onto a different product name to fake the Items count.",
           "Keep each item's `price` as the LINE TOTAL; only correct `quantity` (and strip a leading qty digit from `name` if you glued it there).",
-          "Bare numeric PLU/SKU rows with no price (e.g. \"1133371101\") are not menu items — omit them. Items: N may still count those rows; do NOT raise other dishes' quantities to match. Prefer setting printedItemUnits to the sum of priced-line quantities when the only shortfall is an unpriced product code.",
-          "If sum(qty) EXCEEDS Items:N, decrease an over-read quantity (OCR often turns a leftmost 1 into 2). Do not keep Pone Mhan/Hman at qty 2 from memory of another receipt — read THIS receipt's digit. Prefer lowering a dish qty over changing a correct Rice ×2 staple line.",
+          "Minus promotion / discount lines (negative price) are NOT counted in Items: N — keep them in items, but compare the footer only to sum(quantity where price ≥ 0).",
+          "Bare numeric PLU/SKU rows with no price (e.g. \"1133371101\") are not menu items — omit them. Items: N may still count those rows; do NOT raise other dishes' quantities to match. Prefer setting printedItemUnits to the sum of priced product-line quantities when the only shortfall is an unpriced product code.",
+          "If sum(product qty) EXCEEDS Items:N, decrease an over-read quantity (OCR often turns a leftmost 1 into 2). Do not keep Pone Mhan/Hman at qty 2 from memory of another receipt — read THIS receipt's digit. Prefer lowering a dish qty over changing a correct Rice ×2 staple line.",
           "Update printedItemUnits only if you mis-read the Items footer or it counted an unpriced PLU/SKU — otherwise the footer is correct and a line quantity is wrong.",
         ]
       : [];

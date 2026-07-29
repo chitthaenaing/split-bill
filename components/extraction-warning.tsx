@@ -3,7 +3,7 @@
 import { AlertTriangle, Loader2, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/utils";
-import { itemsTotal } from "@/lib/calc";
+import { positiveItemsTotal } from "@/lib/calc";
 import { MAX_EXTRACTION_RESCANS } from "@/lib/extraction-rescan";
 import type { BillItem } from "@/types/bill";
 
@@ -39,7 +39,9 @@ export function ExtractionWarning({
 }: ExtractionWarningProps) {
   if (!warnings.length) return null;
 
-  const computedItems = itemsTotal(items);
+  // Compare product lines to the printed pre-discount subtotal. Net of minus
+  // promos is lower by design and must not look like a money mismatch.
+  const computedItems = positiveItemsTotal(items);
   const onlyVatSoft = warnings.every(isVatSoftWarning);
   const title = onlyVatSoft ? "VAT looks off" : "Totals don't match";
   const canRescan = Boolean(onRescan) && remaining > 0;
