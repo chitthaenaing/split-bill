@@ -7,7 +7,6 @@ import {
   deflateQuantityOvercount,
   formatCheckForRepair,
   impliedSubtotalHints,
-  isAdditionalChargeName,
   isBareProductCodeName,
   isBillLevelDiscountName,
   isJunkItemName,
