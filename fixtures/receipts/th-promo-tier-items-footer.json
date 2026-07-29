@@ -1,6 +1,6 @@
 {
   "id": "th-promo-tier-items-footer",
-  "description": "Promotion Tier Discount as a minus item must not inflate quantity vs Items:4, and product sum must still match the pre-discount subtotal.",
+  "description": "Promotion Tier Discount is salvaged into the totals discount field (not a pickable item); product qty still matches Items:4.",
   "raw": {
     "currency": "THB",
     "items": [
@@ -10,22 +10,22 @@
       { "name": "Chinese DoughNut", "price": 30, "quantity": 1 },
       { "name": "Promotion Tier Discount", "price": -27.9, "quantity": 1 }
     ],
-    "tax": 0,
-    "serviceCharge": 0,
-    "rounding": 0,
+    "tax": 18.46,
+    "serviceCharge": 12.56,
+    "rounding": -0.12,
     "discount": 0,
     "subtotal": 279,
-    "total": 251.1,
-    "taxInclusive": true,
+    "total": 282,
+    "taxInclusive": false,
     "printedItemUnits": 4
   },
   "expect": {
-    "taxInclusive": true,
-    "taxForUi": 0,
-    "total": 251.1,
-    "itemCount": 5,
-    "noNegativeItems": false,
+    "taxInclusive": false,
+    "taxForUi": 18.46,
+    "total": 282,
+    "itemCount": 4,
+    "noNegativeItems": true,
     "reconciled": true,
-    "vatConsistency": "skip"
+    "vatConsistency": "ok"
   }
 }

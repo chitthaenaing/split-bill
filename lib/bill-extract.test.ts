@@ -7,7 +7,9 @@ import {
   deflateQuantityOvercount,
   formatCheckForRepair,
   impliedSubtotalHints,
+  isAdditionalChargeName,
   isBareProductCodeName,
+  isBillLevelDiscountName,
   isJunkItemName,
   isLaborOrPartsItemName,
   isStapleSideItemName,
@@ -20,6 +22,25 @@ import {
 } from "./bill-extract";
 import { computeSplit } from "./calc";
 import { checkVatConsistency } from "./vat-check";
+
+describe("isBillLevelDiscountName", () => {
+  it("flags Discount / Tier / voucher lines for the totals field", () => {
+    assert.equal(isBillLevelDiscountName("Discount"), true);
+    assert.equal(isBillLevelDiscountName("Discount 10%"), true);
+    assert.equal(isBillLevelDiscountName("Promotion Tier Discount"), true);
+    assert.equal(isBillLevelDiscountName("Promotion Tier Disc"), true);
+    assert.equal(isBillLevelDiscountName("Total Savings"), true);
+  });
+
+  it("keeps free-item promos as pickable items", () => {
+    assert.equal(isBillLevelDiscountName("Promotion Free Tea"), false);
+    assert.equal(
+      isBillLevelDiscountName("Promotion Free Tea (Gold Member)"),
+      false
+    );
+    assert.equal(isBillLevelDiscountName("Milk (Hot)"), false);
+  });
+});
 
 describe("isJunkItemName", () => {
   it("flags totals, tax and payment labels", () => {
@@ -615,7 +636,7 @@ describe("normalizeExtractedBill", () => {
     assert.equal(bill.items[1].nameTranslated, undefined);
   });
 
-  it("keeps minus promotion lines on the item list", () => {
+  it("keeps minus free-item promotion lines on the item list", () => {
     const bill = normalizeExtractedBill({
       currency: "THB",
       items: [
@@ -635,7 +656,7 @@ describe("normalizeExtractedBill", () => {
     assert.equal(bill.discount, 0);
   });
 
-  it("materializes a discount field as a minus item", () => {
+  it("keeps an explicit discount field (does not materialize as an item)", () => {
     const bill = normalizeExtractedBill({
       currency: "THB",
       items: [{ name: "Coffee", price: 100, quantity: 1 }],
@@ -647,8 +668,34 @@ describe("normalizeExtractedBill", () => {
       total: 80,
       taxInclusive: true,
     });
-    assert.ok(bill.items.some((it) => it.price === -20));
-    assert.equal(bill.discount, 0);
+    assert.equal(bill.items.length, 1);
+    assert.equal(bill.discount, 20);
+    assert.equal(bill.items.some((it) => it.price < 0), false);
+  });
+
+  it("salvages Promotion Tier Discount into the totals discount field", () => {
+    const bill = normalizeExtractedBill({
+      currency: "THB",
+      items: [
+        { name: "Milk (Hot)", price: 60, quantity: 1 },
+        { name: "Mote Hin Gar", price: 90, quantity: 1 },
+        { name: "Starchy Noodle With Duck Blood", price: 99, quantity: 1 },
+        { name: "Chinese DoughNut", price: 30, quantity: 1 },
+        { name: "Promotion Tier Discount", price: -27.9, quantity: 1 },
+      ],
+      tax: 18.46,
+      serviceCharge: 12.56,
+      rounding: -0.12,
+      discount: 0,
+      subtotal: 279,
+      total: 282,
+      taxInclusive: false,
+      printedItemUnits: 4,
+    });
+    assert.equal(bill.items.length, 4);
+    assert.equal(bill.discount, 27.9);
+    assert.equal(checkBillMath(bill).ok, true);
+    assert.equal(toExtractedBill(bill).discount, 27.9);
   });
 
   it("keeps Myanmar/Thai-only product names", () => {
@@ -797,8 +844,7 @@ describe("checkBillMath", () => {
   });
 
   it("does not count minus promo qty against Items:N (Promotion Tier)", () => {
-    // 4 products + Promotion Tier Discount −27.90; footer Items: 4.
-    // Counting the promo as a 5th unit used to false-fail quantity checks.
+    // Tier discount is salvaged into `discount`; product qty matches Items: 4.
     const bill = normalizeExtractedBill({
       currency: "THB",
       items: [
@@ -808,33 +854,33 @@ describe("checkBillMath", () => {
         { name: "Chinese DoughNut", price: 30, quantity: 1 },
         { name: "Promotion Tier Discount", price: -27.9, quantity: 1 },
       ],
-      tax: 0,
-      serviceCharge: 0,
-      rounding: 0,
+      tax: 18.46,
+      serviceCharge: 12.56,
+      rounding: -0.12,
       discount: 0,
       subtotal: 279,
-      total: 251.1,
-      taxInclusive: true,
+      total: 282,
+      taxInclusive: false,
       printedItemUnits: 4,
     });
     const check = checkBillMath(bill);
     assert.equal(check.quantitySum, 4);
     assert.equal(check.itemsSum, 279);
+    assert.equal(bill.discount, 27.9);
+    assert.equal(bill.items.filter((it) => it.price < 0).length, 0);
     assert.equal(check.ok, true);
-    assert.equal(bill.items.filter((it) => it.price < 0).length, 1);
   });
 });
 
 describe("productQuantitySum / deflate with promos", () => {
   it("ignores minus lines when deflating Items:N overcount", () => {
-    // Without ignoring the promo, excess would be 2 (5 product-ish rows vs 4)
-    // or could wrongly touch a real dish. Promo must not count.
+    // Free-item promos stay in items; they must not inflate Items:N math.
     const items = [
       { name: "Milk (Hot)", price: 60, quantity: 1 },
       { name: "Mote Hin Gar", price: 90, quantity: 1 },
       { name: "Starchy Noodle", price: 99, quantity: 1 },
       { name: "Chinese DoughNut", price: 30, quantity: 1 },
-      { name: "Promotion Tier Discount", price: -27.9, quantity: 1 },
+      { name: "Promotion Free Tea", price: -50, quantity: 1 },
     ];
     assert.equal(productQuantitySum(items), 4);
     const deflated = deflateQuantityOvercount(items, 4, true);
@@ -846,7 +892,7 @@ describe("productQuantitySum / deflate with promos", () => {
 });
 
 describe("reconcileBill", () => {
-  it("adds a missing minus promotion instead of shrinking VAT (Shwe Tea House)", () => {
+  it("adds a missing bill-level discount instead of shrinking VAT (Shwe Tea House)", () => {
     const fixed = reconcileBill({
       currency: "THB",
       items: [
@@ -874,12 +920,10 @@ describe("reconcileBill", () => {
     });
 
     assert.equal(checkBillMath(fixed).ok, true);
-    const promo = fixed.items.find((it) => it.price < 0);
-    assert.ok(promo);
-    assert.equal(promo?.price, -50);
+    assert.equal(fixed.discount, 50);
+    assert.equal(fixed.items.some((it) => it.price < 0), false);
     assert.equal(fixed.tax, 58.73);
     assert.equal(fixed.serviceCharge, 39.95);
-    assert.equal(fixed.discount, 0);
   });
 
   it("fills a non-VAT total gap as serviceCharge, not tax (HTOO's Curry)", () => {
@@ -932,6 +976,47 @@ describe("computeSplit with minus items", () => {
     assert.equal(split.selectedSubtotal, 799);
     assert.equal(split.discountShare, 0);
     assert.equal(split.total, 898);
+  });
+
+  it("applies bill-level discount proportionally in the totals section", () => {
+    const items = [
+      {
+        id: "1",
+        name: "Milk (Hot)",
+        price: 60,
+        quantity: 1,
+        selectedQuantity: 1,
+        splitCount: 1,
+      },
+      {
+        id: "2",
+        name: "Mote Hin Gar",
+        price: 90,
+        quantity: 1,
+        selectedQuantity: 1,
+        splitCount: 1,
+      },
+      {
+        id: "3",
+        name: "Starchy Noodle",
+        price: 99,
+        quantity: 1,
+        selectedQuantity: 1,
+        splitCount: 1,
+      },
+      {
+        id: "4",
+        name: "Chinese DoughNut",
+        price: 30,
+        quantity: 1,
+        selectedQuantity: 1,
+        splitCount: 1,
+      },
+    ];
+    const split = computeSplit(items, 18.46, 12.56, -0.12, [], 27.9);
+    assert.equal(split.selectedSubtotal, 279);
+    assert.equal(split.discountShare, 27.9);
+    assert.equal(split.total, 282);
   });
 });
 
