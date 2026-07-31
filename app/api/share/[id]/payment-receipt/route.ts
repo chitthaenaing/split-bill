@@ -5,6 +5,7 @@ import {
   readMultipartImage,
 } from "@/lib/multipart-image";
 import { extractPaymentFromImage } from "@/lib/openai-payment";
+import { sanitizeParticipantList } from "@/lib/participants";
 import { toPublicPaymentReceipt } from "@/lib/public-bill";
 import {
   appendPaymentReceipt,
@@ -22,9 +23,30 @@ export const maxDuration = 90;
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const RECEIPT_ID_RE = /^[A-Za-z0-9]{6,32}$/;
 
+function parseIncludedNamesField(raw: unknown): string[] {
+  if (typeof raw === "string") {
+    try {
+      return sanitizeParticipantList(JSON.parse(raw));
+    } catch {
+      return sanitizeParticipantList(
+        raw
+          .split(/[\n,]/)
+          .map((s) => s.trim())
+          .filter(Boolean)
+      );
+    }
+  }
+  return sanitizeParticipantList(raw);
+}
+
 async function parseUploadBody(
   req: Request
-): Promise<{ buffer: Buffer; mime: string; dataUrl: string }> {
+): Promise<{
+  buffer: Buffer;
+  mime: string;
+  dataUrl: string;
+  includedNames: string[];
+}> {
   const contentType = req.headers.get("content-type") || "";
 
   if (contentType.includes("multipart/form-data")) {
@@ -38,11 +60,17 @@ async function parseUploadBody(
       throw err;
     }
     const dataUrl = `data:${image.mime};base64,${image.buffer.toString("base64")}`;
-    return { buffer: image.buffer, mime: image.mime, dataUrl };
+    return {
+      buffer: image.buffer,
+      mime: image.mime,
+      dataUrl,
+      includedNames: parseIncludedNamesField(form.get("includedNames")),
+    };
   }
 
   const body = (await req.json()) as {
     imageDataUrl?: string;
+    includedNames?: unknown;
   };
   const image = body.imageDataUrl ? parseDataUrl(body.imageDataUrl) : null;
   if (!image) {
@@ -59,6 +87,7 @@ async function parseUploadBody(
     buffer: image.buffer,
     mime: image.mime,
     dataUrl: body.imageDataUrl!,
+    includedNames: parseIncludedNamesField(body.includedNames),
   };
 }
 
@@ -80,7 +109,18 @@ export async function POST(
       );
     }
 
-    const { buffer, mime, dataUrl } = await parseUploadBody(req);
+    const { buffer, mime, dataUrl, includedNames } = await parseUploadBody(req);
+    const roster = Array.isArray(bill.participants) ? bill.participants : [];
+    if (roster.length > 0 && includedNames.length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Choose which people on this bill this transfer covers before uploading.",
+        },
+        { status: 400 }
+      );
+    }
+
     const extracted = await extractPaymentFromImage(dataUrl, bill.currency);
 
     const updated = await appendPaymentReceipt({
@@ -89,6 +129,7 @@ export async function POST(
       imageContentType: mime,
       payerName: extracted.payerName || null,
       amountPaid: extracted.amount,
+      includedNames,
     });
 
     if (!updated) {

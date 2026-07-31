@@ -15,6 +15,9 @@ export function toPublicPaymentReceipt(
     receipt.amountPaid > 0
       ? { amountPaid: receipt.amountPaid }
       : {}),
+    ...(Array.isArray(receipt.includedNames) && receipt.includedNames.length > 0
+      ? { includedNames: [...receipt.includedNames] }
+      : {}),
   };
 }
 
@@ -39,6 +42,9 @@ export function toPublicStoredBill(bill: StoredBill): StoredBill {
         }
       : {}),
     ...(paymentReceipts ? { paymentReceipts } : {}),
+    ...(Array.isArray(bill.participants) && bill.participants.length > 0
+      ? { participants: [...bill.participants] }
+      : {}),
     currency: bill.currency,
     items: bill.items,
     tax: bill.tax,

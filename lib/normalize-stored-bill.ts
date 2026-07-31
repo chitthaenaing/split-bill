@@ -1,4 +1,5 @@
 import type { StoredBill, StoredPaymentReceipt } from "@/types/bill";
+import { sanitizeParticipantList } from "./participants";
 
 const ID_RE = /^[A-Za-z0-9]{6,32}$/;
 const MAX_PAYER_NAME_LEN = 40;
@@ -69,6 +70,10 @@ export function normalizeStoredBill(data: unknown): StoredBill | null {
                     100,
                 }
               : {}),
+            ...(() => {
+              const includedNames = sanitizeParticipantList(r.includedNames);
+              return includedNames.length > 0 ? { includedNames } : {};
+            })(),
             ...(typeof r.deleteTokenHash === "string"
               ? { deleteTokenHash: r.deleteTokenHash }
               : {}),
@@ -76,6 +81,8 @@ export function normalizeStoredBill(data: unknown): StoredBill | null {
         })
         .filter((r): r is StoredPaymentReceipt => r != null)
     : undefined;
+
+  const participants = sanitizeParticipantList(o.participants);
 
   const notifyTokens = Array.isArray(o.notifyTokens)
     ? o.notifyTokens
@@ -101,6 +108,7 @@ export function normalizeStoredBill(data: unknown): StoredBill | null {
         }
       : {}),
     ...(paymentReceipts ? { paymentReceipts } : {}),
+    ...(participants.length > 0 ? { participants } : {}),
     ...(notifyTokens ? { notifyTokens } : {}),
     ...(typeof o.ownerTokenHash === "string"
       ? { ownerTokenHash: o.ownerTokenHash }

@@ -4,6 +4,10 @@ import { customAlphabet } from "nanoid";
 import type { ExtractedBill, StoredBill, StoredPaymentReceipt } from "@/types/bill";
 import { sendPushToTokens } from "./firebase-admin";
 import { isValidShareId, normalizeStoredBill } from "./normalize-stored-bill";
+import {
+  filterIncludedAgainstRoster,
+  sanitizeParticipantList,
+} from "./participants";
 import { createShareToken, hashShareToken, verifyShareToken } from "./share-tokens";
 
 export { isValidShareId, normalizeStoredBill } from "./normalize-stored-bill";
@@ -174,6 +178,8 @@ export async function createShare(opts: {
   bill: ExtractedBill;
   bankingQrBuffer?: Buffer;
   bankingQrContentType?: string;
+  /** Optional roster of people included on this shared bill. */
+  participants?: string[];
 }): Promise<{ id: string; ownerToken: string; bill: StoredBill }> {
   ensureToken();
 
@@ -212,6 +218,7 @@ export async function createShare(opts: {
     bankingQrContentType = opts.bankingQrContentType;
   }
 
+  const participants = sanitizeParticipantList(opts.participants);
   const writeId = newId();
   const stored: StoredBill = {
     id,
@@ -221,6 +228,7 @@ export async function createShare(opts: {
     ...(bankingQrUrl && bankingQrContentType
       ? { bankingQrUrl, bankingQrContentType }
       : {}),
+    ...(participants.length > 0 ? { participants } : {}),
     ownerTokenHash: hashShareToken(ownerToken),
     revision: 1,
     lastWriteId: writeId,
@@ -253,6 +261,11 @@ export async function appendPaymentReceipt(opts: {
   payerName?: string | null;
   /** Transfer amount in bill currency — usually OCR'd from the slip. */
   amountPaid: number;
+  /**
+   * Which roster people this slip covers. Filtered against the bill's
+   * `participants` when a roster exists.
+   */
+  includedNames?: string[] | null;
 }): Promise<{
   bill: StoredBill;
   entry: StoredPaymentReceipt;
@@ -285,6 +298,13 @@ export async function appendPaymentReceipt(opts: {
   });
 
   const payerName = opts.payerName ? sanitizePayerName(opts.payerName) : null;
+  const roster = Array.isArray(current.participants)
+    ? current.participants
+    : [];
+  const includedNames =
+    roster.length > 0
+      ? filterIncludedAgainstRoster(opts.includedNames, roster)
+      : sanitizeParticipantList(opts.includedNames);
   const entry: StoredPaymentReceipt = {
     id: proofId,
     url: uploaded.url,
@@ -292,6 +312,7 @@ export async function appendPaymentReceipt(opts: {
     uploadedAt: Date.now(),
     ...(payerName ? { payerName } : {}),
     amountPaid: opts.amountPaid,
+    ...(includedNames.length > 0 ? { includedNames } : {}),
     deleteTokenHash: hashShareToken(deleteToken),
   };
 
@@ -366,6 +387,29 @@ export async function appendPaymentReceipt(opts: {
   }
 
   return { bill, entry, deleteToken };
+}
+
+/**
+ * Replace the shared bill's participant roster. Anyone with the link may
+ * update it so a recipient can fill it in if the sharer skipped the step.
+ */
+export async function setShareParticipants(opts: {
+  shareId: string;
+  participants: unknown;
+}): Promise<StoredBill | null> {
+  ensureToken();
+  if (!isValidShareId(opts.shareId)) return null;
+  const participants = sanitizeParticipantList(opts.participants);
+
+  return mutateStoredBill(opts.shareId, (latest) => {
+    const next: StoredBill = { ...latest };
+    if (participants.length > 0) {
+      next.participants = participants;
+    } else {
+      delete next.participants;
+    }
+    return next;
+  });
 }
 
 /**
