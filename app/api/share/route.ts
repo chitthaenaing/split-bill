@@ -4,6 +4,7 @@ import {
   httpStatusFromError,
   readMultipartImage,
 } from "@/lib/multipart-image";
+import { sanitizeParticipantList } from "@/lib/participants";
 import { createShare } from "@/lib/share";
 import type { ExtractedBill } from "@/types/bill";
 
@@ -71,10 +72,27 @@ function parseBillJson(raw: unknown): ExtractedBill | null {
   return null;
 }
 
+function parseParticipantsField(raw: unknown): string[] {
+  if (typeof raw === "string") {
+    try {
+      return sanitizeParticipantList(JSON.parse(raw));
+    } catch {
+      return sanitizeParticipantList(
+        raw
+          .split(/[\n,]/)
+          .map((s) => s.trim())
+          .filter(Boolean)
+      );
+    }
+  }
+  return sanitizeParticipantList(raw);
+}
+
 type JsonBody = {
   imageDataUrl?: string;
   bankingQrDataUrl?: string;
   bill?: ExtractedBill;
+  participants?: unknown;
 };
 
 async function parseShareRequest(req: Request): Promise<{
@@ -83,6 +101,7 @@ async function parseShareRequest(req: Request): Promise<{
   bankingQrBuffer?: Buffer;
   bankingQrContentType?: string;
   bill: ExtractedBill;
+  participants: string[];
 }> {
   const contentType = req.headers.get("content-type") || "";
 
@@ -123,6 +142,7 @@ async function parseShareRequest(req: Request): Promise<{
       bankingQrBuffer,
       bankingQrContentType,
       bill,
+      participants: parseParticipantsField(form.get("participants")),
     };
   }
 
@@ -172,6 +192,7 @@ async function parseShareRequest(req: Request): Promise<{
     bankingQrBuffer,
     bankingQrContentType,
     bill,
+    participants: parseParticipantsField(body.participants),
   };
 }
 

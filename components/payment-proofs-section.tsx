@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { IncludedUsersPicker } from "@/components/participants-editor";
 import {
   imageFileFromDataTransfer,
   isEditablePasteTarget,
@@ -44,18 +45,21 @@ function UploadDropzone({
   onChooseFile,
   onImageFile,
   error,
+  disabledReason,
 }: {
   busy: boolean;
   onChooseFile: () => void;
   onImageFile: (file: File) => void;
   error: string | null;
+  disabledReason?: string | null;
 }) {
   const [dragActive, setDragActive] = useState(false);
+  const blocked = Boolean(disabledReason) || busy;
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragActive(false);
-    if (busy) return;
+    if (blocked) return;
     const file =
       imageFileFromDataTransfer(e.dataTransfer) ??
       e.dataTransfer.files?.[0] ??
@@ -70,7 +74,7 @@ function UploadDropzone({
         aria-label="Upload transfer screenshot. Choose a file, drop an image, or paste from the clipboard."
         onDragOver={(e) => {
           e.preventDefault();
-          if (!busy) setDragActive(true);
+          if (!blocked) setDragActive(true);
         }}
         onDragLeave={(e) => {
           e.preventDefault();
@@ -81,14 +85,15 @@ function UploadDropzone({
           "flex flex-col items-center gap-2 rounded-xl border border-dashed px-4 py-5 text-center transition-colors",
           dragActive
             ? "border-accent bg-accent/10"
-            : "border-border bg-muted/15"
+            : "border-border bg-muted/15",
+          blocked && !busy ? "opacity-70" : null
         )}
       >
         <Button
           type="button"
           variant="accent"
           size="sm"
-          disabled={busy}
+          disabled={blocked}
           onClick={onChooseFile}
         >
           {busy ? (
@@ -99,9 +104,11 @@ function UploadDropzone({
           {busy ? "Reading slip…" : "Choose screenshot"}
         </Button>
         <span className="text-[11px] text-muted-foreground">
-          {dragActive
-            ? "Drop to upload"
-            : "Drop or paste a screenshot — we’ll read the amount and name"}
+          {disabledReason
+            ? disabledReason
+            : dragActive
+              ? "Drop to upload"
+              : "Drop or paste a screenshot — we’ll read the amount and name"}
         </span>
       </div>
 
@@ -117,6 +124,7 @@ export function PaymentProofsSection({
   currency,
   bill,
   receipts: initialReceipts,
+  participants: initialParticipants = [],
 }: {
   shareId: string;
   currency: string;
@@ -130,10 +138,16 @@ export function PaymentProofsSection({
     | "additionalCharges"
   >;
   receipts: StoredPaymentReceipt[];
+  participants?: string[];
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [receipts, setReceipts] = useState<StoredPaymentReceipt[]>(
     initialReceipts
+  );
+  // Roster is set at share time only — recipients pick from it, not edit it.
+  const participants = initialParticipants;
+  const [includedNames, setIncludedNames] = useState<string[]>(
+    initialParticipants
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -144,6 +158,7 @@ export function PaymentProofsSection({
     url: string;
     payerName?: string;
     amountPaid?: number;
+    includedNames?: string[];
   } | null>(null);
 
   useEffect(() => {
@@ -167,6 +182,7 @@ export function PaymentProofsSection({
   );
 
   const hasReceipts = receipts.length > 0;
+  const hasRoster = participants.length > 0;
 
   const upload = useCallback(
     async (file: File) => {
@@ -179,12 +195,19 @@ export function PaymentProofsSection({
         setError("Image must be 8 MB or smaller.");
         return;
       }
+      if (participants.length > 0 && includedNames.length === 0) {
+        setError("Choose who this transfer covers first.");
+        return;
+      }
       setBusy(true);
       try {
         const rawDataUrl = await fileToDataUrl(file);
         const prepared = await prepareReceiptImage(rawDataUrl);
         const form = new FormData();
         form.append("file", dataUrlToBlob(prepared), file.name || "proof.jpg");
+        if (includedNames.length > 0) {
+          form.append("includedNames", JSON.stringify(includedNames));
+        }
 
         const res = await fetch(`/api/share/${shareId}/payment-receipt`, {
           method: "POST",
@@ -217,7 +240,7 @@ export function PaymentProofsSection({
         setBusy(false);
       }
     },
-    [shareId]
+    [shareId, participants.length, includedNames]
   );
 
   // Allow Cmd/Ctrl+V (and mobile paste) anywhere on the share page when the
@@ -226,6 +249,7 @@ export function PaymentProofsSection({
     const onWindowPaste = (e: ClipboardEvent) => {
       if (busy) return;
       if (isEditablePasteTarget(e.target)) return;
+      if (participants.length > 0 && includedNames.length === 0) return;
       const file = imageFileFromDataTransfer(e.clipboardData);
       if (!file) return;
       e.preventDefault();
@@ -233,7 +257,7 @@ export function PaymentProofsSection({
     };
     window.addEventListener("paste", onWindowPaste);
     return () => window.removeEventListener("paste", onWindowPaste);
-  }, [busy, upload]);
+  }, [busy, upload, participants.length, includedNames.length]);
 
   const onDelete = useCallback(
     async (receiptId: string) => {
@@ -297,6 +321,11 @@ export function PaymentProofsSection({
       ? "Settled"
       : `${formatMoney(balance.remaining, currency)} left`;
 
+  const uploadBlockedReason =
+    hasRoster && includedNames.length === 0
+      ? "Select who this transfer covers first"
+      : null;
+
   return (
     <>
       <Card className="overflow-hidden">
@@ -307,8 +336,9 @@ export function PaymentProofsSection({
         <CardContent className="p-4 sm:p-5 space-y-4">
           {!hasReceipts ? (
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Pay the organiser, then drop or paste the bank app screenshot. We
-              scan it for the amount and sender — nothing to type.
+              {hasRoster
+                ? "Pay the organiser, choose who the transfer covers, then drop or paste the bank app screenshot. We scan it for the amount and sender."
+                : "Pay the organiser, then drop or paste the bank app screenshot. We scan it for the amount and sender — nothing to type."}
             </p>
           ) : null}
 
@@ -378,6 +408,9 @@ export function PaymentProofsSection({
                   typeof r.amountPaid === "number" && r.amountPaid > 0
                     ? formatMoney(r.amountPaid, currency)
                     : null;
+                const covers = Array.isArray(r.includedNames)
+                  ? r.includedNames
+                  : [];
                 return (
                   <li key={r.id} className="relative">
                     <button
@@ -387,6 +420,7 @@ export function PaymentProofsSection({
                           url: r.url,
                           payerName: r.payerName,
                           amountPaid: r.amountPaid,
+                          includedNames: covers,
                         })
                       }
                       className="flex w-full gap-3 rounded-xl border border-border bg-muted/20 p-2.5 text-left transition-colors hover:bg-muted/45 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
@@ -417,6 +451,11 @@ export function PaymentProofsSection({
                             Amount not scanned
                           </span>
                         )}
+                        {covers.length > 0 ? (
+                          <span className="truncate text-[11px] text-muted-foreground">
+                            Covers {covers.join(", ")}
+                          </span>
+                        ) : null}
                         {isMine ? (
                           <span className="text-[11px] text-muted-foreground">
                             You uploaded this
@@ -446,24 +485,44 @@ export function PaymentProofsSection({
           ) : null}
 
           {!hasReceipts ? (
-            <UploadDropzone
-              busy={busy}
-              onChooseFile={triggerFileDialog}
-              onImageFile={upload}
-              error={error}
-            />
+            <div className="space-y-3">
+              {hasRoster ? (
+                <IncludedUsersPicker
+                  participants={participants}
+                  selected={includedNames}
+                  onChange={setIncludedNames}
+                  disabled={busy}
+                />
+              ) : null}
+              <UploadDropzone
+                busy={busy}
+                onChooseFile={triggerFileDialog}
+                onImageFile={upload}
+                error={error}
+                disabledReason={uploadBlockedReason}
+              />
+            </div>
           ) : (
             <details className="group rounded-xl border border-border bg-muted/15">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
                 <span>Add another transfer</span>
                 <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />
               </summary>
-              <div className="border-t border-border px-3 py-3">
+              <div className="border-t border-border px-3 py-3 space-y-3">
+                {hasRoster ? (
+                  <IncludedUsersPicker
+                    participants={participants}
+                    selected={includedNames}
+                    onChange={setIncludedNames}
+                    disabled={busy}
+                  />
+                ) : null}
                 <UploadDropzone
                   busy={busy}
                   onChooseFile={triggerFileDialog}
                   onImageFile={upload}
                   error={error}
+                  disabledReason={uploadBlockedReason}
                 />
               </div>
             </details>
@@ -474,7 +533,7 @@ export function PaymentProofsSection({
             type="file"
             accept="image/*"
             className="sr-only"
-            disabled={busy}
+            disabled={busy || Boolean(uploadBlockedReason)}
             onChange={onFileSelected}
           />
         </CardContent>
@@ -517,14 +576,24 @@ export function PaymentProofsSection({
                 />
                 {(lightbox.payerName ?? "").trim() ||
                 (typeof lightbox.amountPaid === "number" &&
-                  lightbox.amountPaid > 0) ? (
-                  <p className="max-w-[min(100%,28rem)] text-center text-base font-semibold text-white">
-                    {(lightbox.payerName ?? "").trim() || "Transfer"}
-                    {typeof lightbox.amountPaid === "number" &&
-                    lightbox.amountPaid > 0
-                      ? ` · ${formatMoney(lightbox.amountPaid, currency)}`
-                      : ""}
-                  </p>
+                  lightbox.amountPaid > 0) ||
+                (lightbox.includedNames &&
+                  lightbox.includedNames.length > 0) ? (
+                  <div className="max-w-[min(100%,28rem)] space-y-1 text-center text-white">
+                    <p className="text-base font-semibold">
+                      {(lightbox.payerName ?? "").trim() || "Transfer"}
+                      {typeof lightbox.amountPaid === "number" &&
+                      lightbox.amountPaid > 0
+                        ? ` · ${formatMoney(lightbox.amountPaid, currency)}`
+                        : ""}
+                    </p>
+                    {lightbox.includedNames &&
+                    lightbox.includedNames.length > 0 ? (
+                      <p className="text-sm text-white/80">
+                        Covers {lightbox.includedNames.join(", ")}
+                      </p>
+                    ) : null}
+                  </div>
                 ) : null}
               </motion.div>
             )}

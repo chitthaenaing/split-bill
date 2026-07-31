@@ -95,6 +95,11 @@ export type StoredPaymentReceipt = {
    */
   amountPaid?: number;
   /**
+   * Which people on the shared bill this transfer covers (subset of
+   * `StoredBill.participants`). Omitted on older uploads.
+   */
+  includedNames?: string[];
+  /**
    * SHA-256 hex of the uploader's delete token. Never send this to browsers —
    * strip via `toPublicPaymentReceipt`. Omitted on legacy uploads.
    */
@@ -126,6 +131,12 @@ export type StoredBill = {
   bankingQrContentType?: string;
   /** Screenshots of transfers uploaded by people who opened the share link. */
   paymentReceipts?: StoredPaymentReceipt[];
+  /**
+   * Display names of people included on this shared bill. Set when the share
+   * link is created; recipients pick from this list when attaching a pay slip
+   * but cannot amend it. Omitted on older shares.
+   */
+  participants?: string[];
   /**
    * FCM registration tokens for the sharer's device(s). Used to push a
    * notification when a recipient uploads a payment receipt.

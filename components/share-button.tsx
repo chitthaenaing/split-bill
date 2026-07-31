@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NotifyToggle } from "@/components/notify-toggle";
+import { ParticipantsEditor } from "@/components/participants-editor";
 import { itemsTotal } from "@/lib/calc";
 import { dataUrlToBlob, prepareReceiptImage } from "@/lib/image-prep";
 import { useAuth } from "@/components/auth-provider";
@@ -50,6 +51,7 @@ export function ShareButton() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [participants, setParticipants] = useState<string[]>([]);
 
   const disabled = !receiptDataUrl || items.length === 0;
 
@@ -64,13 +66,27 @@ export function ShareButton() {
     };
   }, [open]);
 
-  const start = useCallback(async () => {
+  const openDialog = useCallback(() => {
     if (!receiptDataUrl) {
       setError("No receipt image to share.");
       setOpen(true);
       return;
     }
     setOpen(true);
+    setBusy(false);
+    setError(null);
+    setUrl(null);
+    setShareId(null);
+    setOwnerToken(null);
+    setCopied(false);
+    setParticipants([]);
+  }, [receiptDataUrl]);
+
+  const start = useCallback(async () => {
+    if (!receiptDataUrl) {
+      setError("No receipt image to share.");
+      return;
+    }
     setBusy(true);
     setError(null);
     setUrl(null);
@@ -106,6 +122,9 @@ export function ShareButton() {
       const form = new FormData();
       form.append("file", dataUrlToBlob(preparedReceipt), "receipt.jpg");
       form.append("bill", JSON.stringify(bill));
+      if (participants.length > 0) {
+        form.append("participants", JSON.stringify(participants));
+      }
 
       let qrDataUrl = bankingQrDataUrl;
       if (!qrDataUrl && user) {
@@ -173,6 +192,7 @@ export function ShareButton() {
     receiptDataUrl,
     bankingQrDataUrl,
     user,
+    participants,
   ]);
 
   const close = () => {
@@ -196,7 +216,7 @@ export function ShareButton() {
       <Button
         variant="outline"
         size="sm"
-        onClick={start}
+        onClick={openDialog}
         disabled={disabled || busy}
       >
         {busy ? (
@@ -250,6 +270,26 @@ export function ShareButton() {
                   </div>
 
                   <div className="space-y-4 px-5 sm:px-6 pb-5 sm:pb-6">
+                    {!url && !busy ? (
+                      <>
+                        <ParticipantsEditor
+                          value={participants}
+                          onChange={setParticipants}
+                          disabled={busy}
+                        />
+                        <Button
+                          type="button"
+                          variant="accent"
+                          className="w-full"
+                          onClick={() => void start()}
+                          disabled={busy}
+                        >
+                          <Share2 className="h-4 w-4" />
+                          Create share link
+                        </Button>
+                      </>
+                    ) : null}
+
                     {busy && (
                       <div className="flex items-center gap-3 rounded-xl bg-muted/50 px-4 py-4 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -266,6 +306,14 @@ export function ShareButton() {
 
                     {url && (
                       <>
+                        {participants.length > 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            Included:{" "}
+                            <span className="text-foreground">
+                              {participants.join(", ")}
+                            </span>
+                          </p>
+                        ) : null}
                         <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/50 px-3.5 py-2.5">
                           <span className="flex-1 select-all truncate font-mono text-sm">
                             {url}

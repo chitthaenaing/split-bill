@@ -372,6 +372,7 @@ export function SharedBill({ data }: { data: StoredBill }) {
                   additionalCharges: data.additionalCharges,
                 }}
                 receipts={data.paymentReceipts ?? []}
+                participants={data.participants ?? []}
               />
             </aside>
           </div>

@@ -12,10 +12,12 @@ describe("public-bill", () => {
       uploadedAt: 1,
       payerName: "Alex",
       amountPaid: 42.5,
+      includedNames: ["Alex", "Sam"],
       deleteTokenHash: "deadbeef".repeat(8),
     });
     assert.equal(publicReceipt.payerName, "Alex");
     assert.equal(publicReceipt.amountPaid, 42.5);
+    assert.deepEqual(publicReceipt.includedNames, ["Alex", "Sam"]);
     assert.equal(publicReceipt.deleteTokenHash, undefined);
   });
 
@@ -29,12 +31,14 @@ describe("public-bill", () => {
       notifyTokens: ["fcm-token"],
       revision: 3,
       lastWriteId: "write1",
+      participants: ["Alex", "Sam"],
       paymentReceipts: [
         {
           id: "pay123ABCD",
           url: "https://example.com/p.jpg",
           contentType: "image/jpeg",
           uploadedAt: 2,
+          includedNames: ["Alex"],
           deleteTokenHash: "b".repeat(64),
         },
       ],
@@ -51,6 +55,8 @@ describe("public-bill", () => {
     assert.equal(pub.revision, undefined);
     assert.equal(pub.lastWriteId, undefined);
     assert.equal(pub.paymentReceipts?.[0]?.deleteTokenHash, undefined);
+    assert.deepEqual(pub.participants, ["Alex", "Sam"]);
+    assert.deepEqual(pub.paymentReceipts?.[0]?.includedNames, ["Alex"]);
     assert.equal(pub.items[0].name, "Tea");
   });
 });

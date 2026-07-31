@@ -54,6 +54,7 @@ describe("normalizeStoredBill", () => {
         null,
         { name: "", price: 0, quantity: 1 },
       ],
+      participants: ["Alex", "alex", "Sam"],
       paymentReceipts: [
         {
           id: "pay123ABCD",
@@ -62,6 +63,7 @@ describe("normalizeStoredBill", () => {
           uploadedAt: 1,
           payerName: "Sam",
           amountPaid: 55.25,
+          includedNames: ["Alex", "Sam", "Unknown"],
           deleteTokenHash: "d".repeat(64),
         },
         { id: "bad", url: "x" },
@@ -73,8 +75,14 @@ describe("normalizeStoredBill", () => {
     });
     assert.ok(bill);
     assert.equal(bill!.items.length, 1);
+    assert.deepEqual(bill!.participants, ["Alex", "Sam"]);
     assert.equal(bill!.paymentReceipts?.length, 1);
     assert.equal(bill!.paymentReceipts?.[0]?.payerName, "Sam");
     assert.equal(bill!.paymentReceipts?.[0]?.amountPaid, 55.25);
+    assert.deepEqual(bill!.paymentReceipts?.[0]?.includedNames, [
+      "Alex",
+      "Sam",
+      "Unknown",
+    ]);
   });
 });
