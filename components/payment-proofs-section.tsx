@@ -9,15 +9,11 @@ import {
   Loader2,
   Trash2,
   Upload,
-  Users,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  IncludedUsersPicker,
-  ParticipantsEditor,
-} from "@/components/participants-editor";
+import { IncludedUsersPicker } from "@/components/participants-editor";
 import {
   imageFileFromDataTransfer,
   isEditablePasteTarget,
@@ -148,16 +144,11 @@ export function PaymentProofsSection({
   const [receipts, setReceipts] = useState<StoredPaymentReceipt[]>(
     initialReceipts
   );
-  const [participants, setParticipants] = useState<string[]>(
-    initialParticipants
-  );
-  const [draftParticipants, setDraftParticipants] = useState<string[]>(
-    initialParticipants
-  );
+  // Roster is set at share time only — recipients pick from it, not edit it.
+  const participants = initialParticipants;
   const [includedNames, setIncludedNames] = useState<string[]>(
     initialParticipants
   );
-  const [savingRoster, setSavingRoster] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -192,41 +183,6 @@ export function PaymentProofsSection({
 
   const hasReceipts = receipts.length > 0;
   const hasRoster = participants.length > 0;
-  const rosterDirty =
-    JSON.stringify(draftParticipants) !== JSON.stringify(participants);
-
-  const saveRoster = useCallback(async () => {
-    setError(null);
-    setSavingRoster(true);
-    try {
-      const res = await fetch(`/api/share/${shareId}/participants`, {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ participants: draftParticipants }),
-      });
-      const data = await readJsonResponse<{
-        ok?: boolean;
-        error?: string;
-        participants?: string[];
-      }>(res);
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || `Save failed (${res.status})`);
-      }
-      const next = Array.isArray(data.participants) ? data.participants : [];
-      setParticipants(next);
-      setDraftParticipants(next);
-      setIncludedNames((prev) => {
-        if (next.length === 0) return [];
-        const keys = new Set(prev.map((n) => n.toLowerCase()));
-        const kept = next.filter((n) => keys.has(n.toLowerCase()));
-        return kept.length > 0 ? kept : [...next];
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save people list.");
-    } finally {
-      setSavingRoster(false);
-    }
-  }, [shareId, draftParticipants]);
 
   const upload = useCallback(
     async (file: File) => {
@@ -380,38 +336,11 @@ export function PaymentProofsSection({
         <CardContent className="p-4 sm:p-5 space-y-4">
           {!hasReceipts ? (
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Pay the organiser, choose who the transfer covers, then drop or
-              paste the bank app screenshot. We scan it for the amount and
-              sender.
+              {hasRoster
+                ? "Pay the organiser, choose who the transfer covers, then drop or paste the bank app screenshot. We scan it for the amount and sender."
+                : "Pay the organiser, then drop or paste the bank app screenshot. We scan it for the amount and sender — nothing to type."}
             </p>
           ) : null}
-
-          <div className="rounded-xl border border-border bg-muted/15 px-3.5 py-3 space-y-3">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              People on this bill
-            </div>
-            <ParticipantsEditor
-              value={draftParticipants}
-              onChange={setDraftParticipants}
-              disabled={busy || savingRoster}
-              hint="Names everyone can pick from when attaching a pay slip."
-            />
-            {rosterDirty || !hasRoster ? (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={savingRoster || busy || draftParticipants.length === 0}
-                onClick={() => void saveRoster()}
-              >
-                {savingRoster ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : null}
-                {savingRoster ? "Saving…" : "Save people list"}
-              </Button>
-            ) : null}
-          </div>
 
           {hasReceipts ? (
             <div className="rounded-xl border border-border bg-muted/20 px-3.5 py-3 space-y-2.5">
@@ -562,7 +491,7 @@ export function PaymentProofsSection({
                   participants={participants}
                   selected={includedNames}
                   onChange={setIncludedNames}
-                  disabled={busy || savingRoster}
+                  disabled={busy}
                 />
               ) : null}
               <UploadDropzone
@@ -585,7 +514,7 @@ export function PaymentProofsSection({
                     participants={participants}
                     selected={includedNames}
                     onChange={setIncludedNames}
-                    disabled={busy || savingRoster}
+                    disabled={busy}
                   />
                 ) : null}
                 <UploadDropzone

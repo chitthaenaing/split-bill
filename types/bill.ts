@@ -132,9 +132,9 @@ export type StoredBill = {
   /** Screenshots of transfers uploaded by people who opened the share link. */
   paymentReceipts?: StoredPaymentReceipt[];
   /**
-   * Display names of people included on this shared bill. Used when attaching
-   * a payment slip so the uploader can mark who the transfer covers.
-   * Omitted on older shares.
+   * Display names of people included on this shared bill. Set when the share
+   * link is created; recipients pick from this list when attaching a pay slip
+   * but cannot amend it. Omitted on older shares.
    */
   participants?: string[];
   /**

@@ -22,7 +22,7 @@ type ParticipantsEditorProps = {
 
 /**
  * Named people on a shared bill — chip list + add field.
- * Used when creating a share link and when editing the roster on `/b/[id]`.
+ * Used when creating a share link (roster is read-only on `/b/[id]`).
  */
 export function ParticipantsEditor({
   value,

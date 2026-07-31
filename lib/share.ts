@@ -390,29 +390,6 @@ export async function appendPaymentReceipt(opts: {
 }
 
 /**
- * Replace the shared bill's participant roster. Anyone with the link may
- * update it so a recipient can fill it in if the sharer skipped the step.
- */
-export async function setShareParticipants(opts: {
-  shareId: string;
-  participants: unknown;
-}): Promise<StoredBill | null> {
-  ensureToken();
-  if (!isValidShareId(opts.shareId)) return null;
-  const participants = sanitizeParticipantList(opts.participants);
-
-  return mutateStoredBill(opts.shareId, (latest) => {
-    const next: StoredBill = { ...latest };
-    if (participants.length > 0) {
-      next.participants = participants;
-    } else {
-      delete next.participants;
-    }
-    return next;
-  });
-}
-
-/**
  * Stores an FCM token for the sharer so they get pushed when a payment proof
  * is uploaded. De-duplicates and caps the list. Idempotent.
  * Requires the bill's owner token when the bill was created with one.
