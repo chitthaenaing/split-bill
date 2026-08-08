@@ -1,0 +1,32 @@
+{
+  "id": "th-promo-tier-diamond-member-suffix",
+  "description": "Shwe Tea House Rama IX — Promotion Tier Discount line carries a trailing loyalty-rank attribution (': Diamond Member'). Must still salvage into the totals discount field, not stay as a pickable item.",
+  "raw": {
+    "currency": "THB",
+    "items": [
+      { "name": "STHN NHAT Coffee", "price": 70, "quantity": 1 },
+      { "name": "Soe Soe Mote Tee (Nan Lat)", "price": 150, "quantity": 1 },
+      { "name": "Crispy Pork Belly With Starchy Gravy Rice", "price": 115, "quantity": 1 },
+      { "name": "Daily Special", "price": 99, "quantity": 1 },
+      { "name": "Beef Curry with Rice", "price": 149, "quantity": 1 },
+      { "name": "Promotion Tier Discount : Diamond Member", "price": -58.3, "quantity": 1 }
+    ],
+    "tax": 38.57,
+    "serviceCharge": 26.24,
+    "rounding": 0.49,
+    "discount": 0,
+    "subtotal": 583,
+    "total": 590,
+    "taxInclusive": false,
+    "printedItemUnits": 5
+  },
+  "expect": {
+    "taxInclusive": false,
+    "taxForUi": 38.57,
+    "total": 590,
+    "itemCount": 5,
+    "noNegativeItems": true,
+    "reconciled": true,
+    "vatConsistency": "ok"
+  }
+}

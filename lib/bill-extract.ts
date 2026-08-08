@@ -33,9 +33,14 @@ const ADDITIONAL_CHARGE_ITEM_NAME =
  * Bill-level discounts / tier promos that belong in `discount` (totals panel),
  * not as pickable items. Free-item promos ("Promotion Free Tea") stay in items
  * so the person who got the freebie can claim them.
+ *
+ * Tier discounts are often printed (and extracted) with a trailing loyalty
+ * rank attribution — "Promotion Tier Discount : Diamond Member" — so the
+ * core phrase allows an optional ": <Tier> Member[ship]" / "(<Tier> Member)"
+ * suffix rather than requiring an exact end-of-string match.
  */
 const BILL_LEVEL_DISCOUNT_NAME =
-  /^(discount(\s*\(?\s*\d+\s*%?\s*\)?)?|total\s*savings|member(ship)?(\s+\w+)*\s*disc\w*|loyalty(\s+\w+)*\s*disc\w*|voucher|coupon|promo(tion)?(\s+tier)?(\s*disc\w*)?|tier\s*disc\w*|promo(tion)?\s*\d+\s*%)$/i;
+  /^(?:discount(?:\s*\(?\s*\d+\s*%?\s*\)?)?|total\s*savings|member(?:ship)?(?:\s+\w+)*\s*disc\w*|loyalty(?:\s+\w+)*\s*disc\w*|voucher|coupon|promo(?:tion)?(?:\s+tier)?(?:\s*disc\w*)?|tier\s*disc\w*|promo(?:tion)?\s*\d+\s*%)(?:\s*[:\-]?\s*\(?[A-Za-z ]{0,20}member(?:ship)?\)?)?$/i;
 
 export type BillCheck = {
   ok: boolean;

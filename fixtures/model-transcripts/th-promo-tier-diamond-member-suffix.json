@@ -1,0 +1,39 @@
+{
+  "id": "th-promo-tier-diamond-member-suffix",
+  "description": "Shwe Tea House Rama IX — model extracts 'Promotion Tier Discount : Diamond Member' as an item row. Must be salvaged into the totals discount field (58.3), not left as a pickable minus item.",
+  "imageDataUrl": "data:image/jpeg;base64,AAAA",
+  "responses": [
+    {
+      "content": {
+        "currency": "THB",
+        "items": [
+          { "name": "STHN NHAT Coffee", "nameTranslated": "", "price": 70, "quantity": 1 },
+          { "name": "Soe Soe Mote Tee (Nan Lat)", "nameTranslated": "", "price": 150, "quantity": 1 },
+          { "name": "Crispy Pork Belly With Starchy Gravy Rice", "nameTranslated": "", "price": 115, "quantity": 1 },
+          { "name": "Daily Special", "nameTranslated": "", "price": 99, "quantity": 1 },
+          { "name": "Beef Curry with Rice", "nameTranslated": "", "price": 149, "quantity": 1 },
+          { "name": "Promotion Tier Discount : Diamond Member", "nameTranslated": "", "price": -58.3, "quantity": 1 }
+        ],
+        "tax": 38.57,
+        "serviceCharge": 26.24,
+        "rounding": 0.49,
+        "discount": 0,
+        "subtotal": 583,
+        "total": 590,
+        "taxInclusive": false,
+        "printedItemUnits": 5
+      }
+    }
+  ],
+  "expect": {
+    "calls": 1,
+    "reconciled": true,
+    "taxForUi": 38.57,
+    "serviceCharge": 26.24,
+    "discount": 58.3,
+    "total": 590,
+    "itemCount": 5,
+    "hasNegativeItem": false,
+    "hasRepairPrompt": false
+  }
+}
