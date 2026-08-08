@@ -20,6 +20,8 @@ type TranscriptExpect = {
   hasRepairPrompt: boolean;
   /** Optional: assert bill-level serviceCharge after finalize. */
   serviceCharge?: number;
+  /** Optional: assert bill-level discount after finalize. */
+  discount?: number;
   nameTranslatedIncludes?: string[];
   itemNameIncludes?: string[];
   /** Optional: assert a specific item's quantity by name fragment. */
@@ -222,6 +224,12 @@ async function evaluateFixture(fixture: TranscriptFixture): Promise<string[]> {
     failures.push(
       `serviceCharge: got ${result.bill.serviceCharge}, want ${exp.serviceCharge}`
     );
+  }
+  if (
+    typeof exp.discount === "number" &&
+    result.bill.discount !== exp.discount
+  ) {
+    failures.push(`discount: got ${result.bill.discount}, want ${exp.discount}`);
   }
   if (result.bill.total !== exp.total) {
     failures.push(`total: got ${result.bill.total}, want ${exp.total}`);

@@ -458,17 +458,39 @@ export function normalizeExtractedBill(raw: unknown): NormalizedBill {
     Math.max(0, asFinite(parsed.discount)),
     currency
   );
-  const discount = roundMoney(
+  let discount = roundMoney(
     Math.max(discountField, salvagedDiscount),
     currency
   );
 
   const tax = roundMoney(Math.max(0, asFinite(parsed.tax)), currency);
-  const serviceCharge = roundMoney(
+  let serviceCharge = roundMoney(
     Math.max(0, asFinite(parsed.serviceCharge)),
     currency
   );
   const rounding = roundMoney(asFinite(parsed.rounding), currency);
+
+  // A free-item promo kept as a negative-priced item (e.g. "Promotion Free
+  // Tea") sometimes gets echoed a second time as a top-level `discount` when
+  // the receipt also prints a "Discount: -50" recap line in its totals
+  // section. The model then inflates serviceCharge to keep the grand total
+  // reconciling with both counted, which shows diners a fabricated service
+  // charge. Dropping the duplicate credit and removing the same amount from
+  // serviceCharge leaves the grand total unchanged, so it's safe whenever the
+  // two magnitudes match closely.
+  const keptNegativeItemsSum = roundMoney(
+    items.reduce((s, it) => s + (it.price < 0 ? -it.price : 0), 0),
+    currency
+  );
+  if (
+    discount > MONEY_TOLERANCE &&
+    keptNegativeItemsSum > MONEY_TOLERANCE &&
+    Math.abs(discount - keptNegativeItemsSum) <= MONEY_TOLERANCE &&
+    serviceCharge >= discount - MONEY_TOLERANCE
+  ) {
+    serviceCharge = roundMoney(serviceCharge - discount, currency);
+    discount = 0;
+  }
   const taxInclusive = Boolean(parsed.taxInclusive);
   let printedItemUnits = Math.max(
     0,

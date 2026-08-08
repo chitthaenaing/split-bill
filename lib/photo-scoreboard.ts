@@ -72,7 +72,31 @@ export type PhotoScore = {
 };
 
 function normalizeName(name: string): string {
-  return name.trim().toLowerCase().replace(/\s+/g, " ");
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[()]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * True when predicted and gold names likely refer to the same dish. Live
+ * extractions often use fuller names than a hand-written gold label (e.g.
+ * gold "Tea Leaf Salad" vs model "Tea Leaf Rice Salad with Fried Egg") — a
+ * pure substring check would flag that as a miss even though it's correct.
+ * Falls back to token overlap so most of gold's words still have to appear.
+ */
+function namesLikelyMatch(predictedName: string, goldName: string): boolean {
+  const pName = normalizeName(predictedName);
+  const gName = normalizeName(goldName);
+  if (pName.includes(gName) || gName.includes(pName)) return true;
+
+  const gTokens = gName.split(" ").filter(Boolean);
+  if (gTokens.length === 0) return false;
+  const pTokens = new Set(pName.split(" ").filter(Boolean));
+  const overlap = gTokens.filter((t) => pTokens.has(t)).length;
+  return overlap / gTokens.length >= 0.6;
 }
 
 /**
@@ -93,14 +117,12 @@ export function scoreItemsAgainstGold(
   const unmatchedGold: string[] = [];
 
   for (const g of gold) {
-    const gName = normalizeName(g.name);
     let bestIdx = -1;
     let bestDist = Infinity;
     for (let i = 0; i < predicted.length; i++) {
       if (used.has(i)) continue;
       const p = predicted[i];
-      const pName = normalizeName(p.name);
-      if (!pName.includes(gName) && !gName.includes(pName)) continue;
+      if (!namesLikelyMatch(p.name, g.name)) continue;
       const dist = Math.abs(p.price - g.price);
       if (dist < bestDist) {
         bestDist = dist;

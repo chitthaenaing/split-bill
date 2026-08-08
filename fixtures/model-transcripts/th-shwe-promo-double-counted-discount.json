@@ -1,0 +1,44 @@
+{
+  "id": "th-shwe-promo-double-counted-discount",
+  "description": "Shwe Tea House — model keeps the -50 promo as an item AND echoes the printed totals-section 'Discount: -50.00' line as a top-level discount, inflating serviceCharge to 89.95 to compensate. Must dedupe: discount 0, serviceCharge back to the printed 39.95.",
+  "imageDataUrl": "data:image/jpeg;base64,AAAA",
+  "responses": [
+    {
+      "content": {
+        "currency": "THB",
+        "items": [
+          { "name": "Pop Seint", "nameTranslated": "", "price": 50, "quantity": 1 },
+          { "name": "STHN NHAT Coffee", "nameTranslated": "", "price": 70, "quantity": 1 },
+          { "name": "STHN NHAT Coffee", "nameTranslated": "", "price": 70, "quantity": 1 },
+          { "name": "Kya Saint", "nameTranslated": "", "price": 50, "quantity": 1 },
+          { "name": "Steamed Rice Royal Bean with Fried Egg", "nameTranslated": "", "price": 90, "quantity": 1 },
+          { "name": "Tea Leaf Rice Salad with Fried Egg", "nameTranslated": "", "price": 90, "quantity": 1 },
+          { "name": "Chicken Curry With Rice", "nameTranslated": "", "price": 109, "quantity": 1 },
+          { "name": "Mote Hin Gar", "nameTranslated": "", "price": 90, "quantity": 1 },
+          { "name": "Fried Chicken Chops", "nameTranslated": "", "price": 50, "quantity": 1 },
+          { "name": "Rice", "nameTranslated": "", "price": 20, "quantity": 1 },
+          { "name": "SHWE Korean Noodle C", "nameTranslated": "", "price": 160, "quantity": 1 },
+          { "name": "Promotion Free Tea Gold Member", "nameTranslated": "", "price": -50, "quantity": 1 }
+        ],
+        "tax": 58.73,
+        "serviceCharge": 89.95,
+        "rounding": 0.32,
+        "discount": 50,
+        "subtotal": 849,
+        "total": 898,
+        "taxInclusive": false
+      }
+    }
+  ],
+  "expect": {
+    "calls": 1,
+    "reconciled": true,
+    "taxForUi": 58.73,
+    "serviceCharge": 39.95,
+    "discount": 0,
+    "total": 898,
+    "itemCount": 12,
+    "hasNegativeItem": true,
+    "hasRepairPrompt": false
+  }
+}
