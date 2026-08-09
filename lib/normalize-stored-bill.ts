@@ -1,4 +1,5 @@
 import type { StoredBill, StoredPaymentReceipt } from "@/types/bill";
+import { sanitizeAssignedTo } from "./item-assignments";
 import { sanitizeParticipantList } from "./participants";
 
 const ID_RE = /^[A-Za-z0-9]{6,32}$/;
@@ -20,6 +21,8 @@ export function normalizeStoredBill(data: unknown): StoredBill | null {
   if (typeof o.receiptUrl !== "string" || !o.receiptUrl) return null;
   if (!Array.isArray(o.items)) return null;
 
+  const participants = sanitizeParticipantList(o.participants);
+
   const items = o.items
     .map((raw) => {
       if (!raw || typeof raw !== "object") return null;
@@ -31,6 +34,7 @@ export function normalizeStoredBill(data: unknown): StoredBill | null {
       const price = Number(it.price);
       const quantity = Math.max(1, Math.floor(Number(it.quantity) || 1));
       if (!name && !(Number.isFinite(price) && price !== 0)) return null;
+      const assignedTo = sanitizeAssignedTo(it.assignedTo, participants);
       return {
         name,
         ...(nameTranslated && nameTranslated !== name
@@ -38,6 +42,7 @@ export function normalizeStoredBill(data: unknown): StoredBill | null {
           : {}),
         price: Number.isFinite(price) ? price : 0,
         quantity,
+        ...(assignedTo.length > 0 ? { assignedTo } : {}),
       };
     })
     .filter((it): it is NonNullable<typeof it> => it != null);
@@ -81,8 +86,6 @@ export function normalizeStoredBill(data: unknown): StoredBill | null {
         })
         .filter((r): r is StoredPaymentReceipt => r != null)
     : undefined;
-
-  const participants = sanitizeParticipantList(o.participants);
 
   const notifyTokens = Array.isArray(o.notifyTokens)
     ? o.notifyTokens

@@ -47,6 +47,17 @@ export type ItemsListProps = {
    * a Translate control appears for non-Latin names missing a gloss.
    */
   onApplyTranslations?: (byId: Record<string, string>) => void;
+  /** Override the card title (default: "Pick what you had"). */
+  heading?: string;
+  /** Override the subtitle under the title. */
+  description?: string;
+  /**
+   * When true, hide All/None and disable row selection / qty / split controls
+   * (owner-assigned share mode).
+   */
+  selectionLocked?: boolean;
+  /** Item ids settled by a payment covering their assignee — shown as paid. */
+  paidIds?: ReadonlySet<string> | readonly string[];
 };
 
 export function ItemsList({
@@ -63,6 +74,10 @@ export function ItemsList({
   onRemoveItem,
   onAddItem,
   onApplyTranslations,
+  heading,
+  description,
+  selectionLocked = false,
+  paidIds,
 }: ItemsListProps) {
   const [autoEditId, setAutoEditId] = useState<string | null>(null);
   const [translating, setTranslating] = useState(false);
@@ -73,8 +88,13 @@ export function ItemsList({
   const allRowsFull =
     items.length > 0 &&
     items.every((it) => it.selectedQuantity === it.quantity);
-  const canEdit = Boolean(onUpdateItem);
-  const canTranslate = Boolean(onApplyTranslations || onUpdateItem);
+  const canEdit = Boolean(onUpdateItem) && !selectionLocked;
+  const canTranslate =
+    Boolean(onApplyTranslations || onUpdateItem) && !selectionLocked;
+  const paidSet =
+    paidIds instanceof Set
+      ? paidIds
+      : new Set(Array.isArray(paidIds) ? paidIds : []);
   const translateTargets = items.filter(
     (it) =>
       !it.nameTranslated?.trim() &&
@@ -125,12 +145,13 @@ export function ItemsList({
       <CardHeader className="flex items-center justify-between flex-row gap-3">
         <div>
           <CardTitle className="text-base">
-            Pick what you had
+            {heading ?? "Pick what you had"}
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            {anySelectedRows} of {items.length}{" "}
-            {items.length === 1 ? "item" : "items"} selected
-            {canEdit ? " · tap the pencil to fix a line" : ""}
+            {description ??
+              `${anySelectedRows} of ${items.length} ${
+                items.length === 1 ? "item" : "items"
+              } selected${canEdit ? " · tap the pencil to fix a line" : ""}`}
           </p>
           {translateError && (
             <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">
@@ -138,40 +159,42 @@ export function ItemsList({
             </p>
           )}
         </div>
-        <div className="flex gap-1">
-          {canTranslate && translateTargets.length > 0 && (
+        {!selectionLocked ? (
+          <div className="flex gap-1">
+            {canTranslate && translateTargets.length > 0 && (
+              <button
+                type="button"
+                onClick={onTranslate}
+                disabled={translating}
+                className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-40"
+                aria-label="Translate item names to English"
+              >
+                {translating ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Languages className="h-3.5 w-3.5" />
+                )}
+                Translate
+              </button>
+            )}
             <button
               type="button"
-              onClick={onTranslate}
-              disabled={translating}
-              className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-40"
-              aria-label="Translate item names to English"
+              onClick={onSelectAll}
+              disabled={allRowsFull}
+              className="text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
             >
-              {translating ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Languages className="h-3.5 w-3.5" />
-              )}
-              Translate
+              All
             </button>
-          )}
-          <button
-            type="button"
-            onClick={onSelectAll}
-            disabled={allRowsFull}
-            className="text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
-          >
-            All
-          </button>
-          <button
-            type="button"
-            onClick={onClearSelection}
-            disabled={anySelectedRows === 0}
-            className="text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
-          >
-            None
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={onClearSelection}
+              disabled={anySelectedRows === 0}
+              className="text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              None
+            </button>
+          </div>
+        ) : null}
       </CardHeader>
       <CardContent className="space-y-1">
         {items.length === 0 ? (
@@ -185,24 +208,28 @@ export function ItemsList({
               item={it}
               currency={currency}
               startEditing={it.id === autoEditId}
+              locked={selectionLocked || paidSet.has(it.id)}
+              paid={paidSet.has(it.id)}
               onToggle={() => onToggle(it.id)}
               onInc={() => onInc(it.id)}
               onDec={() => onDec(it.id)}
               onIncSplit={() => onIncSplit(it.id)}
               onDecSplit={() => onDecSplit(it.id)}
               onUpdate={
-                onUpdateItem
+                canEdit && onUpdateItem
                   ? (patch) => onUpdateItem(it.id, patch)
                   : undefined
               }
-              onRemove={onRemoveItem ? () => onRemoveItem(it.id) : undefined}
+              onRemove={
+                canEdit && onRemoveItem ? () => onRemoveItem(it.id) : undefined
+              }
               onEditClose={() =>
                 setAutoEditId((id) => (id === it.id ? null : id))
               }
             />
           ))
         )}
-        {onAddItem && onUpdateItem && (
+        {onAddItem && onUpdateItem && canEdit && (
           <button
             type="button"
             onClick={() => setAutoEditId(onAddItem())}
@@ -221,6 +248,8 @@ function ItemRow({
   item,
   currency,
   startEditing = false,
+  locked = false,
+  paid = false,
   onToggle,
   onInc,
   onDec,
@@ -233,6 +262,8 @@ function ItemRow({
   item: BillItem;
   currency: string;
   startEditing?: boolean;
+  locked?: boolean;
+  paid?: boolean;
   onToggle: () => void;
   onInc: () => void;
   onDec: () => void;
@@ -376,35 +407,45 @@ function ItemRow({
     <div
       className={cn(
         "rounded-xl transition-colors",
-        someSelected
-          ? "bg-accent/[0.08]"
-          : "hover:bg-muted/60"
+        paid
+          ? "bg-muted/40 opacity-70"
+          : someSelected
+            ? "bg-accent/[0.08]"
+            : "hover:bg-muted/60"
       )}
     >
       <div className="flex items-stretch">
         <button
           type="button"
           onClick={onToggle}
+          disabled={locked}
           aria-pressed={someSelected}
           aria-label={
-            fullySelected
-              ? `Deselect ${displayName}`
-              : `Select ${displayName}`
+            paid
+              ? `${displayName} (paid)`
+              : fullySelected
+                ? `Deselect ${displayName}`
+                : `Select ${displayName}`
           }
-          className="flex-1 min-w-0 flex items-center gap-3 px-3 py-2.5 text-left active:scale-[0.995] transition-transform"
+          className={cn(
+            "flex-1 min-w-0 flex items-center gap-3 px-3 py-2.5 text-left transition-transform",
+            locked ? "cursor-default" : "active:scale-[0.995]"
+          )}
         >
           <span
             className={cn(
               "h-5 w-5 rounded-md flex items-center justify-center shrink-0 text-[11px] font-semibold transition-all",
-              fullySelected
-                ? "bg-accent text-accent-foreground"
-                : partiallySelected
-                ? "bg-accent/25 text-accent border border-accent/40"
-                : "bg-card border border-border"
+              paid
+                ? "bg-emerald-600/90 text-white"
+                : fullySelected
+                  ? "bg-accent text-accent-foreground"
+                  : partiallySelected
+                    ? "bg-accent/25 text-accent border border-accent/40"
+                    : "bg-card border border-border"
             )}
             aria-hidden
           >
-            {fullySelected ? (
+            {paid || fullySelected ? (
               <Check className="h-3.5 w-3.5" strokeWidth={3} />
             ) : partiallySelected ? (
               item.selectedQuantity
@@ -415,7 +456,7 @@ function ItemRow({
             <span
               className={cn(
                 "block truncate text-sm font-medium",
-                someSelected ? "text-foreground" : "text-foreground/85"
+                someSelected || paid ? "text-foreground" : "text-foreground/85"
               )}
             >
               {displayName}
@@ -425,11 +466,15 @@ function ItemRow({
                 {item.name}
               </span>
             )}
-            {hasStepper && (
+            {paid ? (
+              <span className="block text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                Paid
+              </span>
+            ) : hasStepper ? (
               <span className="block text-xs text-muted-foreground">
                 {item.quantity} × {formatMoney(unitPrice(item), currency)} each
               </span>
-            )}
+            ) : null}
           </span>
 
           <span className="text-right shrink-0">
@@ -446,7 +491,7 @@ function ItemRow({
               <span
                 className={cn(
                   "block text-sm font-medium tabular-nums transition-colors",
-                  someSelected ? "text-foreground" : "text-muted-foreground"
+                  someSelected || paid ? "text-foreground" : "text-muted-foreground"
                 )}
               >
                 {formatMoney(lineTotal, currency)}
@@ -455,7 +500,7 @@ function ItemRow({
           </span>
         </button>
 
-        {onUpdate && (
+        {onUpdate && !locked && (
           <button
             type="button"
             onClick={openEdit}
@@ -467,7 +512,7 @@ function ItemRow({
         )}
       </div>
 
-      {(hasStepper || someSelected) && (
+      {!locked && (hasStepper || someSelected) && (
         <div className="flex items-center justify-end gap-x-4 gap-y-2 flex-wrap pl-11 pr-3 pb-2.5 -mt-0.5">
           {someSelected && (
             <div className="flex items-center gap-1.5">
@@ -504,9 +549,19 @@ function ItemRow({
           )}
         </div>
       )}
+
+      {locked && someSelected && !paid && splitCount > 1 ? (
+        <div className="pl-11 pr-3 pb-2.5 -mt-0.5">
+          <p className="text-[11px] text-muted-foreground">
+            Split {splitCount} ways · your share{" "}
+            {formatMoney(yourShare, currency)}
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
+
 
 function Stepper({
   value,

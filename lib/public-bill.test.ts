@@ -43,7 +43,14 @@ describe("public-bill", () => {
         },
       ],
       currency: "THB",
-      items: [{ name: "Tea", price: 40, quantity: 1 }],
+      items: [
+        {
+          name: "Tea",
+          price: 40,
+          quantity: 1,
+          assignedTo: ["Alex"],
+        },
+      ],
       tax: 0,
       serviceCharge: 0,
       rounding: 0,
@@ -58,5 +65,6 @@ describe("public-bill", () => {
     assert.deepEqual(pub.participants, ["Alex", "Sam"]);
     assert.deepEqual(pub.paymentReceipts?.[0]?.includedNames, ["Alex"]);
     assert.equal(pub.items[0].name, "Tea");
+    assert.deepEqual(pub.items[0].assignedTo, ["Alex"]);
   });
 });

@@ -85,4 +85,27 @@ describe("normalizeStoredBill", () => {
       "Unknown",
     ]);
   });
+
+  it("keeps item assignees that match the roster", () => {
+    const bill = normalizeStoredBill({
+      id: "abc123XYZ1",
+      receiptUrl: "https://example.com/r.jpg",
+      participants: ["Alex", "Sam"],
+      items: [
+        {
+          name: "Pad Thai",
+          price: 120,
+          quantity: 1,
+          assignedTo: ["alex", "Pat", "Sam"],
+        },
+        { name: "Tea", price: 40, quantity: 1, assignedTo: ["Nobody"] },
+      ],
+      tax: 0,
+      serviceCharge: 0,
+      rounding: 0,
+    });
+    assert.ok(bill);
+    assert.deepEqual(bill!.items[0]?.assignedTo, ["Alex", "Sam"]);
+    assert.equal(bill!.items[1]?.assignedTo, undefined);
+  });
 });

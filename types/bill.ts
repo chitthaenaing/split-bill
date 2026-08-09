@@ -161,6 +161,14 @@ export type StoredBill = {
     nameTranslated?: string;
     price: number;
     quantity: number;
+    /**
+     * Optional: people responsible for this line (subset of `participants`).
+     * When any item has assignees, the share is in "assigned" mode —
+     * recipients identify themselves and only see/pay their lines.
+     * Multiple names → they split the line equally. Omitted on older /
+     * self-select shares.
+     */
+    assignedTo?: string[];
   }>;
   tax: number;
   serviceCharge: number;

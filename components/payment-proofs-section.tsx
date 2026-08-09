@@ -125,6 +125,8 @@ export function PaymentProofsSection({
   bill,
   receipts: initialReceipts,
   participants: initialParticipants = [],
+  defaultIncludedNames,
+  onReceiptsChange,
 }: {
   shareId: string;
   currency: string;
@@ -139,6 +141,9 @@ export function PaymentProofsSection({
   >;
   receipts: StoredPaymentReceipt[];
   participants?: string[];
+  /** Prefill "who this transfer covers" (e.g. assigned-mode viewer). */
+  defaultIncludedNames?: string[];
+  onReceiptsChange?: (receipts: StoredPaymentReceipt[]) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [receipts, setReceipts] = useState<StoredPaymentReceipt[]>(
@@ -146,9 +151,12 @@ export function PaymentProofsSection({
   );
   // Roster is set at share time only — recipients pick from it, not edit it.
   const participants = initialParticipants;
-  const [includedNames, setIncludedNames] = useState<string[]>(
-    initialParticipants
-  );
+  const [includedNames, setIncludedNames] = useState<string[]>(() => {
+    if (defaultIncludedNames && defaultIncludedNames.length > 0) {
+      return defaultIncludedNames;
+    }
+    return initialParticipants;
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -165,6 +173,31 @@ export function PaymentProofsSection({
     setMyProofs(loadMyProofs(shareId));
     setHydrated(true);
   }, [shareId]);
+
+  useEffect(() => {
+    setReceipts(initialReceipts);
+  }, [initialReceipts]);
+
+  useEffect(() => {
+    if (!defaultIncludedNames || defaultIncludedNames.length === 0) return;
+    setIncludedNames((prev) => {
+      const same =
+        prev.length === defaultIncludedNames.length &&
+        prev.every(
+          (n, i) =>
+            n.toLowerCase() === defaultIncludedNames[i]!.toLowerCase()
+        );
+      return same ? prev : defaultIncludedNames;
+    });
+  }, [defaultIncludedNames]);
+
+  const updateReceipts = useCallback(
+    (next: StoredPaymentReceipt[]) => {
+      setReceipts(next);
+      onReceiptsChange?.(next);
+    },
+    [onReceiptsChange]
+  );
 
   const mine = useCallback(
     (id: string) => hydrated && myProofs.some((p) => p.id === id),
@@ -224,7 +257,7 @@ export function PaymentProofsSection({
           throw new Error(data.error || `Upload failed (${res.status})`);
         }
         if (Array.isArray(data.paymentReceipts)) {
-          setReceipts(data.paymentReceipts);
+          updateReceipts(data.paymentReceipts);
         }
         if (data.receiptId) {
           setMyProofs(
@@ -240,7 +273,7 @@ export function PaymentProofsSection({
         setBusy(false);
       }
     },
-    [shareId, participants.length, includedNames]
+    [shareId, participants.length, includedNames, updateReceipts]
   );
 
   // Allow Cmd/Ctrl+V (and mobile paste) anywhere on the share page when the
@@ -290,7 +323,7 @@ export function PaymentProofsSection({
           throw new Error(data.error || `Delete failed (${res.status})`);
         }
         if (Array.isArray(data.paymentReceipts)) {
-          setReceipts(data.paymentReceipts);
+          updateReceipts(data.paymentReceipts);
         }
         setMyProofs(forgetMyProof(shareId, receiptId));
       } catch (e) {
@@ -299,7 +332,7 @@ export function PaymentProofsSection({
         setDeletingId(null);
       }
     },
-    [shareId, deleteTokenFor]
+    [shareId, deleteTokenFor, updateReceipts]
   );
 
   const triggerFileDialog = useCallback(() => {

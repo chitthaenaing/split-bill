@@ -4,6 +4,7 @@ import { customAlphabet } from "nanoid";
 import type { ExtractedBill, StoredBill, StoredPaymentReceipt } from "@/types/bill";
 import { sendPushToTokens } from "./firebase-admin";
 import { isValidShareId, normalizeStoredBill } from "./normalize-stored-bill";
+import { applyAssignmentsToItems } from "./item-assignments";
 import {
   filterIncludedAgainstRoster,
   sanitizeParticipantList,
@@ -172,10 +173,19 @@ export async function mutateStoredBill(
   throw new ShareConflictError();
 }
 
+/** Bill payload for share create — extraction shape plus optional assignees. */
+export type ShareBillInput = Omit<ExtractedBill, "items"> & {
+  items: Array<
+    ExtractedBill["items"][number] & {
+      assignedTo?: string[];
+    }
+  >;
+};
+
 export async function createShare(opts: {
   imageBuffer: Buffer;
   imageContentType: string;
-  bill: ExtractedBill;
+  bill: ShareBillInput;
   bankingQrBuffer?: Buffer;
   bankingQrContentType?: string;
   /** Optional roster of people included on this shared bill. */
@@ -219,6 +229,7 @@ export async function createShare(opts: {
   }
 
   const participants = sanitizeParticipantList(opts.participants);
+  const items = applyAssignmentsToItems(opts.bill.items, participants);
   const writeId = newId();
   const stored: StoredBill = {
     id,
@@ -233,7 +244,7 @@ export async function createShare(opts: {
     revision: 1,
     lastWriteId: writeId,
     currency: opts.bill.currency,
-    items: opts.bill.items,
+    items,
     tax: opts.bill.tax,
     serviceCharge: opts.bill.serviceCharge,
     rounding: opts.bill.rounding,
