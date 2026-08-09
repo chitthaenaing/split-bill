@@ -6,13 +6,20 @@ import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { AccountMenu } from "@/components/account-menu";
 import { AppLogo } from "@/components/app-logo";
+import { IdentityPicker } from "@/components/identity-picker";
 import { RecordReceivedBill } from "@/components/record-received-bill";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ItemsList } from "@/components/items-list";
 import { TotalsPanel } from "@/components/totals-panel";
 import { ReceiptThumbnail } from "@/components/receipt-thumbnail";
 import { PaymentProofsSection } from "@/components/payment-proofs-section";
-import type { BillItem, StoredBill } from "@/types/bill";
+import {
+  assignmentPickForParticipant,
+  billHasItemAssignments,
+  itemAssignedToName,
+  participantIsSettled,
+} from "@/lib/item-assignments";
+import type { BillItem, StoredBill, StoredPaymentReceipt } from "@/types/bill";
 
 /** Per-item picked state for one device: units taken and people splitting them. */
 type Pick = { qty: number; split: number };
@@ -24,6 +31,10 @@ function storageKey(id: string) {
 
 function translationsKey(id: string) {
   return `bill-split:share-translations:${id}`;
+}
+
+function identityKey(id: string) {
+  return `bill-split:share-identity:${id}`;
 }
 
 function loadTranslations(id: string): Record<string, string> {
@@ -50,6 +61,30 @@ function saveTranslations(id: string, translations: Record<string, string>) {
       translationsKey(id),
       JSON.stringify(translations)
     );
+  } catch {
+    // quota or denied — ignore
+  }
+}
+
+function loadIdentity(id: string, roster: readonly string[]): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(identityKey(id));
+    if (!raw) return null;
+    const name = raw.trim();
+    if (!name) return null;
+    const match = roster.find((n) => n.toLowerCase() === name.toLowerCase());
+    return match ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function saveIdentity(id: string, name: string | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (!name) window.localStorage.removeItem(identityKey(id));
+    else window.localStorage.setItem(identityKey(id), name);
   } catch {
     // quota or denied — ignore
   }
@@ -102,13 +137,28 @@ function saveSelection(id: string, selection: Selection) {
 }
 
 export function SharedBill({ data }: { data: StoredBill }) {
+  const participants = useMemo(
+    () => data.participants ?? [],
+    [data.participants]
+  );
+  const assignedMode = billHasItemAssignments(data.items);
+
   const [localTranslations, setLocalTranslations] = useState<
     Record<string, string>
   >({});
   const [selection, setSelection] = useState<Selection>({});
+  const [viewerName, setViewerName] = useState<string | null>(null);
+  const [receipts, setReceipts] = useState<StoredPaymentReceipt[]>(
+    () => data.paymentReceipts ?? []
+  );
   const [hydrated, setHydrated] = useState(false);
 
-  const baseItems = useMemo<BillItem[]>(
+  const defaultIncludedNames = useMemo(
+    () => (assignedMode && viewerName ? [viewerName] : undefined),
+    [assignedMode, viewerName]
+  );
+
+  const allBaseItems = useMemo<BillItem[]>(
     () =>
       data.items.map((it, i) => {
         const id = `i${i}`;
@@ -128,19 +178,47 @@ export function SharedBill({ data }: { data: StoredBill }) {
     [data.items, localTranslations]
   );
 
+  /** In assigned mode, only lines tagged for this viewer (empty until they pick). */
+  const baseItems = useMemo<BillItem[]>(() => {
+    if (!assignedMode) return allBaseItems;
+    if (!viewerName) return [];
+    return allBaseItems.filter((_, i) =>
+      itemAssignedToName(data.items[i]!, viewerName)
+    );
+  }, [assignedMode, allBaseItems, viewerName, data.items]);
+
   useEffect(() => {
     setSelection(loadSelection(data.id));
     setLocalTranslations(loadTranslations(data.id));
+    setViewerName(loadIdentity(data.id, participants));
+    setReceipts(data.paymentReceipts ?? []);
     setHydrated(true);
+    // Re-hydrate only when opening a different share id.
   }, [data.id]);
 
+  // Once identity is known in assigned mode, force selection to the owner's
+  // assignment (qty + equal split) so totals match what they owe.
   useEffect(() => {
-    if (hydrated) saveSelection(data.id, selection);
-  }, [data.id, selection, hydrated]);
+    if (!hydrated || !assignedMode || !viewerName) return;
+    const next: Selection = {};
+    data.items.forEach((it, i) => {
+      const pick = assignmentPickForParticipant(it, viewerName);
+      if (pick) next[`i${i}`] = pick;
+    });
+    setSelection(next);
+  }, [hydrated, assignedMode, viewerName, data.items]);
+
+  useEffect(() => {
+    if (hydrated && !assignedMode) saveSelection(data.id, selection);
+  }, [data.id, selection, hydrated, assignedMode]);
 
   useEffect(() => {
     if (hydrated) saveTranslations(data.id, localTranslations);
   }, [data.id, localTranslations, hydrated]);
+
+  useEffect(() => {
+    if (hydrated && assignedMode) saveIdentity(data.id, viewerName);
+  }, [data.id, viewerName, hydrated, assignedMode]);
 
   // The notification service worker asks the page to reload (fallback for tabs
   // it can't navigate directly) so a newly uploaded receipt shows up.
@@ -172,6 +250,33 @@ export function SharedBill({ data }: { data: StoredBill }) {
     [baseItems, selection]
   );
 
+  /**
+   * Totals need the full bill as the denominator for tax/service ratio.
+   * In assigned mode we still only *show* `items`, but compute against every
+   * line with the viewer's picks applied.
+   */
+  const totalsItems = useMemo<BillItem[]>(() => {
+    if (!assignedMode) return items;
+    return allBaseItems.map((it) => {
+      const pick = selection[it.id];
+      return {
+        ...it,
+        selectedQuantity: Math.min(
+          it.quantity,
+          Math.max(0, pick?.qty ?? 0)
+        ),
+        splitCount: Math.max(1, pick?.split ?? 1),
+      };
+    });
+  }, [assignedMode, items, allBaseItems, selection]);
+
+  const viewerSettled =
+    Boolean(viewerName) && participantIsSettled(viewerName!, receipts);
+  const paidIds = useMemo(() => {
+    if (!assignedMode || !viewerSettled) return new Set<string>();
+    return new Set(items.map((it) => it.id));
+  }, [assignedMode, viewerSettled, items]);
+
   const clampQty = useCallback(
     (id: string, n: number) => {
       const base = baseItems.find((it) => it.id === id);
@@ -191,65 +296,93 @@ export function SharedBill({ data }: { data: StoredBill }) {
   );
 
   const onToggle = useCallback(
-    (id: string) =>
+    (id: string) => {
+      if (assignedMode) return;
       setSelection((sel) => {
         const base = baseItems.find((it) => it.id === id);
         if (!base) return sel;
         const current = sel[id]?.qty ?? 0;
         return updatePick(sel, id, { qty: current > 0 ? 0 : base.quantity });
-      }),
-    [baseItems, updatePick]
+      });
+    },
+    [assignedMode, baseItems, updatePick]
   );
 
   const onInc = useCallback(
-    (id: string) =>
+    (id: string) => {
+      if (assignedMode) return;
       setSelection((sel) =>
         updatePick(sel, id, { qty: clampQty(id, (sel[id]?.qty ?? 0) + 1) })
-      ),
-    [clampQty, updatePick]
+      );
+    },
+    [assignedMode, clampQty, updatePick]
   );
 
   const onDec = useCallback(
-    (id: string) =>
+    (id: string) => {
+      if (assignedMode) return;
       setSelection((sel) =>
         updatePick(sel, id, { qty: clampQty(id, (sel[id]?.qty ?? 0) - 1) })
-      ),
-    [clampQty, updatePick]
+      );
+    },
+    [assignedMode, clampQty, updatePick]
   );
 
   const onIncSplit = useCallback(
-    (id: string) =>
+    (id: string) => {
+      if (assignedMode) return;
       setSelection((sel) =>
         updatePick(sel, id, {
           split: Math.max(1, (sel[id]?.split ?? 1) + 1),
         })
-      ),
-    [updatePick]
+      );
+    },
+    [assignedMode, updatePick]
   );
 
   const onDecSplit = useCallback(
-    (id: string) =>
+    (id: string) => {
+      if (assignedMode) return;
       setSelection((sel) =>
         updatePick(sel, id, {
           split: Math.max(1, (sel[id]?.split ?? 1) - 1),
         })
-      ),
-    [updatePick]
+      );
+    },
+    [assignedMode, updatePick]
   );
 
-  const onSelectAll = useCallback(
-    () =>
-      setSelection((sel) => {
-        const next: Selection = {};
-        for (const it of baseItems) {
-          next[it.id] = { qty: it.quantity, split: sel[it.id]?.split ?? 1 };
-        }
-        return next;
-      }),
-    [baseItems]
-  );
+  const onSelectAll = useCallback(() => {
+    if (assignedMode) return;
+    setSelection((sel) => {
+      const next: Selection = {};
+      for (const it of baseItems) {
+        next[it.id] = { qty: it.quantity, split: sel[it.id]?.split ?? 1 };
+      }
+      return next;
+    });
+  }, [assignedMode, baseItems]);
 
-  const onClearSelection = useCallback(() => setSelection({}), []);
+  const onClearSelection = useCallback(() => {
+    if (assignedMode) return;
+    setSelection({});
+  }, [assignedMode]);
+
+  const bannerTitle = assignedMode
+    ? viewerName
+      ? viewerSettled
+        ? `Thanks, ${viewerName} — you're marked paid.`
+        : `Hi ${viewerName} — here's what you owe.`
+      : "A bill was shared with you."
+    : "A bill was shared with you.";
+
+  const bannerBody = assignedMode
+    ? viewerName
+      ? viewerSettled
+        ? "Your assigned items are locked. You can still view the receipt and proofs below."
+        : "Items were assigned by the person who paid. Pay your share, then upload a transfer screenshot."
+      : "Choose your name to see only the items assigned to you."
+    : "Pick the items you had. Your selection only shows on your device.";
 
   return (
     <div className="flex-1 flex flex-col">
@@ -310,72 +443,111 @@ export function SharedBill({ data }: { data: StoredBill }) {
               <Sparkles className="h-3.5 w-3.5" />
             </span>
             <div className="flex-1 min-w-0">
-              <p className="font-medium leading-snug">
-                A bill was shared with you.
-              </p>
+              <p className="font-medium leading-snug">{bannerTitle}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Pick the items you had. Your selection only shows on your
-                device.
+                {bannerBody}
               </p>
             </div>
           </div>
 
-          <div className="grid lg:grid-cols-[1fr_340px] gap-5 lg:gap-6 items-start">
-            <div className="space-y-5 min-w-0">
-              <ItemsList
-                items={items}
-                currency={data.currency}
-                onToggle={onToggle}
-                onInc={onInc}
-                onDec={onDec}
-                onIncSplit={onIncSplit}
-                onDecSplit={onDecSplit}
-                onSelectAll={onSelectAll}
-                onClearSelection={onClearSelection}
-                onApplyTranslations={(byId) =>
-                  setLocalTranslations((prev) => ({ ...prev, ...byId }))
-                }
-              />
-            </div>
-            <aside className="space-y-4 lg:sticky lg:top-24 self-start">
-              <TotalsPanel
-                items={items}
-                currency={data.currency}
-                tax={data.tax}
-                serviceCharge={data.serviceCharge}
-                rounding={data.rounding}
-                discount={data.discount || 0}
-                additionalCharges={data.additionalCharges}
-                editable={false}
-              />
-              {data.bankingQrUrl ? (
-                <ReceiptThumbnail
-                  src={data.bankingQrUrl}
-                  title="Payment QR"
-                  downloadable
-                  downloadBaseName="payment-qr"
-                  downloadMimeType={data.bankingQrContentType}
-                />
-              ) : null}
-              <div className="hidden lg:block">
-                <ReceiptThumbnail src={data.receiptUrl} />
+          {assignedMode ? (
+            <IdentityPicker
+              participants={participants}
+              value={viewerName}
+              onChange={setViewerName}
+            />
+          ) : null}
+
+          {assignedMode && !viewerName ? null : (
+            <div className="grid lg:grid-cols-[1fr_340px] gap-5 lg:gap-6 items-start">
+              <div className="space-y-5 min-w-0">
+                {assignedMode && viewerName && items.length === 0 ? (
+                  <div className="rounded-xl border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+                    Nothing was assigned to {viewerName} on this bill.
+                  </div>
+                ) : (
+                  <ItemsList
+                    items={items}
+                    currency={data.currency}
+                    onToggle={onToggle}
+                    onInc={onInc}
+                    onDec={onDec}
+                    onIncSplit={onIncSplit}
+                    onDecSplit={onDecSplit}
+                    onSelectAll={onSelectAll}
+                    onClearSelection={onClearSelection}
+                    onApplyTranslations={
+                      assignedMode
+                        ? undefined
+                        : (byId) =>
+                            setLocalTranslations((prev) => ({
+                              ...prev,
+                              ...byId,
+                            }))
+                    }
+                    selectionLocked={assignedMode}
+                    paidIds={paidIds}
+                    heading={
+                      assignedMode
+                        ? viewerSettled
+                          ? "Your items (paid)"
+                          : "Your items"
+                        : undefined
+                    }
+                    description={
+                      assignedMode
+                        ? viewerSettled
+                          ? "These lines are settled for you."
+                          : `${items.length} assigned ${
+                              items.length === 1 ? "item" : "items"
+                            } · selection locked`
+                        : undefined
+                    }
+                  />
+                )}
               </div>
-              <PaymentProofsSection
-                shareId={data.id}
-                currency={data.currency}
-                bill={{
-                  items: data.items,
-                  tax: data.tax,
-                  serviceCharge: data.serviceCharge,
-                  rounding: data.rounding,
-                  discount: data.discount,
-                  additionalCharges: data.additionalCharges,
-                }}
-                receipts={data.paymentReceipts ?? []}
-                participants={data.participants ?? []}
-              />
-            </aside>
-          </div>
+              <aside className="space-y-4 lg:sticky lg:top-24 self-start">
+                <TotalsPanel
+                  items={totalsItems}
+                  currency={data.currency}
+                  tax={data.tax}
+                  serviceCharge={data.serviceCharge}
+                  rounding={data.rounding}
+                  discount={data.discount || 0}
+                  additionalCharges={data.additionalCharges}
+                  editable={false}
+                />
+                {data.bankingQrUrl ? (
+                  <ReceiptThumbnail
+                    src={data.bankingQrUrl}
+                    title="Payment QR"
+                    downloadable
+                    downloadBaseName="payment-qr"
+                    downloadMimeType={data.bankingQrContentType}
+                  />
+                ) : null}
+                <div className="hidden lg:block">
+                  <ReceiptThumbnail src={data.receiptUrl} />
+                </div>
+                <PaymentProofsSection
+                  shareId={data.id}
+                  currency={data.currency}
+                  bill={{
+                    items: data.items,
+                    tax: data.tax,
+                    serviceCharge: data.serviceCharge,
+                    rounding: data.rounding,
+                    discount: data.discount,
+                    additionalCharges: data.additionalCharges,
+                  }}
+                  receipts={receipts}
+                  participants={participants}
+                  defaultIncludedNames={defaultIncludedNames}
+                  onReceiptsChange={setReceipts}
+                />
+              </aside>
+            </div>
+          )}
         </motion.div>
       </main>
 

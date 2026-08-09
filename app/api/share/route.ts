@@ -4,8 +4,9 @@ import {
   httpStatusFromError,
   readMultipartImage,
 } from "@/lib/multipart-image";
+import { parseAssignedToDraft } from "@/lib/item-assignments";
 import { sanitizeParticipantList } from "@/lib/participants";
-import { createShare } from "@/lib/share";
+import { createShare, type ShareBillInput } from "@/lib/share";
 import type { ExtractedBill } from "@/types/bill";
 
 export const runtime = "nodejs";
@@ -15,7 +16,7 @@ export const maxDuration = 60;
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const MAX_BILL_ITEMS = 200;
 
-function sanitizeBill(bill: ExtractedBill): ExtractedBill | null {
+function sanitizeBill(bill: ShareBillInput | ExtractedBill): ShareBillInput | null {
   if (!bill || typeof bill !== "object") return null;
   if (!Array.isArray(bill.items)) return null;
   if (bill.items.length > MAX_BILL_ITEMS) return null;
@@ -26,6 +27,9 @@ function sanitizeBill(bill: ExtractedBill): ExtractedBill | null {
       const nameTranslated = String(it?.nameTranslated ?? "")
         .trim()
         .slice(0, 200);
+      const assignedTo = parseAssignedToDraft(
+        (it as { assignedTo?: unknown })?.assignedTo
+      );
       return {
         name,
         ...(nameTranslated && nameTranslated !== name
@@ -33,6 +37,7 @@ function sanitizeBill(bill: ExtractedBill): ExtractedBill | null {
           : {}),
         price: Number(it?.price) || 0,
         quantity: Math.max(1, Math.floor(Number(it?.quantity) || 1)),
+        ...(assignedTo.length > 0 ? { assignedTo } : {}),
       };
     })
     .filter((it) => it.name.length > 0 || it.price > 0);
@@ -58,16 +63,16 @@ function sanitizeBill(bill: ExtractedBill): ExtractedBill | null {
   };
 }
 
-function parseBillJson(raw: unknown): ExtractedBill | null {
+function parseBillJson(raw: unknown): ShareBillInput | null {
   if (typeof raw === "string") {
     try {
-      return sanitizeBill(JSON.parse(raw) as ExtractedBill);
+      return sanitizeBill(JSON.parse(raw) as ShareBillInput);
     } catch {
       return null;
     }
   }
   if (raw && typeof raw === "object") {
-    return sanitizeBill(raw as ExtractedBill);
+    return sanitizeBill(raw as ShareBillInput);
   }
   return null;
 }
@@ -91,7 +96,7 @@ function parseParticipantsField(raw: unknown): string[] {
 type JsonBody = {
   imageDataUrl?: string;
   bankingQrDataUrl?: string;
-  bill?: ExtractedBill;
+  bill?: ShareBillInput;
   participants?: unknown;
 };
 
@@ -100,7 +105,7 @@ async function parseShareRequest(req: Request): Promise<{
   imageContentType: string;
   bankingQrBuffer?: Buffer;
   bankingQrContentType?: string;
-  bill: ExtractedBill;
+  bill: ShareBillInput;
   participants: string[];
 }> {
   const contentType = req.headers.get("content-type") || "";

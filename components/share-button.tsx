@@ -13,9 +13,11 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ItemAssignmentsEditor } from "@/components/item-assignments-editor";
 import { NotifyToggle } from "@/components/notify-toggle";
 import { ParticipantsEditor } from "@/components/participants-editor";
 import { itemsTotal } from "@/lib/calc";
+import { billHasItemAssignments } from "@/lib/item-assignments";
 import { dataUrlToBlob, prepareReceiptImage } from "@/lib/image-prep";
 import { useAuth } from "@/components/auth-provider";
 import { readJsonResponse } from "@/lib/read-json-response";
@@ -52,6 +54,8 @@ export function ShareButton() {
   const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [participants, setParticipants] = useState<string[]>([]);
+  /** item id → assignee names (optional). */
+  const [assignments, setAssignments] = useState<Record<string, string[]>>({});
 
   const disabled = !receiptDataUrl || items.length === 0;
 
@@ -80,7 +84,21 @@ export function ShareButton() {
     setOwnerToken(null);
     setCopied(false);
     setParticipants([]);
+    setAssignments({});
   }, [receiptDataUrl]);
+
+  const onParticipantsChange = useCallback((next: string[]) => {
+    setParticipants(next);
+    const rosterKeys = new Set(next.map((n) => n.toLowerCase()));
+    setAssignments((prev) => {
+      const out: Record<string, string[]> = {};
+      for (const [id, names] of Object.entries(prev)) {
+        const kept = names.filter((n) => rosterKeys.has(n.toLowerCase()));
+        if (kept.length > 0) out[id] = kept;
+      }
+      return out;
+    });
+  }, []);
 
   const start = useCallback(async () => {
     if (!receiptDataUrl) {
@@ -99,14 +117,19 @@ export function ShareButton() {
         0
       );
       const safeDiscount = Math.max(0, discount || 0);
-      const bill = {
-        currency,
-        items: items.map((it) => ({
+      const billItems = items.map((it) => {
+        const assignedTo = assignments[it.id] ?? [];
+        return {
           name: it.name,
           ...(it.nameTranslated ? { nameTranslated: it.nameTranslated } : {}),
           price: it.price,
           quantity: it.quantity,
-        })),
+          ...(assignedTo.length > 0 ? { assignedTo } : {}),
+        };
+      });
+      const bill = {
+        currency,
+        items: billItems,
         tax,
         serviceCharge,
         rounding,
@@ -193,6 +216,8 @@ export function ShareButton() {
     bankingQrDataUrl,
     user,
     participants,
+    assignments,
+    discount,
   ]);
 
   const close = () => {
@@ -210,6 +235,12 @@ export function ShareButton() {
       // ignore
     }
   };
+
+  const hadAssignments = billHasItemAssignments(
+    items.map((it) => ({
+      assignedTo: assignments[it.id],
+    }))
+  );
 
   return (
     <>
@@ -247,7 +278,7 @@ export function ShareButton() {
                   exit={{ scale: 0.96, y: 4 }}
                   transition={{ duration: 0.18 }}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-xl shadow-black/15"
+                  className="w-full max-w-md max-h-[min(90vh,40rem)] overflow-y-auto rounded-2xl border border-border bg-card shadow-xl shadow-black/15"
                 >
                   <div className="flex items-start justify-between gap-3 px-5 sm:px-6 pt-5 sm:pt-6 pb-3">
                     <div>
@@ -255,8 +286,9 @@ export function ShareButton() {
                         Share your bill
                       </h2>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Anyone with this link can open the receipt and pick
-                        their own items.
+                        {hadAssignments
+                          ? "People on this link will only see the items you assigned to them."
+                          : "Anyone with this link can open the receipt and pick their own items."}
                       </p>
                     </div>
                     <button
@@ -274,7 +306,23 @@ export function ShareButton() {
                       <>
                         <ParticipantsEditor
                           value={participants}
-                          onChange={setParticipants}
+                          onChange={onParticipantsChange}
+                          disabled={busy}
+                        />
+                        <ItemAssignmentsEditor
+                          items={items.map((it) => ({
+                            id: it.id,
+                            name: it.name,
+                            ...(it.nameTranslated
+                              ? { nameTranslated: it.nameTranslated }
+                              : {}),
+                            price: it.price,
+                            quantity: it.quantity,
+                          }))}
+                          participants={participants}
+                          value={assignments}
+                          onChange={setAssignments}
+                          currency={currency}
                           disabled={busy}
                         />
                         <Button
@@ -312,6 +360,7 @@ export function ShareButton() {
                             <span className="text-foreground">
                               {participants.join(", ")}
                             </span>
+                            {hadAssignments ? " · items assigned" : null}
                           </p>
                         ) : null}
                         <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/50 px-3.5 py-2.5">
