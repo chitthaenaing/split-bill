@@ -217,20 +217,6 @@ export function TotalsPanel({
             ? "Pick some items to get started."
             : `${selectedCount} ${selectedCount === 1 ? "item" : "items"} · ${Math.round(split.ratio * 100)}% of the bill`}
         </p>
-        {selectedCount > 0 && (
-          <p className="mt-1.5 text-sm tabular-nums text-foreground/90">
-            <span className="font-medium">
-              {formatMoney(split.othersRemaining, billCurrency)}
-            </span>
-            <span className="ml-1.5 text-xs text-muted-foreground">
-              left for others
-              <span className="text-muted-foreground/70">
-                {" "}
-                · bill {formatMoney(split.billTotal, billCurrency)}
-              </span>
-            </span>
-          </p>
-        )}
       </div>
 
       <CardContent className="pt-4 pb-5 space-y-2.5 text-sm">
