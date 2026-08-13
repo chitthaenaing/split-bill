@@ -52,7 +52,35 @@ describe("user-bill-summary", () => {
       rounding: 0,
     });
     assert.deepEqual(summary.payers, []);
+    assert.deepEqual(summary.unpaid, []);
+    assert.equal(summary.hasRoster, false);
     assert.equal(summary.paidTotal, 0);
+  });
+
+  it("lists unpaid roster people not covered by proofs", () => {
+    const summary = summaryFromBill(
+      {
+        currency: "THB",
+        items: [{ name: "Tea", price: 100, quantity: 1 }],
+        tax: 0,
+        serviceCharge: 0,
+        rounding: 0,
+        participants: ["Alex", "Sam", "Jo"],
+      },
+      [
+        {
+          id: "pay123ABCD",
+          url: "https://example.com/p.jpg",
+          contentType: "image/jpeg",
+          uploadedAt: 1,
+          payerName: "Alex",
+          amountPaid: 40,
+          includedNames: ["Alex"],
+        },
+      ]
+    );
+    assert.deepEqual(summary.unpaid, ["Sam", "Jo"]);
+    assert.equal(summary.hasRoster, true);
   });
 
   it("treats missing paidTotal as open", () => {

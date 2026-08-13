@@ -1,4 +1,5 @@
 import { computePaymentBalance, isBillSettled } from "./payment-balance";
+import { unpaidParticipants } from "./participants";
 import type { StoredBill, StoredPaymentReceipt } from "@/types/bill";
 import type { UserBillPayer, UserBillSummary } from "@/types/user-bills";
 
@@ -36,17 +37,22 @@ export function summaryFromBill(
     | "rounding"
     | "discount"
     | "additionalCharges"
+    | "participants"
   > & { receiptUrl?: string },
   receipts: readonly StoredPaymentReceipt[] = []
 ): UserBillSummary {
   const balance = computePaymentBalance(bill, receipts);
+  const roster = bill.participants ?? [];
+  const hasRoster = roster.length > 0;
   return {
     currency: bill.currency || "THB",
     total: balance.billTotal,
     itemCount: bill.items.length,
     paidTotal: balance.paidTotal,
-    // Always set so refreshes can clear stale payer rows when proofs go away.
+    // Always set so refreshes can clear stale rows when proofs go away.
     payers: payersFromBalance(balance.byPayer),
+    unpaid: hasRoster ? unpaidParticipants(roster, receipts) : [],
+    hasRoster,
     ...(bill.receiptUrl ? { receiptUrl: bill.receiptUrl } : {}),
   };
 }

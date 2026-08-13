@@ -38,6 +38,8 @@ type ShareBalanceResponse = {
   settled: boolean;
   itemCount: number;
   payers?: Array<{ name: string; amountPaid: number }>;
+  unpaid?: string[];
+  hasRoster?: boolean;
   receiptUrl?: string;
   error?: string;
 };
@@ -56,23 +58,30 @@ function formatWhen(ts: number): string {
 function SharedBillStatusChip({ link }: { link: UserBillLink }) {
   const settled = userBillIsSettled(link);
   const payers = Array.isArray(link.payers) ? link.payers : [];
+  const unpaid = Array.isArray(link.unpaid) ? link.unpaid : [];
   const label =
-    payers.length > 0
-      ? `${payers.length} paid`
-      : settled
-        ? "Settled"
-        : "No payments yet";
+    unpaid.length > 0
+      ? `${unpaid.length} unpaid`
+      : payers.length > 0
+        ? settled
+          ? "All paid"
+          : `${payers.length} paid`
+        : settled
+          ? "Settled"
+          : "No payments yet";
 
   return (
     <span
       className={cn(
         "inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium tracking-wide",
-        payers.length > 0 || settled
-          ? "bg-muted text-foreground"
-          : "text-muted-foreground"
+        unpaid.length > 0
+          ? "bg-amber-500/10 text-amber-800 dark:text-amber-300"
+          : payers.length > 0 || settled
+            ? "bg-muted text-foreground"
+            : "text-muted-foreground"
       )}
     >
-      <Users className="h-3 w-3 text-muted-foreground" />
+      <Users className="h-3 w-3 opacity-70" />
       {label}
     </span>
   );
@@ -87,6 +96,7 @@ function PaidUsersModal({
 }) {
   const [mounted, setMounted] = useState(false);
   const payers = Array.isArray(link.payers) ? link.payers : [];
+  const unpaid = Array.isArray(link.unpaid) ? link.unpaid : [];
   const paidTotal = Number(link.paidTotal) || 0;
   const settled = userBillIsSettled(link);
 
@@ -202,6 +212,35 @@ function PaidUsersModal({
                       </span>
                       <span className="shrink-0 font-medium tabular-nums">
                         {formatMoney(p.amountPaid, link.currency)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">
+                Still to pay
+              </p>
+              {unpaid.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-border px-3.5 py-5 text-center text-sm text-muted-foreground">
+                  {link.hasRoster
+                    ? "Everyone on the roster is covered."
+                    : "Add people when sharing a bill to track who’s still unpaid."}
+                </p>
+              ) : (
+                <ul className="divide-y divide-border/70 rounded-xl border border-border">
+                  {unpaid.map((name) => (
+                    <li
+                      key={name}
+                      className="flex items-baseline justify-between gap-3 px-3.5 py-2.5 text-sm"
+                    >
+                      <span className="min-w-0 truncate text-foreground">
+                        {name}
+                      </span>
+                      <span className="shrink-0 text-xs font-medium text-amber-800 dark:text-amber-300">
+                        Unpaid
                       </span>
                     </li>
                   ))}
@@ -375,6 +414,9 @@ function mergeBalance(
             p.amountPaid > 0
         )
     : [];
+  const unpaid = Array.isArray(balance.unpaid)
+    ? balance.unpaid.map((n) => String(n ?? "").trim()).filter(Boolean)
+    : [];
   return {
     ...link,
     currency: balance.currency || link.currency,
@@ -382,6 +424,8 @@ function mergeBalance(
     paidTotal: balance.paidTotal,
     itemCount: balance.itemCount || link.itemCount,
     payers,
+    unpaid,
+    hasRoster: Boolean(balance.hasRoster),
     ...(balance.receiptUrl
       ? { receiptUrl: balance.receiptUrl }
       : link.receiptUrl
@@ -425,6 +469,8 @@ export default function AccountPage() {
               itemCount: next.itemCount,
               paidTotal: next.paidTotal,
               payers: next.payers ?? [],
+              unpaid: next.unpaid ?? [],
+              hasRoster: Boolean(next.hasRoster),
               ...(next.receiptUrl ? { receiptUrl: next.receiptUrl } : {}),
             },
           }).catch(() => {});

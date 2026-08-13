@@ -75,6 +75,17 @@ service cloud.firestore {
             request.resource.data.payers is list
             && request.resource.data.payers.size() <= 40
           )
+        )
+        && (
+          !('unpaid' in request.resource.data)
+          || (
+            request.resource.data.unpaid is list
+            && request.resource.data.unpaid.size() <= 20
+          )
+        )
+        && (
+          !('hasRoster' in request.resource.data)
+          || request.resource.data.hasRoster is bool
         );
 
       allow delete: if isOwner(userId);

@@ -1,3 +1,5 @@
+import type { StoredPaymentReceipt } from "@/types/bill";
+
 /** Shared limits for bill participant / covered-person names. */
 export const MAX_PARTICIPANT_NAME_LEN = 40;
 export const MAX_PARTICIPANTS = 20;
@@ -60,4 +62,57 @@ export function filterIncludedAgainstRoster(
     out.push(canonical);
   }
   return out;
+}
+
+/**
+ * Roster people covered by payment proofs: prefer each slip's
+ * `includedNames`; fall back to matching OCR `payerName` to the roster.
+ * Returns lowercase keys.
+ */
+export function coveredParticipantKeys(
+  participants: readonly string[],
+  receipts: readonly Pick<
+    StoredPaymentReceipt,
+    "includedNames" | "payerName"
+  >[]
+): Set<string> {
+  const roster = sanitizeParticipantList(participants);
+  const covered = new Set<string>();
+  if (roster.length === 0) return covered;
+
+  const rosterKeys = new Set(roster.map((n) => n.toLowerCase()));
+
+  for (const receipt of receipts) {
+    const included = sanitizeParticipantList(receipt.includedNames);
+    if (included.length > 0) {
+      for (const name of included) {
+        const key = name.toLowerCase();
+        if (rosterKeys.has(key)) covered.add(key);
+      }
+      continue;
+    }
+    const payer = sanitizeParticipantName(receipt.payerName);
+    if (!payer) continue;
+    const key = payer.toLowerCase();
+    if (rosterKeys.has(key)) covered.add(key);
+  }
+
+  return covered;
+}
+
+/**
+ * Participants who are not covered by any payment proof yet.
+ * Empty when there is no roster (can't know who still owes).
+ */
+export function unpaidParticipants(
+  participants: readonly string[],
+  receipts: readonly Pick<
+    StoredPaymentReceipt,
+    "includedNames" | "payerName"
+  >[]
+): string[] {
+  const roster = sanitizeParticipantList(participants);
+  if (roster.length === 0) return [];
+  const covered = coveredParticipantKeys(roster, receipts);
+  return roster.filter((name) => !covered.has(name.toLowerCase()));
 }

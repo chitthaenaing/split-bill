@@ -17,6 +17,14 @@ export type UserBillSummary = {
    * links instead of remaining-left. Omitted on older index rows.
    */
   payers?: UserBillPayer[];
+  /**
+   * Roster names not yet covered by any payment proof (`includedNames` /
+   * matching payer). Empty when everyone is covered. Meaningful only when
+   * `hasRoster` is true. Omitted on older index rows.
+   */
+  unpaid?: string[];
+  /** True when the share was created with a participant roster. */
+  hasRoster?: boolean;
   receiptUrl?: string;
 };
 

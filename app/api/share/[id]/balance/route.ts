@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { computePaymentBalance, isBillSettled } from "@/lib/payment-balance";
+import { unpaidParticipants } from "@/lib/participants";
 import { getShare, isValidShareId } from "@/lib/share";
 import { payersFromBalance } from "@/lib/user-bill-summary";
 
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * Lightweight public balance for a share — used by My bills to show per-person
- * paid totals (and Settled) without loading the full share page.
+ * paid / unpaid totals without loading the full share page.
  */
 export async function GET(
   _req: Request,
@@ -24,8 +25,12 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const balance = computePaymentBalance(bill, bill.paymentReceipts ?? []);
+  const receipts = bill.paymentReceipts ?? [];
+  const balance = computePaymentBalance(bill, receipts);
   const payers = payersFromBalance(balance.byPayer);
+  const roster = bill.participants ?? [];
+  const hasRoster = roster.length > 0;
+  const unpaid = hasRoster ? unpaidParticipants(roster, receipts) : [];
   return NextResponse.json({
     shareId: id,
     currency: bill.currency || "THB",
@@ -34,7 +39,9 @@ export async function GET(
     remaining: balance.remaining,
     settled: isBillSettled(balance.remaining),
     itemCount: bill.items.length,
-    ...(payers.length > 0 ? { payers } : {}),
+    payers,
+    unpaid,
+    hasRoster,
     ...(bill.receiptUrl ? { receiptUrl: bill.receiptUrl } : {}),
   });
 }

@@ -4,6 +4,7 @@ import {
   filterIncludedAgainstRoster,
   sanitizeParticipantList,
   sanitizeParticipantName,
+  unpaidParticipants,
 } from "./participants";
 
 describe("participants", () => {
@@ -27,5 +28,34 @@ describe("participants", () => {
       ["Sam", "Alex"]
     );
     assert.deepEqual(filterIncludedAgainstRoster(["Zoe"], ["Alex"]), []);
+  });
+
+  it("lists roster people not covered by payment proofs", () => {
+    assert.deepEqual(
+      unpaidParticipants(
+        ["Alex", "Sam", "Jo"],
+        [
+          {
+            includedNames: ["Alex"],
+            payerName: "Alex Bank",
+          },
+          {
+            payerName: "Sam",
+          },
+        ]
+      ),
+      ["Jo"]
+    );
+    assert.deepEqual(
+      unpaidParticipants(["Alex", "Sam"], [
+        { includedNames: ["Alex", "Sam"] },
+      ]),
+      []
+    );
+    assert.deepEqual(unpaidParticipants([], [{ payerName: "Alex" }]), []);
+    assert.deepEqual(
+      unpaidParticipants(["Alex", "Sam"], []),
+      ["Alex", "Sam"]
+    );
   });
 });
