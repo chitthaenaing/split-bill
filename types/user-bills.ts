@@ -4,6 +4,8 @@ export type UserBillSummary = {
   currency: string;
   total: number;
   itemCount: number;
+  /** Sum of payment-proof amounts; used for Settled / Open on My bills. */
+  paidTotal?: number;
   receiptUrl?: string;
 };
 

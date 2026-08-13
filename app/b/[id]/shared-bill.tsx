@@ -12,6 +12,7 @@ import { ItemsList } from "@/components/items-list";
 import { TotalsPanel } from "@/components/totals-panel";
 import { ReceiptThumbnail } from "@/components/receipt-thumbnail";
 import { PaymentProofsSection } from "@/components/payment-proofs-section";
+import { summaryFromBill } from "@/lib/user-bill-summary";
 import type { BillItem, StoredBill } from "@/types/bill";
 
 /** Per-item picked state for one device: units taken and people splitting them. */
@@ -281,21 +282,7 @@ export function SharedBill({ data }: { data: StoredBill }) {
 
       <RecordReceivedBill
         shareId={data.id}
-        summary={{
-          currency: data.currency,
-          total:
-            data.items.reduce((sum, it) => sum + (Number(it.price) || 0), 0) +
-            (Number(data.tax) || 0) +
-            (Number(data.serviceCharge) || 0) +
-            (data.additionalCharges ?? []).reduce(
-              (sum, c) => sum + Math.max(0, Number(c.amount) || 0),
-              0
-            ) +
-            (Number(data.rounding) || 0) -
-            (Number(data.discount) || 0),
-          itemCount: data.items.length,
-          ...(data.receiptUrl ? { receiptUrl: data.receiptUrl } : {}),
-        }}
+        summary={summaryFromBill(data, data.paymentReceipts ?? [])}
       />
 
       <main className="flex-1 mx-auto w-full max-w-5xl px-4 sm:px-6 py-8 sm:py-12">

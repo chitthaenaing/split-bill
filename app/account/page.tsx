@@ -16,23 +16,27 @@ import { useAuth } from "@/components/auth-provider";
 import { BankingQrPanel } from "@/components/banking-qr-panel";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
+import { readJsonResponse } from "@/lib/read-json-response";
+import { userBillIsSettled } from "@/lib/user-bill-summary";
 import {
   listUserBillLinksClient,
+  recordUserBillLinkClient,
   userBillsErrorMessage,
 } from "@/lib/user-bills-client";
+import { cn, formatMoney } from "@/lib/utils";
 import type { UserBillLink, UserBillsResponse } from "@/types/user-bills";
 
-function formatMoney(amount: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency: currency || "THB",
-      maximumFractionDigits: 2,
-    }).format(amount);
-  } catch {
-    return `${amount.toFixed(2)} ${currency}`;
-  }
-}
+type ShareBalanceResponse = {
+  shareId: string;
+  currency: string;
+  total: number;
+  paidTotal: number;
+  remaining: number;
+  settled: boolean;
+  itemCount: number;
+  receiptUrl?: string;
+  error?: string;
+};
 
 function formatWhen(ts: number): string {
   try {
@@ -43,6 +47,28 @@ function formatWhen(ts: number): string {
   } catch {
     return new Date(ts).toLocaleString();
   }
+}
+
+function SettlementLabel({ link }: { link: UserBillLink }) {
+  const settled = userBillIsSettled(link);
+  const remaining = Math.max(
+    0,
+    Math.round(((Number(link.total) || 0) - (Number(link.paidTotal) || 0)) * 100) /
+      100
+  );
+
+  return (
+    <span
+      className={cn(
+        "shrink-0 text-[11px] font-medium tracking-wide",
+        settled
+          ? "text-emerald-700 dark:text-emerald-400"
+          : "text-muted-foreground"
+      )}
+    >
+      {settled ? "Settled" : remaining > 0 ? `${formatMoney(remaining, link.currency)} left` : "Open"}
+    </span>
+  );
 }
 
 function BillRow({ link }: { link: UserBillLink }) {
@@ -76,6 +102,7 @@ function BillRow({ link }: { link: UserBillLink }) {
             {formatWhen(link.updatedAt)}
           </p>
         </div>
+        <SettlementLabel link={link} />
         <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
       </Link>
     </li>
@@ -111,12 +138,96 @@ function BillSection({
   );
 }
 
+async function fetchShareBalance(
+  shareId: string
+): Promise<ShareBalanceResponse | null> {
+  try {
+    const res = await fetch(`/api/share/${shareId}/balance`, {
+      cache: "no-store",
+    });
+    const data = await readJsonResponse<ShareBalanceResponse>(res);
+    if (!res.ok || data.error) return null;
+    if (
+      !Number.isFinite(data.total) ||
+      !Number.isFinite(data.paidTotal) ||
+      typeof data.currency !== "string"
+    ) {
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function mergeBalance(
+  link: UserBillLink,
+  balance: ShareBalanceResponse
+): UserBillLink {
+  return {
+    ...link,
+    currency: balance.currency || link.currency,
+    total: balance.total,
+    paidTotal: balance.paidTotal,
+    itemCount: balance.itemCount || link.itemCount,
+    ...(balance.receiptUrl
+      ? { receiptUrl: balance.receiptUrl }
+      : link.receiptUrl
+        ? { receiptUrl: link.receiptUrl }
+        : {}),
+  };
+}
+
 export default function AccountPage() {
   const { user, loading: authLoading, signIn } = useAuth();
   const [bills, setBills] = useState<UserBillsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
+
+  const refreshBalances = useCallback(
+    async (uid: string, current: UserBillsResponse) => {
+      const all = [...current.shared, ...current.received];
+      if (all.length === 0) return;
+
+      const results = await Promise.all(
+        all.map(async (link) => {
+          const balance = await fetchShareBalance(link.shareId);
+          if (!balance) return null;
+          const next = mergeBalance(link, balance);
+          // Persist so the next visit is instant even if Blob is slow.
+          void recordUserBillLinkClient({
+            uid,
+            shareId: link.shareId,
+            role: link.role,
+            summary: {
+              currency: next.currency,
+              total: next.total,
+              itemCount: next.itemCount,
+              paidTotal: next.paidTotal,
+              ...(next.receiptUrl ? { receiptUrl: next.receiptUrl } : {}),
+            },
+          }).catch(() => {});
+          return next;
+        })
+      );
+
+      const byId = new Map<string, UserBillLink>();
+      for (const link of results) {
+        if (link) byId.set(link.shareId, link);
+      }
+      if (byId.size === 0) return;
+
+      setBills((prev) => {
+        if (!prev) return prev;
+        return {
+          shared: prev.shared.map((l) => byId.get(l.shareId) ?? l),
+          received: prev.received.map((l) => byId.get(l.shareId) ?? l),
+        };
+      });
+    },
+    []
+  );
 
   const load = useCallback(async () => {
     if (!user) {
@@ -126,14 +237,16 @@ export default function AccountPage() {
     setLoading(true);
     setError(null);
     try {
-      setBills(await listUserBillLinksClient(user.uid));
+      const listed = await listUserBillLinksClient(user.uid);
+      setBills(listed);
+      void refreshBalances(user.uid, listed);
     } catch (e) {
       setError(userBillsErrorMessage(e));
       setBills(null);
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, refreshBalances]);
 
   useEffect(() => {
     void load();

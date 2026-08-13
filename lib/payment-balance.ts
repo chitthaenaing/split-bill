@@ -82,6 +82,13 @@ export function paidByPayer(
   );
 }
 
+/** Cent-level float tolerance used for "Settled" in the payments UI. */
+export const SETTLED_EPSILON = 0.005;
+
+export function isBillSettled(remaining: number): boolean {
+  return Number.isFinite(remaining) && remaining <= SETTLED_EPSILON;
+}
+
 export type PaymentBalance = {
   billTotal: number;
   paidTotal: number;

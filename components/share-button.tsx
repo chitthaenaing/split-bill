@@ -171,6 +171,7 @@ export function ShareButton() {
             currency,
             total: bill.total,
             itemCount: bill.items.length,
+            paidTotal: 0,
             ...(data.receiptUrl ? { receiptUrl: data.receiptUrl } : {}),
           },
         }).catch(() => {

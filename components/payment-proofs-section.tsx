@@ -19,7 +19,8 @@ import {
   isEditablePasteTarget,
 } from "@/lib/clipboard-image";
 import { dataUrlToBlob, prepareReceiptImage } from "@/lib/image-prep";
-import { computePaymentBalance } from "@/lib/payment-balance";
+import { useAuth } from "@/components/auth-provider";
+import { computePaymentBalance, isBillSettled } from "@/lib/payment-balance";
 import { readJsonResponse } from "@/lib/read-json-response";
 import {
   forgetMyProof,
@@ -28,6 +29,8 @@ import {
   rememberMyProof,
   type MyProofEntry,
 } from "@/lib/share-client";
+import { summaryFromBill } from "@/lib/user-bill-summary";
+import { recordUserBillLinkClient } from "@/lib/user-bills-client";
 import { cn, formatMoney } from "@/lib/utils";
 import type { StoredBill, StoredPaymentReceipt } from "@/types/bill";
 
@@ -140,6 +143,7 @@ export function PaymentProofsSection({
   receipts: StoredPaymentReceipt[];
   participants?: string[];
 }) {
+  const { user } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
   const [receipts, setReceipts] = useState<StoredPaymentReceipt[]>(
     initialReceipts
@@ -179,6 +183,21 @@ export function PaymentProofsSection({
   const balance = useMemo(
     () => computePaymentBalance(bill, receipts),
     [bill, receipts]
+  );
+
+  const syncAccountIndex = useCallback(
+    (nextReceipts: StoredPaymentReceipt[]) => {
+      if (!user) return;
+      void recordUserBillLinkClient({
+        uid: user.uid,
+        shareId,
+        role: "received",
+        summary: summaryFromBill({ ...bill, currency }, nextReceipts),
+      }).catch(() => {
+        // best-effort — My bills label may be stale until next open
+      });
+    },
+    [user, shareId, bill, currency]
   );
 
   const hasReceipts = receipts.length > 0;
@@ -225,6 +244,7 @@ export function PaymentProofsSection({
         }
         if (Array.isArray(data.paymentReceipts)) {
           setReceipts(data.paymentReceipts);
+          syncAccountIndex(data.paymentReceipts);
         }
         if (data.receiptId) {
           setMyProofs(
@@ -240,7 +260,7 @@ export function PaymentProofsSection({
         setBusy(false);
       }
     },
-    [shareId, participants.length, includedNames]
+    [shareId, participants.length, includedNames, syncAccountIndex]
   );
 
   // Allow Cmd/Ctrl+V (and mobile paste) anywhere on the share page when the
@@ -291,6 +311,7 @@ export function PaymentProofsSection({
         }
         if (Array.isArray(data.paymentReceipts)) {
           setReceipts(data.paymentReceipts);
+          syncAccountIndex(data.paymentReceipts);
         }
         setMyProofs(forgetMyProof(shareId, receiptId));
       } catch (e) {
@@ -299,7 +320,7 @@ export function PaymentProofsSection({
         setDeletingId(null);
       }
     },
-    [shareId, deleteTokenFor]
+    [shareId, deleteTokenFor, syncAccountIndex]
   );
 
   const triggerFileDialog = useCallback(() => {
@@ -317,7 +338,7 @@ export function PaymentProofsSection({
   );
 
   const remainingLabel =
-    balance.remaining <= 0.005
+    isBillSettled(balance.remaining)
       ? "Settled"
       : `${formatMoney(balance.remaining, currency)} left`;
 
@@ -361,7 +382,7 @@ export function PaymentProofsSection({
                 <span
                   className={cn(
                     "font-semibold tabular-nums",
-                    balance.remaining <= 0.005
+                    isBillSettled(balance.remaining)
                       ? "text-emerald-700 dark:text-emerald-400"
                       : "text-foreground"
                   )}
