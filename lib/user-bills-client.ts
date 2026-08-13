@@ -154,12 +154,16 @@ export async function recordUserBillLinkClient(opts: {
   return next;
 }
 
+function byCreatedAtDesc(a: UserBillLink, b: UserBillLink): number {
+  return b.createdAt - a.createdAt;
+}
+
 export async function listUserBillLinksClient(
   uid: string
 ): Promise<UserBillsResponse> {
   const q = query(
     linksCollection(uid),
-    orderBy("updatedAt", "desc"),
+    orderBy("createdAt", "desc"),
     limit(100)
   );
   const snap = await getDocs(q);
@@ -172,6 +176,9 @@ export async function listUserBillLinksClient(
     if (link.role === "shared") shared.push(link);
     else received.push(link);
   }
+
+  shared.sort(byCreatedAtDesc);
+  received.sort(byCreatedAtDesc);
 
   return { shared, received };
 }

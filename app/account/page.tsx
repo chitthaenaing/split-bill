@@ -99,7 +99,7 @@ function BillRow({ link }: { link: UserBillLink }) {
             </span>
           </p>
           <p className="truncate text-xs text-muted-foreground">
-            {formatWhen(link.updatedAt)}
+            {formatWhen(link.createdAt)}
           </p>
         </div>
         <SettlementLabel link={link} />
