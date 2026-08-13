@@ -45,6 +45,11 @@ export function toPublicStoredBill(bill: StoredBill): StoredBill {
     ...(Array.isArray(bill.participants) && bill.participants.length > 0
       ? { participants: [...bill.participants] }
       : {}),
+    ...(typeof bill.ownerPaid === "number" &&
+    Number.isFinite(bill.ownerPaid) &&
+    bill.ownerPaid > 0
+      ? { ownerPaid: bill.ownerPaid }
+      : {}),
     currency: bill.currency,
     items: bill.items,
     tax: bill.tax,

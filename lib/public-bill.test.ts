@@ -32,6 +32,7 @@ describe("public-bill", () => {
       revision: 3,
       lastWriteId: "write1",
       participants: ["Alex", "Sam"],
+      ownerPaid: 88.25,
       paymentReceipts: [
         {
           id: "pay123ABCD",
@@ -56,6 +57,7 @@ describe("public-bill", () => {
     assert.equal(pub.lastWriteId, undefined);
     assert.equal(pub.paymentReceipts?.[0]?.deleteTokenHash, undefined);
     assert.deepEqual(pub.participants, ["Alex", "Sam"]);
+    assert.equal(pub.ownerPaid, 88.25);
     assert.deepEqual(pub.paymentReceipts?.[0]?.includedNames, ["Alex"]);
     assert.equal(pub.items[0].name, "Tea");
   });

@@ -4,6 +4,7 @@ import {
   httpStatusFromError,
   readMultipartImage,
 } from "@/lib/multipart-image";
+import { sanitizeOwnerPaid } from "@/lib/payment-balance";
 import { sanitizeParticipantList } from "@/lib/participants";
 import { createShare } from "@/lib/share";
 import type { ExtractedBill } from "@/types/bill";
@@ -93,7 +94,13 @@ type JsonBody = {
   bankingQrDataUrl?: string;
   bill?: ExtractedBill;
   participants?: unknown;
+  ownerPaid?: unknown;
 };
+
+function parseOwnerPaidField(raw: unknown): number {
+  if (typeof raw === "string" && raw.trim() === "") return 0;
+  return sanitizeOwnerPaid(raw);
+}
 
 async function parseShareRequest(req: Request): Promise<{
   imageBuffer: Buffer;
@@ -102,6 +109,7 @@ async function parseShareRequest(req: Request): Promise<{
   bankingQrContentType?: string;
   bill: ExtractedBill;
   participants: string[];
+  ownerPaid: number;
 }> {
   const contentType = req.headers.get("content-type") || "";
 
@@ -143,6 +151,7 @@ async function parseShareRequest(req: Request): Promise<{
       bankingQrContentType,
       bill,
       participants: parseParticipantsField(form.get("participants")),
+      ownerPaid: parseOwnerPaidField(form.get("ownerPaid")),
     };
   }
 
@@ -193,6 +202,7 @@ async function parseShareRequest(req: Request): Promise<{
     bankingQrContentType,
     bill,
     participants: parseParticipantsField(body.participants),
+    ownerPaid: parseOwnerPaidField(body.ownerPaid),
   };
 }
 

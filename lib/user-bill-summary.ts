@@ -13,6 +13,7 @@ export function summaryFromBill(
     | "rounding"
     | "discount"
     | "additionalCharges"
+    | "ownerPaid"
   > & { receiptUrl?: string },
   receipts: readonly StoredPaymentReceipt[] = []
 ): UserBillSummary {

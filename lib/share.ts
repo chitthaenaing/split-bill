@@ -4,6 +4,7 @@ import { customAlphabet } from "nanoid";
 import type { ExtractedBill, StoredBill, StoredPaymentReceipt } from "@/types/bill";
 import { sendPushToTokens } from "./firebase-admin";
 import { isValidShareId, normalizeStoredBill } from "./normalize-stored-bill";
+import { sanitizeOwnerPaid } from "./payment-balance";
 import {
   filterIncludedAgainstRoster,
   sanitizeParticipantList,
@@ -180,6 +181,10 @@ export async function createShare(opts: {
   bankingQrContentType?: string;
   /** Optional roster of people included on this shared bill. */
   participants?: string[];
+  /**
+   * How much the organiser already covered (what they had). Omitted when ≤ 0.
+   */
+  ownerPaid?: number;
 }): Promise<{ id: string; ownerToken: string; bill: StoredBill }> {
   ensureToken();
 
@@ -219,6 +224,7 @@ export async function createShare(opts: {
   }
 
   const participants = sanitizeParticipantList(opts.participants);
+  const ownerPaid = sanitizeOwnerPaid(opts.ownerPaid);
   const writeId = newId();
   const stored: StoredBill = {
     id,
@@ -229,6 +235,7 @@ export async function createShare(opts: {
       ? { bankingQrUrl, bankingQrContentType }
       : {}),
     ...(participants.length > 0 ? { participants } : {}),
+    ...(ownerPaid > 0 ? { ownerPaid } : {}),
     ownerTokenHash: hashShareToken(ownerToken),
     revision: 1,
     lastWriteId: writeId,

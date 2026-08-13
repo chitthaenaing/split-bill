@@ -357,6 +357,7 @@ export function SharedBill({ data }: { data: StoredBill }) {
                   rounding: data.rounding,
                   discount: data.discount,
                   additionalCharges: data.additionalCharges,
+                  ownerPaid: data.ownerPaid,
                 }}
                 receipts={data.paymentReceipts ?? []}
                 participants={data.participants ?? []}

@@ -138,6 +138,12 @@ export type StoredBill = {
    */
   participants?: string[];
   /**
+   * How much the organiser already covered (what they had), recorded when the
+   * share link was created. Counts toward paid in the payment balance.
+   * Omitted on older shares / when unset.
+   */
+  ownerPaid?: number;
+  /**
    * FCM registration tokens for the sharer's device(s). Used to push a
    * notification when a recipient uploads a payment receipt.
    */
