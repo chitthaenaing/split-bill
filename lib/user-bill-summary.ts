@@ -1,6 +1,29 @@
 import { computePaymentBalance, isBillSettled } from "./payment-balance";
 import type { StoredBill, StoredPaymentReceipt } from "@/types/bill";
-import type { UserBillSummary } from "@/types/user-bills";
+import type { UserBillPayer, UserBillSummary } from "@/types/user-bills";
+
+const MAX_PAYERS = 40;
+const MAX_PAYER_NAME_LEN = 40;
+
+/** Slim per-person rows for the My bills index (no proof counts). */
+export function payersFromBalance(
+  byPayer: readonly { payerName: string; amountPaid: number }[]
+): UserBillPayer[] {
+  return byPayer
+    .map((row) => {
+      const name = String(row.payerName ?? "")
+        .trim()
+        .slice(0, MAX_PAYER_NAME_LEN);
+      const amountPaid = Number(row.amountPaid);
+      if (!name || !Number.isFinite(amountPaid) || amountPaid <= 0) return null;
+      return {
+        name,
+        amountPaid: Math.round(amountPaid * 100) / 100,
+      };
+    })
+    .filter((p): p is UserBillPayer => p != null)
+    .slice(0, MAX_PAYERS);
+}
 
 /** Build the Firestore index summary from a stored/public bill + proofs. */
 export function summaryFromBill(
@@ -22,6 +45,8 @@ export function summaryFromBill(
     total: balance.billTotal,
     itemCount: bill.items.length,
     paidTotal: balance.paidTotal,
+    // Always set so refreshes can clear stale payer rows when proofs go away.
+    payers: payersFromBalance(balance.byPayer),
     ...(bill.receiptUrl ? { receiptUrl: bill.receiptUrl } : {}),
   };
 }
