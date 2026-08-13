@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { getFirebaseApp } from "./firebase-app";
 import { isValidShareId } from "./normalize-stored-bill";
+import { sanitizeParticipantList } from "./participants";
 import type {
   UserBillLink,
   UserBillPayer,
@@ -59,6 +60,11 @@ function sanitizePayers(raw: unknown): UserBillPayer[] | undefined {
   return payers.length > 0 ? payers : undefined;
 }
 
+function sanitizeUnpaid(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  return sanitizeParticipantList(raw);
+}
+
 function sanitizeSummary(summary: UserBillSummary): UserBillSummary {
   const currency = String(summary.currency || "THB").slice(0, 8);
   const total = Number.isFinite(summary.total) ? Number(summary.total) : 0;
@@ -68,6 +74,10 @@ function sanitizeSummary(summary: UserBillSummary): UserBillSummary {
   );
   const paidTotal = sanitizePaidTotal(summary.paidTotal);
   const payers = sanitizePayers(summary.payers);
+  const unpaidProvided = Array.isArray(summary.unpaid);
+  const unpaid = unpaidProvided ? sanitizeUnpaid(summary.unpaid) ?? [] : undefined;
+  const hasRoster =
+    typeof summary.hasRoster === "boolean" ? summary.hasRoster : undefined;
   const receiptUrl =
     typeof summary.receiptUrl === "string" &&
     /^https?:\/\//i.test(summary.receiptUrl)
@@ -79,6 +89,8 @@ function sanitizeSummary(summary: UserBillSummary): UserBillSummary {
     itemCount,
     ...(paidTotal !== undefined ? { paidTotal } : {}),
     ...(payers ? { payers } : {}),
+    ...(unpaid !== undefined ? { unpaid } : {}),
+    ...(hasRoster !== undefined ? { hasRoster } : {}),
     ...(receiptUrl ? { receiptUrl } : {}),
   };
 }
@@ -104,6 +116,9 @@ function parseLink(
       itemCount: Number(data.itemCount) || 0,
       paidTotal: sanitizePaidTotal(data.paidTotal),
       payers: sanitizePayers(data.payers),
+      unpaid: Array.isArray(data.unpaid) ? data.unpaid : undefined,
+      hasRoster:
+        typeof data.hasRoster === "boolean" ? data.hasRoster : undefined,
       receiptUrl:
         typeof data.receiptUrl === "string" ? data.receiptUrl : undefined,
     }),
@@ -158,6 +173,7 @@ export async function recordUserBillLinkClient(opts: {
       : "received";
 
   const payersProvided = Array.isArray(opts.summary.payers);
+  const unpaidProvided = Array.isArray(opts.summary.unpaid);
   const next: UserBillLink = {
     ...existing,
     role,
@@ -176,6 +192,16 @@ export async function recordUserBillLinkClient(opts: {
         : {}
       : existing.payers
         ? { payers: existing.payers }
+        : {}),
+    ...(unpaidProvided
+      ? { unpaid: summary.unpaid ?? [] }
+      : existing.unpaid
+        ? { unpaid: existing.unpaid }
+        : {}),
+    ...(summary.hasRoster !== undefined
+      ? { hasRoster: summary.hasRoster }
+      : existing.hasRoster !== undefined
+        ? { hasRoster: existing.hasRoster }
         : {}),
     ...(summary.receiptUrl
       ? { receiptUrl: summary.receiptUrl }
