@@ -20,12 +20,21 @@ import type {
   UserBillsResponse,
 } from "@/types/user-bills";
 
+export { summaryFromBill, userBillIsSettled } from "./user-bill-summary";
+
 function db() {
   return getFirestore(getFirebaseApp());
 }
 
 function linksCollection(uid: string) {
   return collection(db(), "users", uid, "links");
+}
+
+function sanitizePaidTotal(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return undefined;
+  return Math.max(0, Math.round(n * 100) / 100);
 }
 
 function sanitizeSummary(summary: UserBillSummary): UserBillSummary {
@@ -35,6 +44,7 @@ function sanitizeSummary(summary: UserBillSummary): UserBillSummary {
     0,
     Math.min(500, Math.floor(Number(summary.itemCount) || 0))
   );
+  const paidTotal = sanitizePaidTotal(summary.paidTotal);
   const receiptUrl =
     typeof summary.receiptUrl === "string" &&
     /^https?:\/\//i.test(summary.receiptUrl)
@@ -44,6 +54,7 @@ function sanitizeSummary(summary: UserBillSummary): UserBillSummary {
     currency,
     total,
     itemCount,
+    ...(paidTotal !== undefined ? { paidTotal } : {}),
     ...(receiptUrl ? { receiptUrl } : {}),
   };
 }
@@ -67,6 +78,7 @@ function parseLink(
       currency: String(data.currency ?? "THB"),
       total: Number(data.total) || 0,
       itemCount: Number(data.itemCount) || 0,
+      paidTotal: sanitizePaidTotal(data.paidTotal),
       receiptUrl:
         typeof data.receiptUrl === "string" ? data.receiptUrl : undefined,
     }),
@@ -127,6 +139,11 @@ export async function recordUserBillLinkClient(opts: {
     currency: summary.currency || existing.currency,
     total: summary.total || existing.total,
     itemCount: summary.itemCount || existing.itemCount,
+    ...(summary.paidTotal !== undefined
+      ? { paidTotal: summary.paidTotal }
+      : existing.paidTotal !== undefined
+        ? { paidTotal: existing.paidTotal }
+        : {}),
     ...(summary.receiptUrl
       ? { receiptUrl: summary.receiptUrl }
       : existing.receiptUrl

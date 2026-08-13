@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   billAmountDue,
   computePaymentBalance,
+  isBillSettled,
   paidByPayer,
   totalPaid,
 } from "./payment-balance";
@@ -72,5 +73,9 @@ describe("payment-balance", () => {
     assert.equal(bal.paidTotal, 80);
     assert.equal(bal.remaining, 120);
     assert.equal(bal.hasUnknownAmounts, true);
+    assert.equal(isBillSettled(bal.remaining), false);
+    assert.equal(isBillSettled(0), true);
+    assert.equal(isBillSettled(0.004), true);
+    assert.equal(isBillSettled(0.01), false);
   });
 });

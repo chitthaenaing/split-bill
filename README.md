@@ -144,7 +144,7 @@ The totals panel can show your share in another currency via [Frankfurter](https
 
 - Bill data is kept in `localStorage` so a refresh won't lose your selection. Use "New bill" to reset.
 - Sharing works without an account. Google sign-in is optional and powers “My bills” history plus a reusable payment QR (Firestore profile URL + Blob image).
-- After pulling this change, republish `firestore.rules` so the `users/{uid}` profile doc is allowed.
+- After pulling this change, republish `firestore.rules` so the `users/{uid}` profile doc and optional `paidTotal` on bill links are allowed.
 - Run extraction unit tests with `npm test`.
 - Receipt arithmetic fixtures live in `fixtures/receipts/` (`npm run test:fixtures`).
 - Scripted vision-model transcripts live in `fixtures/model-transcripts/` (`npm run test:transcripts`) — they exercise prompt, JSON schema, repair, and finalize without calling OpenAI.
