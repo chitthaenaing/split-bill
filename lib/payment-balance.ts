@@ -89,8 +89,20 @@ export function isBillSettled(remaining: number): boolean {
   return Number.isFinite(remaining) && remaining <= SETTLED_EPSILON;
 }
 
+/** Organiser's pre-recorded share — positive finite money, else 0. */
+export function sanitizeOwnerPaid(raw: unknown): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return round2(Math.min(n, 1_000_000_000));
+}
+
 export type PaymentBalance = {
   billTotal: number;
+  /** Transfer proofs only (excludes organiser pre-share amount). */
+  transfersPaid: number;
+  /** Organiser amount recorded at share time. */
+  ownerPaid: number;
+  /** transfersPaid + ownerPaid. */
   paidTotal: number;
   remaining: number;
   byPayer: PayerPaidRow[];
@@ -106,11 +118,14 @@ export function computePaymentBalance(
     | "rounding"
     | "discount"
     | "additionalCharges"
+    | "ownerPaid"
   >,
   receipts: readonly StoredPaymentReceipt[]
 ): PaymentBalance {
   const billTotal = billAmountDue(bill);
-  const paidTotal = totalPaid(receipts);
+  const transfersPaid = totalPaid(receipts);
+  const ownerPaid = sanitizeOwnerPaid(bill.ownerPaid);
+  const paidTotal = round2(transfersPaid + ownerPaid);
   const hasUnknownAmounts = receipts.some(
     (r) =>
       typeof r.amountPaid !== "number" ||
@@ -119,6 +134,8 @@ export function computePaymentBalance(
   );
   return {
     billTotal,
+    transfersPaid,
+    ownerPaid,
     paidTotal,
     remaining: round2(billTotal - paidTotal),
     byPayer: paidByPayer(receipts),

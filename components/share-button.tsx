@@ -13,11 +13,13 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { NotifyToggle } from "@/components/notify-toggle";
 import { ParticipantsEditor } from "@/components/participants-editor";
-import { itemsTotal } from "@/lib/calc";
+import { computeSplit, itemsTotal } from "@/lib/calc";
 import { dataUrlToBlob, prepareReceiptImage } from "@/lib/image-prep";
 import { useAuth } from "@/components/auth-provider";
+import { sanitizeOwnerPaid } from "@/lib/payment-balance";
 import { readJsonResponse } from "@/lib/read-json-response";
 import { saveOwnerToken } from "@/lib/share-client";
 import { useBillStore } from "@/lib/store";
@@ -26,6 +28,7 @@ import {
   getUserPaymentQrClient,
   paymentQrUrlToDataUrl,
 } from "@/lib/user-profile-client";
+import { formatMoneyPlain } from "@/lib/utils";
 
 type ShareResponse =
   | { id: string; url: string; ownerToken?: string; receiptUrl?: string }
@@ -52,6 +55,8 @@ export function ShareButton() {
   const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [participants, setParticipants] = useState<string[]>([]);
+  /** Empty string while clearing the field; otherwise a decimal string. */
+  const [ownerPaidInput, setOwnerPaidInput] = useState("");
 
   const disabled = !receiptDataUrl || items.length === 0;
 
@@ -66,12 +71,25 @@ export function ShareButton() {
     };
   }, [open]);
 
+  const suggestedOwnerPaid = useCallback(() => {
+    const split = computeSplit(
+      items,
+      tax,
+      serviceCharge,
+      rounding,
+      additionalCharges,
+      discount
+    );
+    return split.total > 0 ? split.total : 0;
+  }, [items, tax, serviceCharge, rounding, additionalCharges, discount]);
+
   const openDialog = useCallback(() => {
     if (!receiptDataUrl) {
       setError("No receipt image to share.");
       setOpen(true);
       return;
     }
+    const suggested = suggestedOwnerPaid();
     setOpen(true);
     setBusy(false);
     setError(null);
@@ -80,7 +98,8 @@ export function ShareButton() {
     setOwnerToken(null);
     setCopied(false);
     setParticipants([]);
-  }, [receiptDataUrl]);
+    setOwnerPaidInput(suggested > 0 ? formatMoneyPlain(suggested) : "");
+  }, [receiptDataUrl, suggestedOwnerPaid]);
 
   const start = useCallback(async () => {
     if (!receiptDataUrl) {
@@ -124,6 +143,10 @@ export function ShareButton() {
       form.append("bill", JSON.stringify(bill));
       if (participants.length > 0) {
         form.append("participants", JSON.stringify(participants));
+      }
+      const ownerPaid = sanitizeOwnerPaid(ownerPaidInput);
+      if (ownerPaid > 0) {
+        form.append("ownerPaid", String(ownerPaid));
       }
 
       let qrDataUrl = bankingQrDataUrl;
@@ -171,7 +194,7 @@ export function ShareButton() {
             currency,
             total: bill.total,
             itemCount: bill.items.length,
-            paidTotal: 0,
+            paidTotal: ownerPaid,
             ...(data.receiptUrl ? { receiptUrl: data.receiptUrl } : {}),
           },
         }).catch(() => {
@@ -189,11 +212,13 @@ export function ShareButton() {
     tax,
     serviceCharge,
     rounding,
+    discount,
     additionalCharges,
     receiptDataUrl,
     bankingQrDataUrl,
     user,
     participants,
+    ownerPaidInput,
   ]);
 
   const close = () => {
@@ -278,6 +303,33 @@ export function ShareButton() {
                           onChange={setParticipants}
                           disabled={busy}
                         />
+                        <div className="space-y-2">
+                          <div>
+                            <p className="text-sm font-medium text-foreground">
+                              How much I had
+                            </p>
+                            <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+                              Your share before sharing. Shown as already
+                              covered in Payments so others see what’s left.
+                            </p>
+                          </div>
+                          <label className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground shrink-0">
+                              {currency || "THB"}
+                            </span>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min={0}
+                              inputMode="decimal"
+                              value={ownerPaidInput}
+                              onChange={(e) => setOwnerPaidInput(e.target.value)}
+                              placeholder="0.00"
+                              disabled={busy}
+                              className="h-10"
+                            />
+                          </label>
+                        </div>
                         <Button
                           type="button"
                           variant="accent"
@@ -312,6 +364,17 @@ export function ShareButton() {
                             Included:{" "}
                             <span className="text-foreground">
                               {participants.join(", ")}
+                            </span>
+                          </p>
+                        ) : null}
+                        {sanitizeOwnerPaid(ownerPaidInput) > 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            You had:{" "}
+                            <span className="text-foreground tabular-nums">
+                              {currency || "THB"}{" "}
+                              {formatMoneyPlain(
+                                sanitizeOwnerPaid(ownerPaidInput)
+                              )}
                             </span>
                           </p>
                         ) : null}

@@ -55,6 +55,7 @@ describe("normalizeStoredBill", () => {
         { name: "", price: 0, quantity: 1 },
       ],
       participants: ["Alex", "alex", "Sam"],
+      ownerPaid: 42.5,
       paymentReceipts: [
         {
           id: "pay123ABCD",
@@ -76,6 +77,7 @@ describe("normalizeStoredBill", () => {
     assert.ok(bill);
     assert.equal(bill!.items.length, 1);
     assert.deepEqual(bill!.participants, ["Alex", "Sam"]);
+    assert.equal(bill!.ownerPaid, 42.5);
     assert.equal(bill!.paymentReceipts?.length, 1);
     assert.equal(bill!.paymentReceipts?.[0]?.payerName, "Sam");
     assert.equal(bill!.paymentReceipts?.[0]?.amountPaid, 55.25);

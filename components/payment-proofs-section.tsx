@@ -139,6 +139,7 @@ export function PaymentProofsSection({
     | "rounding"
     | "discount"
     | "additionalCharges"
+    | "ownerPaid"
   >;
   receipts: StoredPaymentReceipt[];
   participants?: string[];
@@ -201,6 +202,8 @@ export function PaymentProofsSection({
   );
 
   const hasReceipts = receipts.length > 0;
+  const hasOwnerPaid = balance.ownerPaid > 0;
+  const showBalance = hasReceipts || hasOwnerPaid;
   const hasRoster = participants.length > 0;
 
   const upload = useCallback(
@@ -363,7 +366,7 @@ export function PaymentProofsSection({
             </p>
           ) : null}
 
-          {hasReceipts ? (
+          {showBalance ? (
             <div className="rounded-xl border border-border bg-muted/20 px-3.5 py-3 space-y-2.5">
               <div className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="text-muted-foreground">Bill total</span>
@@ -371,10 +374,22 @@ export function PaymentProofsSection({
                   {formatMoney(balance.billTotal, currency)}
                 </span>
               </div>
+              {hasOwnerPaid ? (
+                <div className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="text-muted-foreground">
+                    Organiser had
+                  </span>
+                  <span className="font-medium tabular-nums">
+                    {formatMoney(balance.ownerPaid, currency)}
+                  </span>
+                </div>
+              ) : null}
               <div className="flex items-baseline justify-between gap-3 text-sm">
-                <span className="text-muted-foreground">Paid</span>
+                <span className="text-muted-foreground">
+                  {hasOwnerPaid ? "Transfers paid" : "Paid"}
+                </span>
                 <span className="font-medium tabular-nums">
-                  {formatMoney(balance.paidTotal, currency)}
+                  {formatMoney(balance.transfersPaid, currency)}
                 </span>
               </div>
               <div className="flex items-baseline justify-between gap-3 border-t border-border/70 pt-2.5 text-sm">

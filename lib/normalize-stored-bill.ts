@@ -109,6 +109,19 @@ export function normalizeStoredBill(data: unknown): StoredBill | null {
       : {}),
     ...(paymentReceipts ? { paymentReceipts } : {}),
     ...(participants.length > 0 ? { participants } : {}),
+    ...(() => {
+      const ownerPaid = Number(o.ownerPaid);
+      if (
+        typeof o.ownerPaid === "number" &&
+        Number.isFinite(ownerPaid) &&
+        ownerPaid > 0
+      ) {
+        return {
+          ownerPaid: Math.round(Math.min(ownerPaid, 1_000_000_000) * 100) / 100,
+        };
+      }
+      return {};
+    })(),
     ...(notifyTokens ? { notifyTokens } : {}),
     ...(typeof o.ownerTokenHash === "string"
       ? { ownerTokenHash: o.ownerTokenHash }

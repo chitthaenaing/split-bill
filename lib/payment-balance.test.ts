@@ -70,6 +70,8 @@ describe("payment-balance", () => {
       ]
     );
     assert.equal(bal.billTotal, 200);
+    assert.equal(bal.transfersPaid, 80);
+    assert.equal(bal.ownerPaid, 0);
     assert.equal(bal.paidTotal, 80);
     assert.equal(bal.remaining, 120);
     assert.equal(bal.hasUnknownAmounts, true);
@@ -77,5 +79,32 @@ describe("payment-balance", () => {
     assert.equal(isBillSettled(0), true);
     assert.equal(isBillSettled(0.004), true);
     assert.equal(isBillSettled(0.01), false);
+  });
+
+  it("subtracts organiser pre-share amount from remaining", () => {
+    const bal = computePaymentBalance(
+      {
+        items: [{ name: "Meal", price: 400, quantity: 1 }],
+        tax: 0,
+        serviceCharge: 0,
+        rounding: 0,
+        ownerPaid: 120.5,
+      },
+      [
+        {
+          id: "pay123ABCD",
+          url: "https://example.com/p.jpg",
+          contentType: "image/jpeg",
+          uploadedAt: 1,
+          payerName: "Alex",
+          amountPaid: 100,
+        },
+      ]
+    );
+    assert.equal(bal.billTotal, 400);
+    assert.equal(bal.ownerPaid, 120.5);
+    assert.equal(bal.transfersPaid, 100);
+    assert.equal(bal.paidTotal, 220.5);
+    assert.equal(bal.remaining, 179.5);
   });
 });
