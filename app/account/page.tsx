@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
   ExternalLink,
   Inbox,
   Loader2,
   Share2,
+  Users,
+  X,
 } from "lucide-react";
 import { AccountMenu } from "@/components/account-menu";
 import { AppLogo } from "@/components/app-logo";
@@ -50,96 +53,250 @@ function formatWhen(ts: number): string {
   }
 }
 
-/**
- * Shared links: show who paid and how much (not remaining-left).
- * Received links: keep a compact Settled / Open status.
- */
-function BillStatus({ link }: { link: UserBillLink }) {
+function SharedBillStatusChip({ link }: { link: UserBillLink }) {
   const settled = userBillIsSettled(link);
   const payers = Array.isArray(link.payers) ? link.payers : [];
-
-  if (link.role === "shared") {
-    if (payers.length === 0) {
-      return (
-        <span className="shrink-0 text-[11px] font-medium tracking-wide text-muted-foreground">
-          {settled ? "Settled" : "No payments yet"}
-        </span>
-      );
-    }
-    const visible = payers.slice(0, 3);
-    const extra = payers.length - visible.length;
-    return (
-      <div className="max-w-[11rem] shrink-0 text-right">
-        <ul className="space-y-0.5">
-          {visible.map((p) => (
-            <li
-              key={p.name}
-              className="truncate text-[11px] tabular-nums text-muted-foreground"
-            >
-              <span className="text-foreground/80">{p.name}</span>
-              <span className="ml-1.5 font-medium text-foreground">
-                {formatMoney(p.amountPaid, link.currency)}
-              </span>
-            </li>
-          ))}
-        </ul>
-        {extra > 0 ? (
-          <p className="mt-0.5 text-[10px] text-muted-foreground">
-            +{extra} more
-          </p>
-        ) : null}
-      </div>
-    );
-  }
+  const label =
+    payers.length > 0
+      ? `${payers.length} paid`
+      : settled
+        ? "Settled"
+        : "No payments yet";
 
   return (
     <span
       className={cn(
-        "shrink-0 text-[11px] font-medium tracking-wide",
-        settled
-          ? "text-emerald-700 dark:text-emerald-400"
+        "inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium tracking-wide",
+        payers.length > 0 || settled
+          ? "bg-muted text-foreground"
           : "text-muted-foreground"
       )}
     >
-      {settled ? "Settled" : "Open"}
+      <Users className="h-3 w-3 text-muted-foreground" />
+      {label}
     </span>
   );
 }
 
-function BillRow({ link }: { link: UserBillLink }) {
+function PaidUsersModal({
+  link,
+  onClose,
+}: {
+  link: UserBillLink;
+  onClose: () => void;
+}) {
+  const [mounted, setMounted] = useState(false);
+  const payers = Array.isArray(link.payers) ? link.payers : [];
+  const paidTotal = Number(link.paidTotal) || 0;
+  const settled = userBillIsSettled(link);
+
+  useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <AnimatePresence>
+      <motion.div
+        key="paid-users-backdrop"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.18 }}
+        onClick={onClose}
+        className="fixed inset-0 z-9999 grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="paid-users-title"
+      >
+        <motion.div
+          initial={{ scale: 0.96, y: 8 }}
+          animate={{ scale: 1, y: 0 }}
+          exit={{ scale: 0.96, y: 4 }}
+          transition={{ duration: 0.18 }}
+          onClick={(e) => e.stopPropagation()}
+          className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-xl shadow-black/15"
+        >
+          <div className="flex items-start justify-between gap-3 px-5 sm:px-6 pt-5 sm:pt-6 pb-3">
+            <div className="min-w-0">
+              <h2
+                id="paid-users-title"
+                className="text-lg font-semibold tracking-tight"
+              >
+                Payments
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {formatMoney(link.total, link.currency)} bill ·{" "}
+                {formatWhen(link.createdAt)}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="space-y-4 px-5 sm:px-6 pb-5 sm:pb-6">
+            <div className="rounded-xl border border-border bg-muted/20 px-3.5 py-3 space-y-2">
+              <div className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">Bill total</span>
+                <span className="font-medium tabular-nums">
+                  {formatMoney(link.total, link.currency)}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">Paid</span>
+                <span className="font-medium tabular-nums">
+                  {formatMoney(paidTotal, link.currency)}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3 border-t border-border/70 pt-2 text-sm">
+                <span className="font-medium">Status</span>
+                <span
+                  className={cn(
+                    "font-semibold",
+                    settled
+                      ? "text-emerald-700 dark:text-emerald-400"
+                      : "text-foreground"
+                  )}
+                >
+                  {settled ? "Settled" : "Open"}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">Who paid</p>
+              {payers.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-border px-3.5 py-6 text-center text-sm text-muted-foreground">
+                  No payment proofs yet.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border/70 rounded-xl border border-border">
+                  {payers.map((p) => (
+                    <li
+                      key={p.name}
+                      className="flex items-baseline justify-between gap-3 px-3.5 py-2.5 text-sm"
+                    >
+                      <span className="min-w-0 truncate text-foreground">
+                        {p.name}
+                      </span>
+                      <span className="shrink-0 font-medium tabular-nums">
+                        {formatMoney(p.amountPaid, link.currency)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <Link
+              href={`/b/${link.shareId}`}
+              onClick={onClose}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-medium text-accent-foreground transition-all hover:opacity-90 active:scale-[0.98]"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open bill
+            </Link>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>,
+    document.body
+  );
+}
+
+function BillRow({
+  link,
+  onOpenPayments,
+}: {
+  link: UserBillLink;
+  onOpenPayments?: (link: UserBillLink) => void;
+}) {
+  const settled = userBillIsSettled(link);
+  const isShared = link.role === "shared";
+
+  const content = (
+    <>
+      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-muted">
+        {link.receiptUrl ? (
+          <img
+            src={link.receiptUrl}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="grid h-full w-full place-items-center text-muted-foreground">
+            <Share2 className="h-4 w-4" />
+          </div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1 text-left">
+        <p className="truncate text-sm font-medium">
+          {formatMoney(link.total, link.currency)}
+          <span className="ml-2 font-normal text-muted-foreground">
+            · {link.itemCount} item{link.itemCount === 1 ? "" : "s"}
+          </span>
+        </p>
+        <p className="truncate text-xs text-muted-foreground">
+          {formatWhen(link.createdAt)}
+        </p>
+      </div>
+      {isShared ? (
+        <SharedBillStatusChip link={link} />
+      ) : (
+        <span
+          className={cn(
+            "shrink-0 text-[11px] font-medium tracking-wide",
+            settled
+              ? "text-emerald-700 dark:text-emerald-400"
+              : "text-muted-foreground"
+          )}
+        >
+          {settled ? "Settled" : "Open"}
+        </span>
+      )}
+      <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+    </>
+  );
+
   return (
     <li>
-      <Link
-        href={`/b/${link.shareId}`}
-        className="group flex items-center gap-3 rounded-xl px-1 py-3 transition-colors hover:bg-muted/50 sm:px-2"
-      >
-        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-muted">
-          {link.receiptUrl ? (
-            <img
-              src={link.receiptUrl}
-              alt=""
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="grid h-full w-full place-items-center text-muted-foreground">
-              <Share2 className="h-4 w-4" />
-            </div>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">
-            {formatMoney(link.total, link.currency)}
-            <span className="ml-2 font-normal text-muted-foreground">
-              · {link.itemCount} item{link.itemCount === 1 ? "" : "s"}
-            </span>
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {formatWhen(link.createdAt)}
-          </p>
-        </div>
-        <BillStatus link={link} />
-        <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-      </Link>
+      {isShared && onOpenPayments ? (
+        <button
+          type="button"
+          onClick={() => onOpenPayments(link)}
+          className="group flex w-full items-center gap-3 rounded-xl px-1 py-3 transition-colors hover:bg-muted/50 sm:px-2"
+        >
+          {content}
+        </button>
+      ) : (
+        <Link
+          href={`/b/${link.shareId}`}
+          className="group flex items-center gap-3 rounded-xl px-1 py-3 transition-colors hover:bg-muted/50 sm:px-2"
+        >
+          {content}
+        </Link>
+      )}
     </li>
   );
 }
@@ -148,10 +305,12 @@ function BillSection({
   title,
   empty,
   links,
+  onOpenPayments,
 }: {
   title: string;
   empty: string;
   links: UserBillLink[];
+  onOpenPayments?: (link: UserBillLink) => void;
 }) {
   return (
     <section className="space-y-2">
@@ -165,7 +324,11 @@ function BillSection({
       ) : (
         <ul className="divide-y divide-border/70">
           {links.map((link) => (
-            <BillRow key={link.shareId} link={link} />
+            <BillRow
+              key={link.shareId}
+              link={link}
+              onOpenPayments={onOpenPayments}
+            />
           ))}
         </ul>
       )}
@@ -233,6 +396,13 @@ export default function AccountPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
+  const [paymentsShareId, setPaymentsShareId] = useState<string | null>(null);
+  const paymentsLink =
+    paymentsShareId && bills
+      ? [...bills.shared, ...bills.received].find(
+          (l) => l.shareId === paymentsShareId
+        ) ?? null
+      : null;
 
   const refreshBalances = useCallback(
     async (uid: string, current: UserBillsResponse) => {
@@ -393,6 +563,7 @@ export default function AccountPage() {
                     title="Shared by you"
                     empty="You haven’t shared a bill while signed in yet."
                     links={bills.shared}
+                    onOpenPayments={(link) => setPaymentsShareId(link.shareId)}
                   />
                   <BillSection
                     title="Opened by you"
@@ -405,6 +576,13 @@ export default function AccountPage() {
           )}
         </motion.div>
       </main>
+
+      {paymentsLink ? (
+        <PaidUsersModal
+          link={paymentsLink}
+          onClose={() => setPaymentsShareId(null)}
+        />
+      ) : null}
 
       <footer className="mt-auto border-t border-border/50 py-5 px-4 text-center text-xs text-muted-foreground">
         Built with Next.js, Tailwind &amp; OpenAI.
