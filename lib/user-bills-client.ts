@@ -15,12 +15,16 @@ import { getFirebaseApp } from "./firebase-app";
 import { isValidShareId } from "./normalize-stored-bill";
 import type {
   UserBillLink,
+  UserBillPayer,
   UserBillRole,
   UserBillSummary,
   UserBillsResponse,
 } from "@/types/user-bills";
 
 export { summaryFromBill, userBillIsSettled } from "./user-bill-summary";
+
+const MAX_PAYERS = 40;
+const MAX_PAYER_NAME_LEN = 40;
 
 function db() {
   return getFirestore(getFirebaseApp());
@@ -37,6 +41,24 @@ function sanitizePaidTotal(value: unknown): number | undefined {
   return Math.max(0, Math.round(n * 100) / 100);
 }
 
+function sanitizePayers(raw: unknown): UserBillPayer[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const payers = raw
+    .map((row): UserBillPayer | null => {
+      if (!row || typeof row !== "object") return null;
+      const o = row as Record<string, unknown>;
+      const name = String(o.name ?? "")
+        .trim()
+        .slice(0, MAX_PAYER_NAME_LEN);
+      const amountPaid = sanitizePaidTotal(o.amountPaid);
+      if (!name || amountPaid === undefined || amountPaid <= 0) return null;
+      return { name, amountPaid };
+    })
+    .filter((p): p is UserBillPayer => p != null)
+    .slice(0, MAX_PAYERS);
+  return payers.length > 0 ? payers : undefined;
+}
+
 function sanitizeSummary(summary: UserBillSummary): UserBillSummary {
   const currency = String(summary.currency || "THB").slice(0, 8);
   const total = Number.isFinite(summary.total) ? Number(summary.total) : 0;
@@ -45,6 +67,7 @@ function sanitizeSummary(summary: UserBillSummary): UserBillSummary {
     Math.min(500, Math.floor(Number(summary.itemCount) || 0))
   );
   const paidTotal = sanitizePaidTotal(summary.paidTotal);
+  const payers = sanitizePayers(summary.payers);
   const receiptUrl =
     typeof summary.receiptUrl === "string" &&
     /^https?:\/\//i.test(summary.receiptUrl)
@@ -55,6 +78,7 @@ function sanitizeSummary(summary: UserBillSummary): UserBillSummary {
     total,
     itemCount,
     ...(paidTotal !== undefined ? { paidTotal } : {}),
+    ...(payers ? { payers } : {}),
     ...(receiptUrl ? { receiptUrl } : {}),
   };
 }
@@ -79,6 +103,7 @@ function parseLink(
       total: Number(data.total) || 0,
       itemCount: Number(data.itemCount) || 0,
       paidTotal: sanitizePaidTotal(data.paidTotal),
+      payers: sanitizePayers(data.payers),
       receiptUrl:
         typeof data.receiptUrl === "string" ? data.receiptUrl : undefined,
     }),
@@ -132,6 +157,7 @@ export async function recordUserBillLinkClient(opts: {
       ? "shared"
       : "received";
 
+  const payersProvided = Array.isArray(opts.summary.payers);
   const next: UserBillLink = {
     ...existing,
     role,
@@ -143,6 +169,13 @@ export async function recordUserBillLinkClient(opts: {
       ? { paidTotal: summary.paidTotal }
       : existing.paidTotal !== undefined
         ? { paidTotal: existing.paidTotal }
+        : {}),
+    ...(payersProvided
+      ? summary.payers
+        ? { payers: summary.payers }
+        : {}
+      : existing.payers
+        ? { payers: existing.payers }
         : {}),
     ...(summary.receiptUrl
       ? { receiptUrl: summary.receiptUrl }

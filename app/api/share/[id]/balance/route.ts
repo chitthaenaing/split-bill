@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { computePaymentBalance, isBillSettled } from "@/lib/payment-balance";
 import { getShare, isValidShareId } from "@/lib/share";
+import { payersFromBalance } from "@/lib/user-bill-summary";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Lightweight public balance for a share — used by My bills to show Settled/Open
- * without loading the full share page.
+ * Lightweight public balance for a share — used by My bills to show per-person
+ * paid totals (and Settled) without loading the full share page.
  */
 export async function GET(
   _req: Request,
@@ -24,6 +25,7 @@ export async function GET(
   }
 
   const balance = computePaymentBalance(bill, bill.paymentReceipts ?? []);
+  const payers = payersFromBalance(balance.byPayer);
   return NextResponse.json({
     shareId: id,
     currency: bill.currency || "THB",
@@ -32,6 +34,7 @@ export async function GET(
     remaining: balance.remaining,
     settled: isBillSettled(balance.remaining),
     itemCount: bill.items.length,
+    ...(payers.length > 0 ? { payers } : {}),
     ...(bill.receiptUrl ? { receiptUrl: bill.receiptUrl } : {}),
   });
 }

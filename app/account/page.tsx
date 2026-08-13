@@ -34,6 +34,7 @@ type ShareBalanceResponse = {
   remaining: number;
   settled: boolean;
   itemCount: number;
+  payers?: Array<{ name: string; amountPaid: number }>;
   receiptUrl?: string;
   error?: string;
 };
@@ -49,13 +50,47 @@ function formatWhen(ts: number): string {
   }
 }
 
-function SettlementLabel({ link }: { link: UserBillLink }) {
+/**
+ * Shared links: show who paid and how much (not remaining-left).
+ * Received links: keep a compact Settled / Open status.
+ */
+function BillStatus({ link }: { link: UserBillLink }) {
   const settled = userBillIsSettled(link);
-  const remaining = Math.max(
-    0,
-    Math.round(((Number(link.total) || 0) - (Number(link.paidTotal) || 0)) * 100) /
-      100
-  );
+  const payers = Array.isArray(link.payers) ? link.payers : [];
+
+  if (link.role === "shared") {
+    if (payers.length === 0) {
+      return (
+        <span className="shrink-0 text-[11px] font-medium tracking-wide text-muted-foreground">
+          {settled ? "Settled" : "No payments yet"}
+        </span>
+      );
+    }
+    const visible = payers.slice(0, 3);
+    const extra = payers.length - visible.length;
+    return (
+      <div className="max-w-[11rem] shrink-0 text-right">
+        <ul className="space-y-0.5">
+          {visible.map((p) => (
+            <li
+              key={p.name}
+              className="truncate text-[11px] tabular-nums text-muted-foreground"
+            >
+              <span className="text-foreground/80">{p.name}</span>
+              <span className="ml-1.5 font-medium text-foreground">
+                {formatMoney(p.amountPaid, link.currency)}
+              </span>
+            </li>
+          ))}
+        </ul>
+        {extra > 0 ? (
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            +{extra} more
+          </p>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <span
@@ -66,7 +101,7 @@ function SettlementLabel({ link }: { link: UserBillLink }) {
           : "text-muted-foreground"
       )}
     >
-      {settled ? "Settled" : remaining > 0 ? `${formatMoney(remaining, link.currency)} left` : "Open"}
+      {settled ? "Settled" : "Open"}
     </span>
   );
 }
@@ -102,7 +137,7 @@ function BillRow({ link }: { link: UserBillLink }) {
             {formatWhen(link.createdAt)}
           </p>
         </div>
-        <SettlementLabel link={link} />
+        <BillStatus link={link} />
         <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
       </Link>
     </li>
@@ -164,12 +199,26 @@ function mergeBalance(
   link: UserBillLink,
   balance: ShareBalanceResponse
 ): UserBillLink {
+  const payers = Array.isArray(balance.payers)
+    ? balance.payers
+        .map((p) => ({
+          name: String(p.name ?? "").trim(),
+          amountPaid: Number(p.amountPaid),
+        }))
+        .filter(
+          (p) =>
+            p.name.length > 0 &&
+            Number.isFinite(p.amountPaid) &&
+            p.amountPaid > 0
+        )
+    : [];
   return {
     ...link,
     currency: balance.currency || link.currency,
     total: balance.total,
     paidTotal: balance.paidTotal,
     itemCount: balance.itemCount || link.itemCount,
+    payers,
     ...(balance.receiptUrl
       ? { receiptUrl: balance.receiptUrl }
       : link.receiptUrl
@@ -205,6 +254,7 @@ export default function AccountPage() {
               total: next.total,
               itemCount: next.itemCount,
               paidTotal: next.paidTotal,
+              payers: next.payers ?? [],
               ...(next.receiptUrl ? { receiptUrl: next.receiptUrl } : {}),
             },
           }).catch(() => {});

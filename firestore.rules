@@ -68,6 +68,13 @@ service cloud.firestore {
         && (
           !('paidTotal' in request.resource.data)
           || request.resource.data.paidTotal is number
+        )
+        && (
+          !('payers' in request.resource.data)
+          || (
+            request.resource.data.payers is list
+            && request.resource.data.payers.size() <= 40
+          )
         );
 
       allow delete: if isOwner(userId);
