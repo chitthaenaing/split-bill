@@ -96,10 +96,6 @@ export function computeSplit(
     .filter((c): c is NonNullable<typeof c> => c != null);
 
   const additionalShareTotal = additionalShares.reduce((s, c) => s + c.share, 0);
-  const additionalBillTotal = additionalShares.reduce(
-    (s, c) => s + c.billAmount,
-    0
-  );
 
   const subtotalRounded = round2(selectedSubtotal);
   const total = round2(
@@ -111,12 +107,6 @@ export function computeSplit(
       roundingShare
   );
 
-  const itemsSum = round2(itemsTotal(items));
-  const billTotal = round2(
-    itemsSum + safeTax + safeSvc + additionalBillTotal + safeRnd - safeDiscount
-  );
-  const othersRemaining = round2(Math.max(0, billTotal - total));
-
   return {
     selectedSubtotal: subtotalRounded,
     discountShare,
@@ -125,9 +115,7 @@ export function computeSplit(
     roundingShare,
     additionalShares,
     total,
-    itemsTotal: itemsSum,
-    billTotal,
-    othersRemaining,
+    itemsTotal: round2(itemsTotal(items)),
     ratio,
   };
 }
