@@ -198,16 +198,6 @@ export type SplitBreakdown = {
   total: number;
   /** Sum of all items on the receipt (price * qty). */
   itemsTotal: number;
-  /**
-   * Full bill amount due (items + tax + service + extras + rounding − discount).
-   * Same equation as payment-balance `billAmountDue`.
-   */
-  billTotal: number;
-  /**
-   * What's left for everyone else after excluding this person's share
-   * (`billTotal − total`). Floored at 0 for display.
-   */
-  othersRemaining: number;
   /** Fraction of the full bill that the selected items represent. */
   ratio: number;
 };
